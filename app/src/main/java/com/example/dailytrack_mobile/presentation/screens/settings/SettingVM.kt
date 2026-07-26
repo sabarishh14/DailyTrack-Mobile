@@ -22,7 +22,7 @@ class SettingsVM(private val themeManager: ThemeManager) : ViewModel() {
                 try {
                     _state.update { it.copy(selectedTheme = AppTheme.valueOf(savedThemeName)) }
                 } catch (e: Exception) {
-                    _state.update { it.copy(selectedTheme = AppTheme.BLUE) }
+                    _state.update { it.copy(selectedTheme = AppTheme.YELLOW) }
                 }
             }
         }

@@ -17,9 +17,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
-import com.example.dailytrack_mobile.presentation.theme.BluePrimaryLight
-import com.example.dailytrack_mobile.presentation.theme.GreenPrimaryLight
-import com.example.dailytrack_mobile.presentation.theme.PurplePrimaryLight
+import com.example.dailytrack_mobile.presentation.theme.YellowThemeColors
+import com.example.dailytrack_mobile.presentation.theme.GreenThemeColors
+import com.example.dailytrack_mobile.presentation.theme.TealThemeColors
+import com.example.dailytrack_mobile.presentation.theme.PurpleThemeColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,22 +85,28 @@ fun ThemeSection(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             ThemeOption(
-                theme = AppTheme.BLUE,
-                color = BluePrimaryLight,
-                isSelected = selectedTheme == AppTheme.BLUE,
-                onClick = { onThemeSelected(AppTheme.BLUE) }
-            )
-            ThemeOption(
-                theme = AppTheme.PURPLE,
-                color = PurplePrimaryLight,
-                isSelected = selectedTheme == AppTheme.PURPLE,
-                onClick = { onThemeSelected(AppTheme.PURPLE) }
+                theme = AppTheme.YELLOW,
+                color = YellowThemeColors.lightScheme.primary,
+                isSelected = selectedTheme == AppTheme.YELLOW,
+                onClick = { onThemeSelected(AppTheme.YELLOW) }
             )
             ThemeOption(
                 theme = AppTheme.GREEN,
-                color = GreenPrimaryLight,
+                color = GreenThemeColors.lightScheme.primary,
                 isSelected = selectedTheme == AppTheme.GREEN,
                 onClick = { onThemeSelected(AppTheme.GREEN) }
+            )
+            ThemeOption(
+                theme = AppTheme.TEAL,
+                color = TealThemeColors.lightScheme.primary,
+                isSelected = selectedTheme == AppTheme.TEAL,
+                onClick = { onThemeSelected(AppTheme.TEAL) }
+            )
+            ThemeOption(
+                theme = AppTheme.PURPLE,
+                color = PurpleThemeColors.lightScheme.primary,
+                isSelected = selectedTheme == AppTheme.PURPLE,
+                onClick = { onThemeSelected(AppTheme.PURPLE) }
             )
         }
     }
