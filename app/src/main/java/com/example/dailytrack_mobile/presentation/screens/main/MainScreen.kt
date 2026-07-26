@@ -18,7 +18,7 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("DailyTrack Mobile") },
+                title = { Text("DailyTrack") },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(
