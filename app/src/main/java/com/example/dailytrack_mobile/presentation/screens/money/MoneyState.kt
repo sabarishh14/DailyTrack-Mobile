@@ -22,9 +22,10 @@ enum class FilterMode {
     EXCLUDE
 }
 
-enum class FilterVisibility {
-    ACTIVE,
-    EXCLUDED
+enum class QuickFilterPreset {
+    LAST_30_DAYS,
+    THIS_MONTH,
+    EXPENSES_ONLY
 }
 
 data class Transaction(
@@ -52,7 +53,6 @@ data class SpendingCategory(
 data class AnalysisFilterState(
     // Standard Binary Filters
     val selectedTypes: Set<TransactionType> = emptySet(), // Empty means neutral (all included)
-    val selectedVisibilities: Set<FilterVisibility> = emptySet(), // Empty means neutral (all included)
 
     // Complex Filters (Category & Account Include/Exclude)
     val categoryFilters: Map<String, ItemFilterStatus> = emptyMap(),
@@ -60,13 +60,13 @@ data class AnalysisFilterState(
 
     // Date & Time
     val financialYear: String? = null, // e.g. "FY 2025-26"
-    val customDateRange: Pair<Long?, Long?>? = null // Pair of Start & End epoch millis
+    val customDateRange: Pair<Long?, Long?>? = null, // Pair of Start & End epoch millis
+    val activeDatePreset: QuickFilterPreset? = null
 ) {
     val activeFilterCount: Int
         get() {
             var count = 0
             if (selectedTypes.isNotEmpty()) count += selectedTypes.size
-            if (selectedVisibilities.isNotEmpty()) count += selectedVisibilities.size
             count += categoryFilters.count { it.value != ItemFilterStatus.NEUTRAL }
             count += accountFilters.count { it.value != ItemFilterStatus.NEUTRAL }
             if (!financialYear.isNullOrBlank() && financialYear != "All Time") count += 1
@@ -131,18 +131,18 @@ data class MoneyState(
     val totalExpenses: Double = 31_500.0,
 
     val transactions: List<Transaction> = listOf(
-        Transaction("Swiggy Order",      "Jul 25", "HDFC",  488.0,    TransactionType.DEBIT,  "Food",          "🍔"),
-        Transaction("Netflix",           "Jul 24", "ICICI", 649.0,    TransactionType.DEBIT,  "Bills",         "📺"),
-        Transaction("Salary Credit",     "Jul 22", "Kotak", 95_000.0, TransactionType.CREDIT, "Income",        "💰"),
-        Transaction("Petrol Fill",       "Jul 22", "HDFC",  2_200.0,  TransactionType.DEBIT,  "Transport",     "⛽"),
-        Transaction("Amazon",            "Jul 20", "ICICI", 3_499.0,  TransactionType.DEBIT,  "Shopping",      "📦"),
-        Transaction("Gym Membership",    "Jul 18", "HDFC",  2_500.0,  TransactionType.DEBIT,  "Health",        "💪"),
-        Transaction("Freelance Payment", "Jul 16", "HDFC",  18_000.0, TransactionType.CREDIT, "Income",        "💸"),
-        Transaction("Electricity Bill",  "Jul 15", "SBI",   1_840.0,  TransactionType.DEBIT,  "Bills",         "⚡"),
-        Transaction("Zomato",            "Jul 14", "HDFC",  320.0,    TransactionType.DEBIT,  "Food",          "🍕"),
-        Transaction("Movie Tickets",     "Jul 12", "ICICI", 750.0,    TransactionType.DEBIT,  "Entertainment", "🎬"),
-        Transaction("Uber Ride",         "Jul 10", "HDFC",  380.0,    TransactionType.DEBIT,  "Transport",     "🚗"),
-        Transaction("PhonePe Cashback",  "Jul 8",  "HDFC",  100.0,    TransactionType.CREDIT, "Income",        "🎁"),
+        Transaction("Swiggy Order",      "Jul 25", "HDFC",  488.0,    TransactionType.DEBIT,  "Food",          "🍔", timestampMillis = System.currentTimeMillis() - 2L * 86400000),
+        Transaction("Netflix",           "Jul 24", "ICICI", 649.0,    TransactionType.DEBIT,  "Bills",         "📺", timestampMillis = System.currentTimeMillis() - 3L * 86400000),
+        Transaction("Salary Credit",     "Jul 22", "Kotak", 95_000.0, TransactionType.CREDIT, "Income",        "💰", timestampMillis = System.currentTimeMillis() - 5L * 86400000),
+        Transaction("Petrol Fill",       "Jul 22", "HDFC",  2_200.0,  TransactionType.DEBIT,  "Transport",     "⛽", timestampMillis = System.currentTimeMillis() - 5L * 86400000),
+        Transaction("Amazon",            "Jul 20", "ICICI", 3_499.0,  TransactionType.DEBIT,  "Shopping",      "📦", timestampMillis = System.currentTimeMillis() - 7L * 86400000),
+        Transaction("Gym Membership",    "Jul 18", "HDFC",  2_500.0,  TransactionType.DEBIT,  "Health",        "💪", timestampMillis = System.currentTimeMillis() - 9L * 86400000),
+        Transaction("Freelance Payment", "Jul 16", "HDFC",  18_000.0, TransactionType.CREDIT, "Income",        "💸", timestampMillis = System.currentTimeMillis() - 11L * 86400000),
+        Transaction("Electricity Bill",  "Jul 15", "SBI",   1_840.0,  TransactionType.DEBIT,  "Bills",         "⚡", timestampMillis = System.currentTimeMillis() - 12L * 86400000),
+        Transaction("Zomato",            "Jul 14", "HDFC",  320.0,    TransactionType.DEBIT,  "Food",          "🍕", timestampMillis = System.currentTimeMillis() - 13L * 86400000),
+        Transaction("Movie Tickets",     "Jul 12", "ICICI", 750.0,    TransactionType.DEBIT,  "Entertainment", "🎬", timestampMillis = System.currentTimeMillis() - 15L * 86400000),
+        Transaction("Uber Ride",         "Jul 10", "HDFC",  380.0,    TransactionType.DEBIT,  "Transport",     "🚗", timestampMillis = System.currentTimeMillis() - 17L * 86400000),
+        Transaction("PhonePe Cashback",  "Jul 8",  "HDFC",  100.0,    TransactionType.CREDIT, "Income",        "🎁", timestampMillis = System.currentTimeMillis() - 19L * 86400000),
     )
 ) {
     val allAvailableCategories: List<String>
@@ -181,14 +181,6 @@ data class MoneyState(
                 // Binary: Type filter
                 if (filters.selectedTypes.isNotEmpty() && !filters.selectedTypes.contains(tx.type)) {
                     return@filter false
-                }
-
-                // Binary: Visibility filter
-                if (filters.selectedVisibilities.isNotEmpty()) {
-                    val isTxActive = !tx.isExcluded
-                    val matchActive = filters.selectedVisibilities.contains(FilterVisibility.ACTIVE) && isTxActive
-                    val matchExcluded = filters.selectedVisibilities.contains(FilterVisibility.EXCLUDED) && tx.isExcluded
-                    if (!matchActive && !matchExcluded) return@filter false
                 }
 
                 // Category Include / Exclude

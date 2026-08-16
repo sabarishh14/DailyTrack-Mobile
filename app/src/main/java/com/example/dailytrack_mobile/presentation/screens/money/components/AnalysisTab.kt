@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Tune
@@ -39,9 +40,9 @@ import com.example.dailytrack_mobile.presentation.util.Dimens
 private fun formatCompact(amount: Double): String {
     val abs = Math.abs(amount)
     return when {
-        abs >= 1_00_000 -> "₹%.1fL".format(abs / 1_00_000)
-        abs >= 1_000    -> "₹%.1fK".format(abs / 1_000)
-        else            -> "₹%.0f".format(abs)
+        abs >= 1_00_000 -> String.format(java.util.Locale.US, "%.1fL", amount / 1_00_000)
+        abs >= 1_000 -> String.format(java.util.Locale.US, "%.1fk", amount / 1_000)
+        else -> String.format(java.util.Locale.US, "%.0f", amount)
     }
 }
 
@@ -51,7 +52,7 @@ private fun formatCompact(amount: Double): String {
 @Composable
 fun AnalysisTab(
     state: MoneyState,
-    onAction: (MoneyAction) -> Unit = {}
+    onAction: (MoneyAction) -> Unit
 ) {
     val dims = Dimens.current
     val categories = state.filteredSpendingCategories
@@ -69,17 +70,17 @@ fun AnalysisTab(
     ) {
         // Active Filter Bar / Trigger Header
         item {
-            AnalysisFilterHeader(
+            AnalysisFilterRow(
                 filterState = filterState,
                 onOpenFilterSheet = { onAction(MoneyAction.SetFilterSheetVisible(true)) },
                 onAction = onAction
             )
         }
 
-        // Spending Breakdown Donut Card
+        // Cash Flow Breakdown Donut Card
         item {
             if (categories.isNotEmpty()) {
-                SpendingBreakdownCard(
+                CashFlowBreakdownCard(
                     categories = categories,
                     periodLabel = filterState.financialYear ?: "JUL 2025"
                 )
@@ -101,11 +102,11 @@ fun AnalysisTab(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Analysis Filter Header & Active Chips Bar
+// Filter Row with Quick Presets and Active Removable Chips
 // ─────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AnalysisFilterHeader(
+private fun AnalysisFilterRow(
     filterState: AnalysisFilterState,
     onOpenFilterSheet: () -> Unit,
     onAction: (MoneyAction) -> Unit
@@ -163,7 +164,37 @@ private fun AnalysisFilterHeader(
                 shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
             )
 
-            // Active Financial Year Chip
+            // Vertical divider separating main filter button from quick pills
+            VerticalDivider(
+                modifier = Modifier.height(20.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+
+            // 1. "Last 30 Days" Quick Preset Pill
+            val isLast30Days = filterState.activeDatePreset == QuickFilterPreset.LAST_30_DAYS
+            QuickPresetChip(
+                text = "Last 30 Days",
+                isSelected = isLast30Days,
+                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_30_DAYS)) }
+            )
+
+            // 2. "This Month" Quick Preset Pill
+            val isThisMonth = filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH
+            QuickPresetChip(
+                text = "This Month",
+                isSelected = isThisMonth,
+                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.THIS_MONTH)) }
+            )
+
+            // 3. "Expenses Only" Quick Preset Pill
+            val isExpensesOnly = filterState.selectedTypes == setOf(TransactionType.DEBIT)
+            QuickPresetChip(
+                text = "Expenses Only",
+                isSelected = isExpensesOnly,
+                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
+            )
+
+            // Active Financial Year Chip (if selected via bottom sheet)
             if (!filterState.financialYear.isNullOrBlank() && filterState.financialYear != "All Time") {
                 ActiveFilterRemovableChip(
                     text = filterState.financialYear,
@@ -171,28 +202,24 @@ private fun AnalysisFilterHeader(
                 )
             }
 
-            // Active Custom Date Range Chip
-            filterState.formattedDateRange()?.let { rangeText ->
-                ActiveFilterRemovableChip(
-                    text = rangeText,
-                    onRemove = { onAction(MoneyAction.ClearDateRangeFilter) }
-                )
+            // Active Custom Date Range Chip (only if not a preset)
+            if (filterState.activeDatePreset == null) {
+                filterState.formattedDateRange()?.let { rangeText ->
+                    ActiveFilterRemovableChip(
+                        text = rangeText,
+                        onRemove = { onAction(MoneyAction.ClearDateRangeFilter) }
+                    )
+                }
             }
 
-            // Active Types
-            filterState.selectedTypes.forEach { type ->
-                ActiveFilterRemovableChip(
-                    text = if (type == TransactionType.DEBIT) "Debit" else "Credit",
-                    onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
-                )
-            }
-
-            // Active Visibilities
-            filterState.selectedVisibilities.forEach { vis ->
-                ActiveFilterRemovableChip(
-                    text = if (vis == FilterVisibility.ACTIVE) "Active" else "Excluded",
-                    onRemove = { onAction(MoneyAction.RemoveVisibilityFilter(vis)) }
-                )
+            // Active Types (if not standard single debit preset)
+            if (filterState.selectedTypes != setOf(TransactionType.DEBIT)) {
+                filterState.selectedTypes.forEach { type ->
+                    ActiveFilterRemovableChip(
+                        text = if (type == TransactionType.DEBIT) "Debit" else "Credit",
+                        onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
+                    )
+                }
             }
 
             // Active Category Filters (Included / Excluded)
@@ -237,8 +264,8 @@ private fun AnalysisFilterHeader(
                 }
             }
 
-            // Clear All quick button when multiple filters active
-            if (filterState.activeFilterCount > 1) {
+            // Clear All quick button when any filter is active
+            if (filterState.hasActiveFilters) {
                 TextButton(
                     onClick = { onAction(MoneyAction.ResetAnalysisFilters) },
                     contentPadding = PaddingValues(horizontal = 8.dp)
@@ -252,6 +279,54 @@ private fun AnalysisFilterHeader(
             }
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quick Preset Chip Component
+// ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickPresetChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val dims = Dimens.current
+    FilterChip(
+        selected = isSelected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                )
+            )
+        },
+        leadingIcon = if (isSelected) {
+            {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        } else null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = isSelected,
+            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -310,10 +385,10 @@ private fun ActiveFilterRemovableChip(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Spending Breakdown Card
+// Cash Flow Breakdown Card
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun SpendingBreakdownCard(
+private fun CashFlowBreakdownCard(
     categories: List<SpendingCategory>,
     periodLabel: String
 ) {
@@ -336,7 +411,7 @@ private fun SpendingBreakdownCard(
         ) {
             // Section label
             Text(
-                text = "SPENDING BREAKDOWN — ${periodLabel.uppercase()}",
+                text = "CASH FLOW BREAKDOWN — ${periodLabel.uppercase()}",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp

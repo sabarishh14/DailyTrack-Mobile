@@ -37,7 +37,7 @@ fun MoneyScreen(
         // Custom pill tab bar
         PillTabBar(
             selectedIndex = state.selectedTab,
-            tabs = listOf("Analysis", "List"),
+            tabs = listOf("Cash Flow", "Transactions"),
             onTabSelected = { viewModel.onAction(MoneyAction.SelectTab(it)) },
             modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge)
         )

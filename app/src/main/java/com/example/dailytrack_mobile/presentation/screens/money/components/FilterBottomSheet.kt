@@ -154,19 +154,13 @@ fun FilterBottomSheet(
                     thickness = 1.dp
                 )
 
-                // 2. Standard Binary Filters: Type & Visibility
-                BinaryFiltersSection(
+                // 2. Transaction Type Filter
+                TransactionTypeSection(
                     selectedTypes = draftFilters.selectedTypes,
                     onTypeToggle = { type ->
                         val updated = draftFilters.selectedTypes.toMutableSet()
                         if (updated.contains(type)) updated.remove(type) else updated.add(type)
                         draftFilters = draftFilters.copy(selectedTypes = updated)
-                    },
-                    selectedVisibilities = draftFilters.selectedVisibilities,
-                    onVisibilityToggle = { visibility ->
-                        val updated = draftFilters.selectedVisibilities.toMutableSet()
-                        if (updated.contains(visibility)) updated.remove(visibility) else updated.add(visibility)
-                        draftFilters = draftFilters.copy(selectedVisibilities = updated)
                     }
                 )
 
@@ -447,15 +441,13 @@ private fun DateTimeFilterSection(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Standard Binary Filters: Type & Visibility
+// Transaction Type Filter
 // ─────────────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BinaryFiltersSection(
+private fun TransactionTypeSection(
     selectedTypes: Set<TransactionType>,
-    onTypeToggle: (TransactionType) -> Unit,
-    selectedVisibilities: Set<FilterVisibility>,
-    onVisibilityToggle: (FilterVisibility) -> Unit
+    onTypeToggle: (TransactionType) -> Unit
 ) {
     val dims = Dimens.current
 
@@ -464,7 +456,7 @@ private fun BinaryFiltersSection(
         verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
     ) {
         Text(
-            text = "Transaction Type & Visibility",
+            text = "Transaction Type",
             style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.5.sp
@@ -473,123 +465,55 @@ private fun BinaryFiltersSection(
         )
 
         // Type Filter Chips Row
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = "Type",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Debit Chip
+            val isDebitSelected = selectedTypes.contains(TransactionType.DEBIT)
+            FilterChip(
+                selected = isDebitSelected,
+                onClick = { onTypeToggle(TransactionType.DEBIT) },
+                label = { Text("Debit") },
+                leadingIcon = if (isDebitSelected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Debit Chip
-                val isDebitSelected = selectedTypes.contains(TransactionType.DEBIT)
-                FilterChip(
-                    selected = isDebitSelected,
-                    onClick = { onTypeToggle(TransactionType.DEBIT) },
-                    label = { Text("Debit") },
-                    leadingIcon = if (isDebitSelected) {
-                        {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    } else null,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
-                )
 
-                // Credit Chip
-                val isCreditSelected = selectedTypes.contains(TransactionType.CREDIT)
-                FilterChip(
-                    selected = isCreditSelected,
-                    onClick = { onTypeToggle(TransactionType.CREDIT) },
-                    label = { Text("Credit") },
-                    leadingIcon = if (isCreditSelected) {
-                        {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    } else null,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Visibility Filter Chips Row
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = "Visibility",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            // Credit Chip
+            val isCreditSelected = selectedTypes.contains(TransactionType.CREDIT)
+            FilterChip(
+                selected = isCreditSelected,
+                onClick = { onTypeToggle(TransactionType.CREDIT) },
+                label = { Text("Credit") },
+                leadingIcon = if (isCreditSelected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Active Chip
-                val isActiveSelected = selectedVisibilities.contains(FilterVisibility.ACTIVE)
-                FilterChip(
-                    selected = isActiveSelected,
-                    onClick = { onVisibilityToggle(FilterVisibility.ACTIVE) },
-                    label = { Text("Active") },
-                    leadingIcon = if (isActiveSelected) {
-                        {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    } else null,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
-                )
-
-                // Excluded Chip
-                val isExcludedSelected = selectedVisibilities.contains(FilterVisibility.EXCLUDED)
-                FilterChip(
-                    selected = isExcludedSelected,
-                    onClick = { onVisibilityToggle(FilterVisibility.EXCLUDED) },
-                    label = { Text("Excluded") },
-                    leadingIcon = if (isExcludedSelected) {
-                        {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    } else null,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-                    ),
-                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
-                )
-            }
         }
     }
 }

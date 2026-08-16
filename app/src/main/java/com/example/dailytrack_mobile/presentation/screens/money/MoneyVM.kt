@@ -23,7 +23,7 @@ class MoneyVM : ViewModel() {
 
             is MoneyAction.ApplyAnalysisFilters -> _state.update {
                 it.copy(
-                    analysisFilterState = action.filterState,
+                    analysisFilterState = action.filterState.copy(activeDatePreset = null),
                     isFilterSheetVisible = false
                 )
             }
@@ -59,13 +59,65 @@ class MoneyVM : ViewModel() {
                 )
             }
 
-            is MoneyAction.RemoveVisibilityFilter -> _state.update { current ->
-                val updatedVis = current.analysisFilterState.selectedVisibilities.toMutableSet().apply {
-                    remove(action.visibility)
+            is MoneyAction.ToggleQuickPreset -> _state.update { current ->
+                val filters = current.analysisFilterState
+                when (action.preset) {
+                    QuickFilterPreset.LAST_30_DAYS -> {
+                        if (filters.activeDatePreset == QuickFilterPreset.LAST_30_DAYS) {
+                            current.copy(
+                                analysisFilterState = filters.copy(
+                                    customDateRange = null,
+                                    activeDatePreset = null
+                                )
+                            )
+                        } else {
+                            val now = System.currentTimeMillis()
+                            val thirtyDaysAgo = now - (30L * 24 * 60 * 60 * 1000)
+                            current.copy(
+                                analysisFilterState = filters.copy(
+                                    customDateRange = Pair(thirtyDaysAgo, now),
+                                    financialYear = null,
+                                    activeDatePreset = QuickFilterPreset.LAST_30_DAYS
+                                )
+                            )
+                        }
+                    }
+                    QuickFilterPreset.THIS_MONTH -> {
+                        if (filters.activeDatePreset == QuickFilterPreset.THIS_MONTH) {
+                            current.copy(
+                                analysisFilterState = filters.copy(
+                                    customDateRange = null,
+                                    activeDatePreset = null
+                                )
+                            )
+                        } else {
+                            val calendar = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.DAY_OF_MONTH, 1)
+                                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0)
+                                set(java.util.Calendar.MILLISECOND, 0)
+                            }
+                            val startOfMonth = calendar.timeInMillis
+                            val now = System.currentTimeMillis()
+                            current.copy(
+                                analysisFilterState = filters.copy(
+                                    customDateRange = Pair(startOfMonth, now),
+                                    financialYear = null,
+                                    activeDatePreset = QuickFilterPreset.THIS_MONTH
+                                )
+                            )
+                        }
+                    }
+                    QuickFilterPreset.EXPENSES_ONLY -> {
+                        val isExpensesOnly = filters.selectedTypes == setOf(TransactionType.DEBIT)
+                        current.copy(
+                            analysisFilterState = filters.copy(
+                                selectedTypes = if (isExpensesOnly) emptySet() else setOf(TransactionType.DEBIT)
+                            )
+                        )
+                    }
                 }
-                current.copy(
-                    analysisFilterState = current.analysisFilterState.copy(selectedVisibilities = updatedVis)
-                )
             }
 
             is MoneyAction.ClearFinancialYearFilter -> _state.update { current ->
@@ -76,7 +128,10 @@ class MoneyVM : ViewModel() {
 
             is MoneyAction.ClearDateRangeFilter -> _state.update { current ->
                 current.copy(
-                    analysisFilterState = current.analysisFilterState.copy(customDateRange = null)
+                    analysisFilterState = current.analysisFilterState.copy(
+                        customDateRange = null,
+                        activeDatePreset = null
+                    )
                 )
             }
         }

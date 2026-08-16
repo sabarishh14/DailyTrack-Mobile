@@ -12,7 +12,7 @@ sealed class MoneyAction {
     data class RemoveCategoryFilter(val category: String) : MoneyAction()
     data class RemoveAccountFilter(val account: String) : MoneyAction()
     data class RemoveTypeFilter(val type: TransactionType) : MoneyAction()
-    data class RemoveVisibilityFilter(val visibility: FilterVisibility) : MoneyAction()
+    data class ToggleQuickPreset(val preset: QuickFilterPreset) : MoneyAction()
     object ClearFinancialYearFilter : MoneyAction()
     object ClearDateRangeFilter : MoneyAction()
 }
