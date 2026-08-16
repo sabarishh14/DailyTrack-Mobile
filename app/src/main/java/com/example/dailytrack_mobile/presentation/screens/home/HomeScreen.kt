@@ -1,5 +1,11 @@
 package com.example.dailytrack_mobile.presentation.screens.home
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -21,10 +28,12 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Money
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -383,70 +392,209 @@ private fun NetWorthSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 2 – Bank Accounts (7 Accounts in 2-Column Cards Grid)
+// Section 2 – Bank Accounts (Collapsible, List vs Cards Toggle)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun BankAccountsSection() {
     val dims = Dimens.current
+    var isExpanded by rememberSaveable { mutableStateOf(true) }
+    var isGridView by rememberSaveable { mutableStateOf(true) }
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
+            // Header Row
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                SectionLabel(text = "BANK BALANCES")
-                Text(
-                    text  = "${bankAccounts.size} Accounts",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                SectionLabel(
+                    text    = "BANK BALANCES",
+                    onClick = { isExpanded = !isExpanded }
                 )
-            }
 
-            // 2-column grid of bank cards
-            val rows = bankAccounts.chunked(2)
-            Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
-                rows.forEach { rowAccounts ->
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text  = "${bankAccounts.size} Accounts",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Small toggle: Cards vs List
+                    Surface(
+                        shape  = RoundedCornerShape(8.dp),
+                        color  = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f),
+                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     ) {
-                        rowAccounts.forEach { account ->
-                            BankAccountCard(
-                                account  = account,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        if (rowAccounts.size < 2) {
-                            Spacer(modifier = Modifier.weight(1f))
+                        Row(
+                            modifier          = Modifier.padding(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Grid / Cards toggle
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isGridView) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication        = null
+                                    ) { isGridView = true }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector        = Icons.Default.GridView,
+                                    contentDescription = "Cards View",
+                                    tint               = if (isGridView) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier           = Modifier.size(13.dp)
+                                )
+                            }
+                            // List toggle
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (!isGridView) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication        = null
+                                    ) { isGridView = false }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector        = Icons.AutoMirrored.Filled.List,
+                                    contentDescription = "List View",
+                                    tint               = if (!isGridView) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier           = Modifier.size(13.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            HorizontalDivider(
-                thickness = 1.dp,
-                color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            )
-
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter   = expandVertically() + fadeIn(),
+                exit    = shrinkVertically() + fadeOut()
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
+                    AnimatedContent(
+                        targetState = isGridView,
+                        label       = "BankAccountsViewToggle"
+                    ) { targetIsGrid ->
+                        if (targetIsGrid) {
+                            // 2-column grid of bank cards
+                            val rows = bankAccounts.chunked(2)
+                            Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                                rows.forEach { rowAccounts ->
+                                    Row(
+                                        modifier              = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                                    ) {
+                                        rowAccounts.forEach { account ->
+                                            BankAccountCard(
+                                                account  = account,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        if (rowAccounts.size < 2) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Sleek list view of bank accounts
+                            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                bankAccounts.forEachIndexed { idx, account ->
+                                    BankAccountRow(account = account)
+                                    if (idx < bankAccounts.lastIndex) {
+                                        HorizontalDivider(
+                                            modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
+                                            thickness = 0.5.dp,
+                                            color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text  = "Total Balance",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text  = formatCurrencyFull(totalBankBalance),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BankAccountRow(account: BankAccount) {
+    val dims = Dimens.current
+    Row(
+        modifier              = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment     = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+        ) {
+            Box(
+                modifier         = Modifier
+                    .size(dims.avatarSizeMedium)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.AccountBalance,
+                    contentDescription = null,
+                    tint               = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier           = Modifier.size(dims.iconSizeSmall + 2.dp)
+                )
+            }
+            Column {
                 Text(
-                    text  = "Total Balance",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    text  = account.name,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text  = formatCurrencyFull(totalBankBalance),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
+                    text  = account.accountMask,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
+        Text(
+            text  = formatCurrencyFull(account.balance),
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -518,7 +666,7 @@ private fun BankAccountCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 3 – Investment Portfolio (Only Inv, Curr, Returns, Total Returns %)
+// Section 3 – Investment Portfolio (Collapsible on tapping name)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun InvestmentPortfolioSection() {
@@ -526,48 +674,64 @@ private fun InvestmentPortfolioSection() {
     val isOverallGain   = totalReturns >= 0
     val overallColor    = if (isOverallGain) GainGreen else LossRed
     val totalReturnsPct = if (totalInvested == 0.0) 0.0 else (totalReturns / totalInvested) * 100.0
+    var isExpanded by rememberSaveable { mutableStateOf(true) }
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
-            SectionLabel(text = "INVESTMENT PORTFOLIO")
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                SectionLabel(
+                    text    = "INVESTMENT PORTFOLIO",
+                    onClick = { isExpanded = !isExpanded }
+                )
+            }
 
-            // 2x2 Grid of metric cards
-            Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
-                // Row 1: Invested & Current
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
-                ) {
-                    PortfolioMetricCard(
-                        label    = "Invested",
-                        value    = formatCurrencyFull(totalInvested),
-                        modifier = Modifier.weight(1f)
-                    )
-                    PortfolioMetricCard(
-                        label    = "Current",
-                        value    = formatCurrencyFull(totalCurrent),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter   = expandVertically() + fadeIn(),
+                exit    = shrinkVertically() + fadeOut()
+            ) {
+                // 2x2 Grid of metric cards
+                Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                    // Row 1: Invested & Current
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                    ) {
+                        PortfolioMetricCard(
+                            label    = "Invested",
+                            value    = formatCurrencyFull(totalInvested),
+                            modifier = Modifier.weight(1f)
+                        )
+                        PortfolioMetricCard(
+                            label    = "Current",
+                            value    = formatCurrencyFull(totalCurrent),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                // Row 2: Returns & Total Return %
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
-                ) {
-                    PortfolioMetricCard(
-                        label      = "Returns",
-                        value      = "${if (isOverallGain) "+" else ""}${formatCurrencyFull(totalReturns)}",
-                        valueColor = overallColor,
-                        modifier   = Modifier.weight(1f)
-                    )
-                    PortfolioMetricCard(
-                        label      = "Total Return %",
-                        value      = "%s%.2f%%".format(if (isOverallGain) "+" else "", totalReturnsPct),
-                        valueColor = overallColor,
-                        icon       = if (isOverallGain) androidx.compose.material.icons.Icons.AutoMirrored.Filled.TrendingUp else androidx.compose.material.icons.Icons.AutoMirrored.Filled.TrendingDown,
-                        modifier   = Modifier.weight(1f)
-                    )
+                    // Row 2: Returns & Total Return %
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                    ) {
+                        PortfolioMetricCard(
+                            label      = "Returns",
+                            value      = "${if (isOverallGain) "+" else ""}${formatCurrencyFull(totalReturns)}",
+                            valueColor = overallColor,
+                            modifier   = Modifier.weight(1f)
+                        )
+                        PortfolioMetricCard(
+                            label      = "Total Return %",
+                            value      = "%s%.2f%%".format(if (isOverallGain) "+" else "", totalReturnsPct),
+                            valueColor = overallColor,
+                            icon       = if (isOverallGain) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                            modifier   = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -628,7 +792,7 @@ private fun PortfolioMetricCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sections 4 & 5 – Income / Expense breakdown with Month/Year Date Filter
+// Sections 4 & 5 – Income / Expense breakdown (Collapsible, Month/Year Filter)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun FlowSection(
@@ -642,7 +806,8 @@ private fun FlowSection(
     val dims = Dimens.current
     val accentColor = if (isIncome) GainGreen else LossRed
     val total       = flows.sumOf { it.amount }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var isExpanded by rememberSaveable { mutableStateOf(true) }
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
@@ -652,7 +817,10 @@ private fun FlowSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                SectionLabel(text = title)
+                SectionLabel(
+                    text    = title,
+                    onClick = { isExpanded = !isExpanded }
+                )
 
                 Surface(
                     onClick = { showDatePicker = true },
@@ -686,38 +854,46 @@ private fun FlowSection(
                 }
             }
 
-            // Total row
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter   = expandVertically() + fadeIn(),
+                exit    = shrinkVertically() + fadeOut()
             ) {
-                Text(
-                    text  = "Total ${if (isIncome) "Inflow" else "Outflow"}",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text  = formatCurrencyFull(total),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = accentColor
-                )
-            }
+                Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
+                    // Total row
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text  = "Total ${if (isIncome) "Inflow" else "Outflow"}",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text  = formatCurrencyFull(total),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = accentColor
+                        )
+                    }
 
-            HorizontalDivider(
-                thickness = 0.5.dp,
-                color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-            )
-
-            // Flow breakdown items
-            flows.forEachIndexed { idx, flow ->
-                FlowRow(flow = flow, accentColor = accentColor)
-                if (idx < flows.lastIndex) {
                     HorizontalDivider(
-                        modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
                         thickness = 0.5.dp,
                         color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                     )
+
+                    // Flow breakdown items
+                    flows.forEachIndexed { idx, flow ->
+                        FlowRow(flow = flow, accentColor = accentColor)
+                        if (idx < flows.lastIndex) {
+                            HorizontalDivider(
+                                modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
+                                thickness = 0.5.dp,
+                                color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -829,7 +1005,7 @@ private fun MonthYearPickerDialog(
                 ) {
                     IconButton(onClick = { displayYear-- }) {
                         Icon(
-                            androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                             contentDescription = "Previous year",
                             tint               = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -841,7 +1017,7 @@ private fun MonthYearPickerDialog(
                     )
                     IconButton(onClick = { displayYear++ }) {
                         Icon(
-                            androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = "Next year",
                             tint               = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -923,13 +1099,25 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
     Text(
-        text  = text,
-        style = MaterialTheme.typography.labelLarge.copy(
+        text     = text,
+        style    = MaterialTheme.typography.labelLarge.copy(
             fontWeight    = FontWeight.Bold,
             letterSpacing = 1.5.sp
         ),
-        color = MaterialTheme.colorScheme.primary
+        color    = MaterialTheme.colorScheme.primary,
+        modifier = if (onClick != null) {
+            modifier
+                .clip(RoundedCornerShape(4.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication        = null
+                ) { onClick() }
+        } else modifier
     )
 }
