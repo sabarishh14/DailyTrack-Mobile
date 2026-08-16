@@ -1,34 +1,47 @@
 package com.example.dailytrack_mobile.presentation.screens.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Money
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.dailytrack_mobile.presentation.util.Dimens
+import java.time.Month
+import java.time.format.TextStyle
 import java.util.Calendar
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,13 +76,16 @@ private data class FlowBreakdown(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock data
+// Mock data (7 bank accounts and investments)
 // ─────────────────────────────────────────────────────────────────────────────
 private val bankAccounts = listOf(
-    BankAccount("HDFC Savings",  "xxxx 4821", 1_24_500.75),
-    BankAccount("SBI Current",   "xxxx 9034",  87_250.00),
-    BankAccount("Axis Savings",  "xxxx 1173",  42_000.50),
-    BankAccount("ICICI Salary",  "xxxx 6602", 2_18_340.00),
+    BankAccount("HDFC Savings",    "xxxx 4821", 1_24_500.75),
+    BankAccount("ICICI Salary",    "xxxx 6602", 2_18_340.00),
+    BankAccount("SBI Current",     "xxxx 9034",   87_250.00),
+    BankAccount("Axis Savings",    "xxxx 1173",   42_000.50),
+    BankAccount("Kotak Mahindra",  "xxxx 3391",   65_400.00),
+    BankAccount("Bank of Baroda",  "xxxx 7712",   31_800.25),
+    BankAccount("IndusInd Bank",   "xxxx 5549",   18_920.00),
 )
 
 private val investments = listOf(
@@ -79,31 +95,38 @@ private val investments = listOf(
     Investment("Gold ETF",         20_000.0,    22_100.0),
 )
 
-private val totalInvested = investments.sumOf { it.invested }
-private val totalCurrent  = investments.sumOf { it.current }
-private val totalReturns  = totalCurrent - totalInvested
-private val cashBalance   = 15_000.0
-private val totalNetWorth = bankAccounts.sumOf { it.balance } + totalCurrent + cashBalance
+private val totalInvested    = investments.sumOf { it.invested }
+private val totalCurrent     = investments.sumOf { it.current }
+private val totalReturns     = totalCurrent - totalInvested
+private val cashBalance      = 15_000.0
+private val totalBankBalance = bankAccounts.sumOf { it.balance }
+private val totalNetWorth    = totalBankBalance + totalCurrent + cashBalance
 
-private val incomeBreakdown = listOf(
-    FlowBreakdown("Cash",         Icons.Default.Money,          15_000.0),
-    FlowBreakdown("HDFC Savings", Icons.Default.AccountBalance, 45_000.0),
-    FlowBreakdown("SBI Current",  Icons.Default.AccountBalance, 12_500.0),
-    FlowBreakdown("Axis Savings", Icons.Default.AccountBalance,  8_000.0),
-    FlowBreakdown("ICICI Salary", Icons.Default.AccountBalance, 85_000.0),
-    FlowBreakdown("HDFC CC",      Icons.Default.CreditCard,          0.0),
-    FlowBreakdown("SBI CC",       Icons.Default.CreditCard,          0.0),
-)
+private fun getIncomeBreakdown(month: Month, year: Int): List<FlowBreakdown> {
+    val factor = 1.0 + ((month.value % 5) - 2) * 0.05
+    return listOf(
+        FlowBreakdown("Cash",         Icons.Default.Money,          15_000.0 * factor),
+        FlowBreakdown("HDFC Savings", Icons.Default.AccountBalance, 45_000.0 * factor),
+        FlowBreakdown("SBI Current",  Icons.Default.AccountBalance, 12_500.0 * factor),
+        FlowBreakdown("Axis Savings", Icons.Default.AccountBalance,  8_000.0 * factor),
+        FlowBreakdown("ICICI Salary", Icons.Default.AccountBalance, 85_000.0 * factor),
+        FlowBreakdown("HDFC CC",      Icons.Default.CreditCard,          0.0),
+        FlowBreakdown("SBI CC",       Icons.Default.CreditCard,          0.0),
+    )
+}
 
-private val expenseBreakdown = listOf(
-    FlowBreakdown("Cash",         Icons.Default.Money,           3_500.0),
-    FlowBreakdown("HDFC Savings", Icons.Default.AccountBalance, 12_400.0),
-    FlowBreakdown("SBI Current",  Icons.Default.AccountBalance,  4_200.0),
-    FlowBreakdown("Axis Savings", Icons.Default.AccountBalance,  1_800.0),
-    FlowBreakdown("ICICI Salary", Icons.Default.AccountBalance,  9_100.0),
-    FlowBreakdown("HDFC CC",      Icons.Default.CreditCard,     18_600.0),
-    FlowBreakdown("SBI CC",       Icons.Default.CreditCard,      6_300.0),
-)
+private fun getExpenseBreakdown(month: Month, year: Int): List<FlowBreakdown> {
+    val factor = 1.0 + ((month.value % 4) - 1.5) * 0.06
+    return listOf(
+        FlowBreakdown("Cash",         Icons.Default.Money,           3_500.0 * factor),
+        FlowBreakdown("HDFC Savings", Icons.Default.AccountBalance, 12_400.0 * factor),
+        FlowBreakdown("SBI Current",  Icons.Default.AccountBalance,  4_200.0 * factor),
+        FlowBreakdown("Axis Savings", Icons.Default.AccountBalance,  1_800.0 * factor),
+        FlowBreakdown("ICICI Salary", Icons.Default.AccountBalance,  9_100.0 * factor),
+        FlowBreakdown("HDFC CC",      Icons.Default.CreditCard,     18_600.0 * factor),
+        FlowBreakdown("SBI CC",       Icons.Default.CreditCard,      6_300.0 * factor),
+    )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -134,14 +157,24 @@ private fun formatCurrencyFull(amount: Double): String {
 @Composable
 fun HomeScreen() {
     val dims = Dimens.current
+    var selectedMonth by remember { mutableStateOf(Month.AUGUST) }
+    var selectedYear by remember { mutableIntStateOf(2026) }
+
+    val incomeFlows = remember(selectedMonth, selectedYear) {
+        getIncomeBreakdown(selectedMonth, selectedYear)
+    }
+    val expenseFlows = remember(selectedMonth, selectedYear) {
+        getExpenseBreakdown(selectedMonth, selectedYear)
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(
-            start = dims.screenHorizontalPadding,
-            end = dims.screenHorizontalPadding,
-            top = dims.screenTopPadding,
+            start  = dims.screenHorizontalPadding,
+            end    = dims.screenHorizontalPadding,
+            top    = dims.screenTopPadding,
             bottom = dims.screenBottomPadding
         ),
         verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
@@ -150,8 +183,32 @@ fun HomeScreen() {
         item { NetWorthSection() }
         item { BankAccountsSection() }
         item { InvestmentPortfolioSection() }
-        item { FlowSection(title = "TOTAL INCOME",   flows = incomeBreakdown,  isIncome = true)  }
-        item { FlowSection(title = "TOTAL EXPENSES", flows = expenseBreakdown, isIncome = false) }
+        item {
+            FlowSection(
+                title         = "TOTAL INCOME",
+                flows         = incomeFlows,
+                isIncome      = true,
+                selectedMonth = selectedMonth,
+                selectedYear  = selectedYear,
+                onDateChange  = { m, y ->
+                    selectedMonth = m
+                    selectedYear  = y
+                }
+            )
+        }
+        item {
+            FlowSection(
+                title         = "TOTAL EXPENSES",
+                flows         = expenseFlows,
+                isIncome      = false,
+                selectedMonth = selectedMonth,
+                selectedYear  = selectedYear,
+                onDateChange  = { m, y ->
+                    selectedMonth = m
+                    selectedYear  = y
+                }
+            )
+        }
     }
 }
 
@@ -266,62 +323,113 @@ private fun SheetsActionBox() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 1 – Net Worth
+// Section 1 – Swipeable Balance & Net Worth Header Card (No Pagination)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun NetWorthSection() {
     val dims = Dimens.current
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
+
     SectionCard {
-        Column(
-            modifier            = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            SectionLabel(text = "NET WORTH")
-            Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
-            Text(
-                text  = formatCurrencyFull(totalNetWorth),
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = dims.fontSizeDisplayLarge
-                ),
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text  = "Banks · Cash · Investments",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        HorizontalPager(
+            state    = pagerState,
+            modifier = Modifier.fillMaxWidth()
+        ) { page ->
+            Column(
+                modifier            = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = dims.itemSpacingSmall),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (page == 0) {
+                    SectionLabel(text = "TOTAL BANK BALANCE")
+                    Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                    Text(
+                        text  = formatCurrencyFull(totalBankBalance),
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = dims.fontSizeDisplayLarge
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text  = "${bankAccounts.size} Linked Bank Accounts",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    SectionLabel(text = "NET WORTH")
+                    Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                    Text(
+                        text  = formatCurrencyFull(totalNetWorth),
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = dims.fontSizeDisplayLarge
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text  = "Banks · Cash · Investments",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 2 – Bank Accounts
+// Section 2 – Bank Accounts (7 Accounts in 2-Column Cards Grid)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun BankAccountsSection() {
     val dims = Dimens.current
+
     SectionCard {
-        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            SectionLabel(text = "BANK BALANCES")
-            Spacer(modifier = Modifier.height(dims.itemSpacingLarge))
-            bankAccounts.forEachIndexed { idx, account ->
-                BankAccountRow(account = account)
-                if (idx < bankAccounts.lastIndex) {
-                    HorizontalDivider(
-                        modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
-                        thickness = 0.5.dp,
-                        color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                    )
+        Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                SectionLabel(text = "BANK BALANCES")
+                Text(
+                    text  = "${bankAccounts.size} Accounts",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // 2-column grid of bank cards
+            val rows = bankAccounts.chunked(2)
+            Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                rows.forEach { rowAccounts ->
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                    ) {
+                        rowAccounts.forEach { account ->
+                            BankAccountCard(
+                                account  = account,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (rowAccounts.size < 2) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
+
             HorizontalDivider(
-                modifier  = Modifier.padding(vertical = dims.itemSpacingLarge),
                 thickness = 1.dp,
                 color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
+
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -333,7 +441,7 @@ private fun BankAccountsSection() {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text  = formatCurrencyFull(bankAccounts.sumOf { it.balance }),
+                    text  = formatCurrencyFull(totalBankBalance),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -343,145 +451,122 @@ private fun BankAccountsSection() {
 }
 
 @Composable
-private fun BankAccountRow(account: BankAccount) {
+private fun BankAccountCard(
+    account: BankAccount,
+    modifier: Modifier = Modifier
+) {
     val dims = Dimens.current
-    Row(
-        modifier              = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+    Card(
+        modifier  = modifier,
+        shape     = RoundedCornerShape(12.dp),
+        colors    = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f)
+        ),
+        border    = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+        Column(
+            modifier            = Modifier
+                .fillMaxWidth()
+                .padding(dims.itemSpacingLarge),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Box(
-                modifier         = Modifier
-                    .size(dims.avatarSizeMedium)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector        = Icons.Default.AccountBalance,
-                    contentDescription = null,
-                    tint               = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier           = Modifier.size(dims.iconSizeSmall + 2.dp)
-                )
-            }
-            Column {
-                Text(
-                    text  = account.name,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Box(
+                    modifier         = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.AccountBalance,
+                        contentDescription = null,
+                        tint               = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier           = Modifier.size(16.dp)
+                    )
+                }
                 Text(
                     text  = account.accountMask,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text     = account.name,
+                    style    = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color    = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text     = formatCurrencyFull(account.balance),
+                    style    = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color    = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
-        Text(
-            text  = formatCurrencyFull(account.balance),
-            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section 3 – Investment Portfolio
+// Section 3 – Investment Portfolio (Only Inv, Curr, Returns, Total Returns %)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun InvestmentPortfolioSection() {
     val dims = Dimens.current
-    val isOverallGain = totalReturns >= 0
-    val overallColor  = if (isOverallGain) GainGreen else LossRed
+    val isOverallGain   = totalReturns >= 0
+    val overallColor    = if (isOverallGain) GainGreen else LossRed
+    val totalReturnsPct = if (totalInvested == 0.0) 0.0 else (totalReturns / totalInvested) * 100.0
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
             SectionLabel(text = "INVESTMENT PORTFOLIO")
 
-            // ── Overall summary banner ────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(dims.buttonCornerRadius))
-                    .background(overallColor.copy(alpha = 0.08f))
-                    .border(
-                        width = 1.dp,
-                        color = overallColor.copy(alpha = 0.25f),
-                        shape = RoundedCornerShape(dims.buttonCornerRadius)
-                    )
-                    .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingLarge),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Invested",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        text  = formatCurrencyFull(totalInvested),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            // 2x2 Grid of metric cards
+            Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                // Row 1: Invested & Current
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
                 ) {
-                    Text("Current",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        text  = formatCurrencyFull(totalCurrent),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                    PortfolioMetricCard(
+                        label    = "Invested",
+                        value    = formatCurrencyFull(totalInvested),
+                        modifier = Modifier.weight(1f)
+                    )
+                    PortfolioMetricCard(
+                        label    = "Current",
+                        value    = formatCurrencyFull(totalCurrent),
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text("Returns",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isOverallGain) Icons.Default.TrendingUp
-                                          else Icons.Default.TrendingDown,
-                            contentDescription = null,
-                            tint     = overallColor,
-                            modifier = Modifier.size(dims.iconSizeSmall)
-                        )
-                        Text(
-                            text  = "${if (isOverallGain) "+" else ""}${formatCurrency(totalReturns)}",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = overallColor
-                        )
-                    }
-                    val pctSign = if (totalReturns >= 0) "+" else ""
-                    Text(
-                        text  = "%s%.2f%%".format(pctSign, (totalReturns / totalInvested) * 100),
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = overallColor
-                    )
-                }
-            }
 
-            // ── Individual holdings ───────────────────────────────────────
-            SectionLabel(text = "HOLDINGS")
-            investments.forEachIndexed { idx, inv ->
-                InvestmentRow(investment = inv)
-                if (idx < investments.lastIndex) {
-                    HorizontalDivider(
-                        modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
-                        thickness = 0.5.dp,
-                        color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                // Row 2: Returns & Total Return %
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                ) {
+                    PortfolioMetricCard(
+                        label      = "Returns",
+                        value      = "${if (isOverallGain) "+" else ""}${formatCurrencyFull(totalReturns)}",
+                        valueColor = overallColor,
+                        modifier   = Modifier.weight(1f)
+                    )
+                    PortfolioMetricCard(
+                        label      = "Total Return %",
+                        value      = "%s%.2f%%".format(if (isOverallGain) "+" else "", totalReturnsPct),
+                        valueColor = overallColor,
+                        icon       = if (isOverallGain) androidx.compose.material.icons.Icons.AutoMirrored.Filled.TrendingUp else androidx.compose.material.icons.Icons.AutoMirrored.Filled.TrendingDown,
+                        modifier   = Modifier.weight(1f)
                     )
                 }
             }
@@ -490,95 +575,141 @@ private fun InvestmentPortfolioSection() {
 }
 
 @Composable
-private fun InvestmentRow(investment: Investment) {
+private fun PortfolioMetricCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    icon: ImageVector? = null
+) {
     val dims = Dimens.current
-    val gainColor = if (investment.isGain) GainGreen else LossRed
-    val pctSign   = if (investment.isGain) "+" else ""
-
-    Row(
-        modifier              = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+    Card(
+        modifier  = modifier,
+        shape     = RoundedCornerShape(12.dp),
+        colors    = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f)
+        ),
+        border    = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-            modifier              = Modifier.weight(1f)
+        Column(
+            modifier            = Modifier
+                .fillMaxWidth()
+                .padding(dims.itemSpacingLarge),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Box(
-                modifier         = Modifier
-                    .size(dims.avatarSizeMedium)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(gainColor.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
+            Text(
+                text  = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector        = Icons.Default.ShowChart,
-                    contentDescription = null,
-                    tint               = gainColor,
-                    modifier           = Modifier.size(dims.iconSizeSmall + 2.dp)
+                if (icon != null) {
+                    Icon(
+                        imageVector        = icon,
+                        contentDescription = null,
+                        tint               = valueColor,
+                        modifier           = Modifier.size(16.dp)
+                    )
+                }
+                Text(
+                    text     = value,
+                    style    = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color    = valueColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Column {
-                Text(
-                    text  = investment.name,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text  = "Invested: ${formatCurrency(investment.invested)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text  = formatCurrency(investment.current),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text  = "%s%s (%.1f%%)".format(
-                    pctSign,
-                    formatCurrency(investment.returns),
-                    investment.returnsPercent
-                ),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = gainColor
-            )
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sections 4 & 5 – Income / Expense breakdown
+// Sections 4 & 5 – Income / Expense breakdown with Month/Year Date Filter
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun FlowSection(
-    title    : String,
-    flows    : List<FlowBreakdown>,
-    isIncome : Boolean
+    title: String,
+    flows: List<FlowBreakdown>,
+    isIncome: Boolean,
+    selectedMonth: Month,
+    selectedYear: Int,
+    onDateChange: (Month, Int) -> Unit
 ) {
     val dims = Dimens.current
     val accentColor = if (isIncome) GainGreen else LossRed
     val total       = flows.sumOf { it.amount }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     SectionCard {
-        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
+            // Header row with Section Label and Month/Year filter pill
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 SectionLabel(text = title)
+
+                Surface(
+                    onClick = { showDatePicker = true },
+                    shape   = RoundedCornerShape(8.dp),
+                    color   = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f),
+                    border  = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                ) {
+                    Row(
+                        modifier              = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Default.CalendarMonth,
+                            contentDescription = "Select Month & Year",
+                            tint               = MaterialTheme.colorScheme.primary,
+                            modifier           = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text  = "${selectedMonth.getDisplayName(TextStyle.SHORT, Locale.getDefault())} $selectedYear",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Icon(
+                            imageVector        = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint               = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier           = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            // Total row
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                Text(
+                    text  = "Total ${if (isIncome) "Inflow" else "Outflow"}",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Text(
                     text  = formatCurrencyFull(total),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = accentColor
                 )
             }
-            Spacer(modifier = Modifier.height(dims.itemSpacingLarge))
+
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+
+            // Flow breakdown items
             flows.forEachIndexed { idx, flow ->
                 FlowRow(flow = flow, accentColor = accentColor)
                 if (idx < flows.lastIndex) {
@@ -590,6 +721,18 @@ private fun FlowSection(
                 }
             }
         }
+    }
+
+    if (showDatePicker) {
+        MonthYearPickerDialog(
+            selectedMonth = selectedMonth,
+            selectedYear  = selectedYear,
+            onDismiss     = { showDatePicker = false },
+            onSelected    = { m, y ->
+                showDatePicker = false
+                onDateChange(m, y)
+            }
+        )
     }
 }
 
@@ -631,6 +774,128 @@ private fun FlowRow(flow: FlowBreakdown, accentColor: Color) {
             color = if (flow.amount == 0.0) MaterialTheme.colorScheme.onSurfaceVariant
                     else accentColor
         )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Month/Year picker dialog
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun MonthYearPickerDialog(
+    selectedMonth: Month,
+    selectedYear: Int,
+    onDismiss: () -> Unit,
+    onSelected: (Month, Int) -> Unit
+) {
+    var displayYear by remember { mutableIntStateOf(selectedYear) }
+    val dims = Dimens.current
+    val screenWidth = LocalConfiguration.current.screenWidthDp
+    val dialogFraction = when {
+        screenWidth < 360  -> 0.92f
+        screenWidth <= 410 -> 0.88f
+        else               -> 0.82f
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties       = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape     = RoundedCornerShape(dims.cardCornerRadius + 4.dp),
+            colors    = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier  = Modifier
+                .fillMaxWidth(dialogFraction)
+                .wrapContentHeight()
+        ) {
+            Column(
+                modifier            = Modifier.padding(dims.cardInnerPadding),
+                verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+            ) {
+                // Dialog title
+                Text(
+                    text  = "Select Month & Year",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // Year navigation
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { displayYear-- }) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = "Previous year",
+                            tint               = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text  = displayYear.toString(),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(onClick = { displayYear++ }) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Next year",
+                            tint               = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+
+                // Month grid (3 columns × 4 rows)
+                val months  = Month.entries
+                val chunked = months.chunked(3)
+                chunked.forEach { row ->
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                    ) {
+                        row.forEach { month ->
+                            val isSelected = month == selectedMonth && displayYear == selectedYear
+                            val bgColor = if (isSelected)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                Color.Transparent
+                            val textColor = if (isSelected)
+                                MaterialTheme.colorScheme.onPrimary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(bgColor)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication        = null
+                                    ) { onSelected(month, displayYear) }
+                                    .padding(vertical = dims.itemSpacingLarge),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text  = month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = textColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
