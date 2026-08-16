@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dailytrack_mobile.presentation.screens.money.components.AnalysisTab
+import com.example.dailytrack_mobile.presentation.screens.money.components.FilterBottomSheet
 import com.example.dailytrack_mobile.presentation.screens.money.components.TransactionsTab
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
@@ -54,13 +55,31 @@ fun MoneyScreen(
             label = "MoneyTabContent"
         ) { tabIndex ->
             when (tabIndex) {
-                0 -> AnalysisTab(state = state)
+                0 -> AnalysisTab(
+                    state = state,
+                    onAction = viewModel::onAction
+                )
                 1 -> TransactionsTab(
                     state = state,
                     onAction = viewModel::onAction
                 )
             }
         }
+    }
+
+    // Filter Bottom Sheet for Spending Analyzer
+    if (state.isFilterSheetVisible) {
+        FilterBottomSheet(
+            filterState = state.analysisFilterState,
+            allCategories = state.allAvailableCategories,
+            allAccounts = state.allAvailableAccounts,
+            onApply = { updatedFilters ->
+                viewModel.onAction(MoneyAction.ApplyAnalysisFilters(updatedFilters))
+            },
+            onDismiss = {
+                viewModel.onAction(MoneyAction.SetFilterSheetVisible(false))
+            }
+        )
     }
 }
 

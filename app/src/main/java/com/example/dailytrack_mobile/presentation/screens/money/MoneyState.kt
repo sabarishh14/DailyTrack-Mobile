@@ -1,12 +1,31 @@
 package com.example.dailytrack_mobile.presentation.screens.money
 
 import androidx.compose.ui.graphics.Color
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data models
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum class TransactionType { CREDIT, DEBIT }
+
+enum class ItemFilterStatus {
+    NEUTRAL,
+    INCLUDED,
+    EXCLUDED
+}
+
+enum class FilterMode {
+    INCLUDE,
+    EXCLUDE
+}
+
+enum class FilterVisibility {
+    ACTIVE,
+    EXCLUDED
+}
 
 data class Transaction(
     val title: String,
@@ -15,7 +34,9 @@ data class Transaction(
     val amount: Double,
     val type: TransactionType,
     val category: String,
-    val emoji: String
+    val emoji: String,
+    val isExcluded: Boolean = false,
+    val timestampMillis: Long = System.currentTimeMillis()
 )
 
 data class SpendingCategory(
@@ -23,6 +44,52 @@ data class SpendingCategory(
     val amount: Double,
     val color: Color
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter State
+// ─────────────────────────────────────────────────────────────────────────────
+
+data class AnalysisFilterState(
+    // Standard Binary Filters
+    val selectedTypes: Set<TransactionType> = emptySet(), // Empty means neutral (all included)
+    val selectedVisibilities: Set<FilterVisibility> = emptySet(), // Empty means neutral (all included)
+
+    // Complex Filters (Category & Account Include/Exclude)
+    val categoryFilters: Map<String, ItemFilterStatus> = emptyMap(),
+    val accountFilters: Map<String, ItemFilterStatus> = emptyMap(),
+
+    // Date & Time
+    val financialYear: String? = null, // e.g. "FY 2025-26"
+    val customDateRange: Pair<Long?, Long?>? = null // Pair of Start & End epoch millis
+) {
+    val activeFilterCount: Int
+        get() {
+            var count = 0
+            if (selectedTypes.isNotEmpty()) count += selectedTypes.size
+            if (selectedVisibilities.isNotEmpty()) count += selectedVisibilities.size
+            count += categoryFilters.count { it.value != ItemFilterStatus.NEUTRAL }
+            count += accountFilters.count { it.value != ItemFilterStatus.NEUTRAL }
+            if (!financialYear.isNullOrBlank() && financialYear != "All Time") count += 1
+            if (customDateRange != null && (customDateRange.first != null || customDateRange.second != null)) count += 1
+            return count
+        }
+
+    val hasActiveFilters: Boolean
+        get() = activeFilterCount > 0
+
+    fun formattedDateRange(): String? {
+        val range = customDateRange ?: return null
+        val start = range.first
+        val end = range.second
+        val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        return when {
+            start != null && end != null -> "${sdf.format(Date(start))} - ${sdf.format(Date(end))}"
+            start != null -> "From ${sdf.format(Date(start))}"
+            end != null -> "Until ${sdf.format(Date(end))}"
+            else -> null
+        }
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Chart accent palette (theme-agnostic, category-specific colours)
@@ -48,6 +115,8 @@ data class MoneyState(
     val selectedTab: Int = 0,               // 0 = Analysis, 1 = List
     val searchQuery: String = "",
     val selectedCategory: String = "All",
+    val isFilterSheetVisible: Boolean = false,
+    val analysisFilterState: AnalysisFilterState = AnalysisFilterState(),
 
     val spendingCategories: List<SpendingCategory> = listOf(
         SpendingCategory("Food",          4_800.0,  ChartColors.Food),
@@ -76,6 +145,12 @@ data class MoneyState(
         Transaction("PhonePe Cashback",  "Jul 8",  "HDFC",  100.0,    TransactionType.CREDIT, "Income",        "🎁"),
     )
 ) {
+    val allAvailableCategories: List<String>
+        get() = listOf("Food", "Bills", "Shopping", "Transport", "Health", "Entertainment", "Income")
+
+    val allAvailableAccounts: List<String>
+        get() = listOf("HDFC", "ICICI", "Kotak", "SBI")
+
     val filteredTransactions: List<Transaction>
         get() {
             var list = transactions
@@ -95,4 +170,108 @@ data class MoneyState(
 
     val categoryFilters: List<String>
         get() = listOf("All") + spendingCategories.map { it.name }
+
+    /**
+     * Analysis Tab filtered transactions based on [analysisFilterState].
+     */
+    val filteredAnalysisTransactions: List<Transaction>
+        get() {
+            val filters = analysisFilterState
+            return transactions.filter { tx ->
+                // Binary: Type filter
+                if (filters.selectedTypes.isNotEmpty() && !filters.selectedTypes.contains(tx.type)) {
+                    return@filter false
+                }
+
+                // Binary: Visibility filter
+                if (filters.selectedVisibilities.isNotEmpty()) {
+                    val isTxActive = !tx.isExcluded
+                    val matchActive = filters.selectedVisibilities.contains(FilterVisibility.ACTIVE) && isTxActive
+                    val matchExcluded = filters.selectedVisibilities.contains(FilterVisibility.EXCLUDED) && tx.isExcluded
+                    if (!matchActive && !matchExcluded) return@filter false
+                }
+
+                // Category Include / Exclude
+                val incCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
+                val excCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.EXCLUDED }.keys
+                if (excCategories.contains(tx.category)) return@filter false
+                if (incCategories.isNotEmpty() && !incCategories.contains(tx.category)) return@filter false
+
+                // Account Include / Exclude
+                val incAccounts = filters.accountFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
+                val excAccounts = filters.accountFilters.filter { it.value == ItemFilterStatus.EXCLUDED }.keys
+                if (excAccounts.contains(tx.bank)) return@filter false
+                if (incAccounts.isNotEmpty() && !incAccounts.contains(tx.bank)) return@filter false
+
+                // Date Range
+                filters.customDateRange?.let { range ->
+                    val start = range.first
+                    val end = range.second
+                    if (start != null && tx.timestampMillis < start) return@filter false
+                    if (end != null && tx.timestampMillis > end) return@filter false
+                }
+
+                true
+            }
+        }
+
+    /**
+     * Dynamically computed spending categories for Analysis based on active filters.
+     */
+    val filteredSpendingCategories: List<SpendingCategory>
+        get() {
+            val txList = filteredAnalysisTransactions.filter { it.type == TransactionType.DEBIT }
+            val colorMap = mapOf(
+                "Food" to ChartColors.Food,
+                "Bills" to ChartColors.Bills,
+                "Shopping" to ChartColors.Shopping,
+                "Transport" to ChartColors.Transport,
+                "Health" to ChartColors.Health,
+                "Entertainment" to ChartColors.Entertainment
+            )
+
+            // Group filtered debits by category
+            val grouped = txList.groupBy { it.category }
+            val result = mutableListOf<SpendingCategory>()
+
+            // Ensure categories that exist in baseline or filtered list are represented
+            spendingCategories.forEach { baseCat ->
+                val matchingTxs = grouped[baseCat.name]
+                if (matchingTxs != null) {
+                    val sum = matchingTxs.sumOf { it.amount }
+                    if (sum > 0) {
+                        result.add(SpendingCategory(baseCat.name, sum, baseCat.color))
+                    }
+                } else if (!analysisFilterState.hasActiveFilters) {
+                    result.add(baseCat)
+                }
+            }
+
+            // Also add any other debit categories if present
+            grouped.forEach { (catName, txs) ->
+                if (result.none { it.name == catName }) {
+                    val sum = txs.sumOf { it.amount }
+                    if (sum > 0) {
+                        result.add(SpendingCategory(catName, sum, colorMap[catName] ?: ChartColors.Shopping))
+                    }
+                }
+            }
+
+            return result
+        }
+
+    val filteredTotalIncome: Double
+        get() = if (analysisFilterState.hasActiveFilters) {
+            filteredAnalysisTransactions.filter { it.type == TransactionType.CREDIT }.sumOf { it.amount }
+        } else {
+            totalIncome
+        }
+
+    val filteredTotalExpenses: Double
+        get() = if (analysisFilterState.hasActiveFilters) {
+            filteredAnalysisTransactions.filter { it.type == TransactionType.DEBIT }.sumOf { it.amount }
+        } else {
+            totalExpenses
+        }
 }
+

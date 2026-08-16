@@ -1,11 +1,21 @@
 package com.example.dailytrack_mobile.presentation.screens.money.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,9 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.dailytrack_mobile.presentation.screens.money.ChartColors
-import com.example.dailytrack_mobile.presentation.screens.money.MoneyState
-import com.example.dailytrack_mobile.presentation.screens.money.SpendingCategory
+import com.example.dailytrack_mobile.presentation.screens.money.*
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,8 +49,14 @@ private fun formatCompact(amount: Double): String {
 // Analysis Tab
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-fun AnalysisTab(state: MoneyState) {
+fun AnalysisTab(
+    state: MoneyState,
+    onAction: (MoneyAction) -> Unit = {}
+) {
     val dims = Dimens.current
+    val categories = state.filteredSpendingCategories
+    val filterState = state.analysisFilterState
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -53,8 +67,245 @@ fun AnalysisTab(state: MoneyState) {
         ),
         verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
     ) {
-        item { SpendingBreakdownCard(categories = state.spendingCategories) }
-        item { IncomeExpenseRow(income = state.totalIncome, expenses = state.totalExpenses) }
+        // Active Filter Bar / Trigger Header
+        item {
+            AnalysisFilterHeader(
+                filterState = filterState,
+                onOpenFilterSheet = { onAction(MoneyAction.SetFilterSheetVisible(true)) },
+                onAction = onAction
+            )
+        }
+
+        // Spending Breakdown Donut Card
+        item {
+            if (categories.isNotEmpty()) {
+                SpendingBreakdownCard(
+                    categories = categories,
+                    periodLabel = filterState.financialYear ?: "JUL 2025"
+                )
+            } else {
+                EmptyFilterResultsCard(
+                    onResetFilters = { onAction(MoneyAction.ResetAnalysisFilters) }
+                )
+            }
+        }
+
+        // Income & Expense Summary Row
+        item {
+            IncomeExpenseRow(
+                income = state.filteredTotalIncome,
+                expenses = state.filteredTotalExpenses
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analysis Filter Header & Active Chips Bar
+// ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnalysisFilterHeader(
+    filterState: AnalysisFilterState,
+    onOpenFilterSheet: () -> Unit,
+    onAction: (MoneyAction) -> Unit
+) {
+    val dims = Dimens.current
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Main Filter Button with Badge
+            FilterChip(
+                selected = filterState.hasActiveFilters,
+                onClick = onOpenFilterSheet,
+                label = {
+                    Text(
+                        text = "Filters",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = "Filters",
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                trailingIcon = if (filterState.hasActiveFilters) {
+                    {
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Text(
+                                text = "${filterState.activeFilterCount}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    labelColor = MaterialTheme.colorScheme.onSurface,
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
+            )
+
+            // Active Financial Year Chip
+            if (!filterState.financialYear.isNullOrBlank() && filterState.financialYear != "All Time") {
+                ActiveFilterRemovableChip(
+                    text = filterState.financialYear,
+                    onRemove = { onAction(MoneyAction.ClearFinancialYearFilter) }
+                )
+            }
+
+            // Active Custom Date Range Chip
+            filterState.formattedDateRange()?.let { rangeText ->
+                ActiveFilterRemovableChip(
+                    text = rangeText,
+                    onRemove = { onAction(MoneyAction.ClearDateRangeFilter) }
+                )
+            }
+
+            // Active Types
+            filterState.selectedTypes.forEach { type ->
+                ActiveFilterRemovableChip(
+                    text = if (type == TransactionType.DEBIT) "Debit" else "Credit",
+                    onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
+                )
+            }
+
+            // Active Visibilities
+            filterState.selectedVisibilities.forEach { vis ->
+                ActiveFilterRemovableChip(
+                    text = if (vis == FilterVisibility.ACTIVE) "Active" else "Excluded",
+                    onRemove = { onAction(MoneyAction.RemoveVisibilityFilter(vis)) }
+                )
+            }
+
+            // Active Category Filters (Included / Excluded)
+            filterState.categoryFilters.forEach { (cat, status) ->
+                when (status) {
+                    ItemFilterStatus.INCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "+ $cat",
+                            isIncluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
+                        )
+                    }
+                    ItemFilterStatus.EXCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "- $cat",
+                            isExcluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
+                        )
+                    }
+                    ItemFilterStatus.NEUTRAL -> Unit
+                }
+            }
+
+            // Active Account Filters (Included / Excluded)
+            filterState.accountFilters.forEach { (acc, status) ->
+                when (status) {
+                    ItemFilterStatus.INCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "+ $acc",
+                            isIncluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveAccountFilter(acc)) }
+                        )
+                    }
+                    ItemFilterStatus.EXCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "- $acc",
+                            isExcluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveAccountFilter(acc)) }
+                        )
+                    }
+                    ItemFilterStatus.NEUTRAL -> Unit
+                }
+            }
+
+            // Clear All quick button when multiple filters active
+            if (filterState.activeFilterCount > 1) {
+                TextButton(
+                    onClick = { onAction(MoneyAction.ResetAnalysisFilters) },
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = "Clear all",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Active Filter Removable Chip Component
+// ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActiveFilterRemovableChip(
+    text: String,
+    onRemove: () -> Unit,
+    isIncluded: Boolean = false,
+    isExcluded: Boolean = false
+) {
+    val dims = Dimens.current
+
+    val containerColor = when {
+        isExcluded -> MaterialTheme.colorScheme.errorContainer
+        isIncluded -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+
+    val contentColor = when {
+        isExcluded -> MaterialTheme.colorScheme.onErrorContainer
+        isIncluded -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
+        shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
+        color = containerColor,
+        modifier = Modifier.height(32.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 10.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                color = contentColor
+            )
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(22.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Remove filter",
+                    modifier = Modifier.size(14.dp),
+                    tint = contentColor
+                )
+            }
+        }
     }
 }
 
@@ -62,7 +313,10 @@ fun AnalysisTab(state: MoneyState) {
 // Spending Breakdown Card
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun SpendingBreakdownCard(categories: List<SpendingCategory>) {
+private fun SpendingBreakdownCard(
+    categories: List<SpendingCategory>,
+    periodLabel: String
+) {
     val dims = Dimens.current
     val total = categories.sumOf { it.amount }
 
@@ -82,7 +336,7 @@ private fun SpendingBreakdownCard(categories: List<SpendingCategory>) {
         ) {
             // Section label
             Text(
-                text = "SPENDING BREAKDOWN — JUL 2025",
+                text = "SPENDING BREAKDOWN — ${periodLabel.uppercase()}",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp
@@ -104,6 +358,57 @@ private fun SpendingBreakdownCard(categories: List<SpendingCategory>) {
 
             // Legend grid — 2 columns, 3 rows
             LegendGrid(categories = categories)
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty Filter Results Card
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun EmptyFilterResultsCard(
+    onResetFilters: () -> Unit
+) {
+    val dims = Dimens.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(dims.cardCornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(dims.cardInnerPadding * 1.5f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.FilterAlt,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.size(48.dp)
+            )
+            Text(
+                text = "No Transactions Found",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "No transactions match your active filters. Try adjusting or clearing filters.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onResetFilters,
+                shape = RoundedCornerShape(dims.buttonCornerRadius)
+            ) {
+                Text("Reset Filters")
+            }
         }
     }
 }
@@ -135,7 +440,7 @@ private fun DonutChart(
             var startAngle = -90f  // start from top
 
             categories.forEach { category ->
-                val sweep = ((category.amount / total) * 360f).toFloat() - gapDegrees
+                val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
                 if (sweep > 0f) {
                     drawArc(
                         color = category.color,
