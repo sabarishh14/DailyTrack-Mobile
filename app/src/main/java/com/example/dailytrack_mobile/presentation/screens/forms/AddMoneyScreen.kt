@@ -7,38 +7,52 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.util.Dimens
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Add Money (Transaction) Form
+// Add Money (Transaction) Form — aligned with DB schema
 // ─────────────────────────────────────────────────────────────────────────────
 
-private enum class TransactionType(val label: String) {
-    EXPENSE("Expense"),
-    INCOME("Income")
+/** Maps to DB `type` column: "Debit" / "Credit" */
+private enum class TransactionType(val label: String, val dbValue: String) {
+    EXPENSE("Expense", "Debit"),
+    INCOME("Income", "Credit")
 }
 
+/** Maps to DB `heading` column — categories from the API */
 private enum class MoneyCategory(val label: String, val emoji: String) {
     FOOD("Food", "🍔"),
     TRANSPORT("Transport", "🚌"),
     SHOPPING("Shopping", "🛒"),
-    ENTERTAINMENT("Fun", "🎮"),
+    ENTERTAINMENT("Entertainment", "🎮"),
     BILLS("Bills", "📄"),
     HEALTH("Health", "💊"),
     EDUCATION("Education", "📚"),
+    CINEMA("Cinema", "🎬"),
+    DAILY_NEED("Daily Need", "🛒"),
     SALARY("Salary", "💰"),
     FREELANCE("Freelance", "💻"),
     INVESTMENT("Investment", "📈"),
     GIFT("Gift", "🎁"),
     OTHER("Other", "📦")
 }
+
+/** Available bank accounts — maps to DB `account` FK */
+private val availableAccounts = listOf(
+    "HDFC", "ICICI", "SBI", "Axis", "Kotak", "Cash",
+    "CC-PINNACLE 6360", "CC-SBI"
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -50,14 +64,46 @@ fun AddMoneyScreen(
     var selectedCategory by remember { mutableStateOf<MoneyCategory?>(null) }
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var selectedAccount by remember { mutableStateOf<String?>(null) }
+    var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    var excludeAnalytics by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var accountDropdownExpanded by remember { mutableStateOf(false) }
     val dims = Dimens.current
 
-    val isDirty = remember(selectedType, selectedCategory, amount, note) {
-        amount.isNotBlank() || selectedCategory != null || note.isNotBlank() || selectedType != TransactionType.EXPENSE
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val apiDateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+
+    val isDirty = remember(selectedType, selectedCategory, amount, note, selectedAccount, excludeAnalytics) {
+        amount.isNotBlank() || selectedCategory != null || note.isNotBlank() ||
+            selectedType != TransactionType.EXPENSE || selectedAccount != null || excludeAnalytics
     }
 
     LaunchedEffect(isDirty) {
         onDirtyStateChanged(isDirty)
+    }
+
+    // Date Picker Dialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { selectedDate = it }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 
     Column(
@@ -84,6 +130,27 @@ fun AddMoneyScreen(
             }
         }
 
+        // ── Date Picker ──────────────────────────────────────────────
+        SectionLabel("Date")
+        OutlinedButton(
+            onClick = { showDatePicker = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(dims.buttonCornerRadius),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.CalendarToday,
+                contentDescription = null,
+                modifier = Modifier.size(dims.iconSizeSmall)
+            )
+            Spacer(modifier = Modifier.width(dims.itemSpacingMedium))
+            Text(
+                text = dateFormat.format(Date(selectedDate)),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
         // ── Amount ───────────────────────────────────────────────────
         SectionLabel("Amount")
         OutlinedTextField(
@@ -98,6 +165,39 @@ fun AddMoneyScreen(
             shape = RoundedCornerShape(dims.buttonCornerRadius),
             modifier = Modifier.fillMaxWidth()
         )
+
+        // ── Account Selector ─────────────────────────────────────────
+        SectionLabel("Account")
+        ExposedDropdownMenuBox(
+            expanded = accountDropdownExpanded,
+            onExpandedChange = { accountDropdownExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = selectedAccount ?: "",
+                onValueChange = {},
+                readOnly = true,
+                placeholder = { Text("Select Account", style = MaterialTheme.typography.bodyMedium) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountDropdownExpanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(dims.buttonCornerRadius)
+            )
+            ExposedDropdownMenu(
+                expanded = accountDropdownExpanded,
+                onDismissRequest = { accountDropdownExpanded = false }
+            ) {
+                availableAccounts.forEach { account ->
+                    DropdownMenuItem(
+                        text = { Text(account, style = MaterialTheme.typography.bodyMedium) },
+                        onClick = {
+                            selectedAccount = account
+                            accountDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
 
         // ── Category ─────────────────────────────────────────────────
         SectionLabel("Category")
@@ -128,7 +228,7 @@ fun AddMoneyScreen(
         }
 
         // ── Note ─────────────────────────────────────────────────────
-        SectionLabel("Note (optional)")
+        SectionLabel("Description (optional)")
         OutlinedTextField(
             value = note,
             onValueChange = { note = it },
@@ -142,6 +242,30 @@ fun AddMoneyScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // ── Exclude from Analytics Toggle ────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Exclude from Analytics",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Won't appear in spending charts",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = excludeAnalytics,
+                onCheckedChange = { excludeAnalytics = it }
+            )
+        }
+
         Spacer(modifier = Modifier.weight(1f))
 
         // ── Save Button ──────────────────────────────────────────────
@@ -151,7 +275,7 @@ fun AddMoneyScreen(
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),
             shape = RoundedCornerShape(dims.buttonCornerRadius),
-            enabled = amount.isNotBlank() && selectedCategory != null
+            enabled = amount.isNotBlank() && selectedCategory != null && selectedAccount != null
         ) {
             Text(
                 "Save Transaction",
@@ -161,19 +285,4 @@ fun AddMoneyScreen(
 
         Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared helper used across all form screens
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-internal fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge.copy(
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    )
 }

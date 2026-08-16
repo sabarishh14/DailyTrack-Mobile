@@ -46,12 +46,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.dailytrack_mobile.presentation.screens.money.AccountInfo
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.time.Month
 import java.time.format.TextStyle
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.delay
+import androidx.hilt.navigation.compose.hiltViewModel
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared accent colours (theme-agnostic, same pattern as ActivitiesScreen)
@@ -60,13 +62,8 @@ private val GainGreen   = Color(0xFF2ECC71)
 private val LossRed     = Color(0xFFE74C3C)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock data models
+// Mock data models (Investments — still mock until API integration)
 // ─────────────────────────────────────────────────────────────────────────────
-private data class BankAccount(
-    val name: String,
-    val accountMask: String,
-    val balance: Double
-)
 
 private data class Investment(
     val name: String,
@@ -85,18 +82,8 @@ private data class FlowBreakdown(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock data (7 bank accounts and investments)
+// Mock data (investments only — bank accounts come from API now)
 // ─────────────────────────────────────────────────────────────────────────────
-private val bankAccounts = listOf(
-    BankAccount("HDFC Savings",    "xxxx 4821", 1_24_500.75),
-    BankAccount("ICICI Salary",    "xxxx 6602", 2_18_340.00),
-    BankAccount("SBI Current",     "xxxx 9034",   87_250.00),
-    BankAccount("Axis Savings",    "xxxx 1173",   42_000.50),
-    BankAccount("Kotak Mahindra",  "xxxx 3391",   65_400.00),
-    BankAccount("Bank of Baroda",  "xxxx 7712",   31_800.25),
-    BankAccount("IndusInd Bank",   "xxxx 5549",   18_920.00),
-)
-
 private val investments = listOf(
     Investment("Nifty 50 Index", 1_00_000.0, 1_14_320.0),
     Investment("Mid Cap Fund",     50_000.0,    54_800.0),
@@ -108,8 +95,6 @@ private val totalInvested    = investments.sumOf { it.invested }
 private val totalCurrent     = investments.sumOf { it.current }
 private val totalReturns     = totalCurrent - totalInvested
 private val cashBalance      = 15_000.0
-private val totalBankBalance = bankAccounts.sumOf { it.balance }
-private val totalNetWorth    = totalBankBalance + totalCurrent + cashBalance
 
 private fun getIncomeBreakdown(month: Month, year: Int): List<FlowBreakdown> {
     val factor = 1.0 + ((month.value % 5) - 2) * 0.05
@@ -164,7 +149,10 @@ private fun formatCurrencyFull(amount: Double): String {
 // Main composable
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    viewModel: HomeVM = hiltViewModel()
+) {
+    val homeState by viewModel.state.collectAsState()
     val dims = Dimens.current
     var selectedMonth by remember { mutableStateOf(Month.AUGUST) }
     var selectedYear by remember { mutableIntStateOf(2026) }
@@ -175,6 +163,11 @@ fun HomeScreen() {
     val expenseFlows = remember(selectedMonth, selectedYear) {
         getExpenseBreakdown(selectedMonth, selectedYear)
     }
+
+    // Compute bank balance from API accounts
+    val apiBankBalance = homeState.totalBankBalance
+    val apiAccounts = homeState.accounts
+    val totalNetWorth = apiBankBalance + totalCurrent + cashBalance
 
     LazyColumn(
         modifier = Modifier
@@ -189,8 +182,21 @@ fun HomeScreen() {
         verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
     ) {
         item { GreetingHeader() }
-        item { NetWorthSection() }
-        item { BankAccountsSection() }
+        item {
+            NetWorthSection(
+                totalBankBalance = apiBankBalance,
+                totalNetWorth = totalNetWorth,
+                accountCount = apiAccounts.size,
+                isLoading = homeState.isLoading
+            )
+        }
+        item {
+            BankAccountsSection(
+                accounts = apiAccounts,
+                totalBankBalance = apiBankBalance,
+                isLoading = homeState.isLoading
+            )
+        }
         item { InvestmentPortfolioSection() }
         item {
             FlowSection(
@@ -335,7 +341,12 @@ private fun SheetsActionBox() {
 // Section 1 – Swipeable Balance & Net Worth Header Card (No Pagination)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun NetWorthSection() {
+private fun NetWorthSection(
+    totalBankBalance: Double,
+    totalNetWorth: Double,
+    accountCount: Int,
+    isLoading: Boolean
+) {
     val dims = Dimens.current
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
 
@@ -354,31 +365,47 @@ private fun NetWorthSection() {
                 if (page == 0) {
                     SectionLabel(text = "TOTAL BANK BALANCE")
                     Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
-                    Text(
-                        text  = formatCurrencyFull(totalBankBalance),
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize   = dims.fontSizeDisplayLarge
-                        ),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text  = formatCurrencyFull(totalBankBalance),
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = dims.fontSizeDisplayLarge
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text  = "${bankAccounts.size} Linked Bank Accounts",
+                        text  = "$accountCount Linked Bank Accounts",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     SectionLabel(text = "NET WORTH")
                     Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
-                    Text(
-                        text  = formatCurrencyFull(totalNetWorth),
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize   = dims.fontSizeDisplayLarge
-                        ),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text  = formatCurrencyFull(totalNetWorth),
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = dims.fontSizeDisplayLarge
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text  = "Banks · Cash · Investments",
@@ -395,7 +422,11 @@ private fun NetWorthSection() {
 // Section 2 – Bank Accounts (Collapsible, List vs Cards Toggle)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun BankAccountsSection() {
+private fun BankAccountsSection(
+    accounts: List<AccountInfo>,
+    totalBankBalance: Double,
+    isLoading: Boolean
+) {
     val dims = Dimens.current
     var isExpanded by rememberSaveable { mutableStateOf(true) }
     var isGridView by rememberSaveable { mutableStateOf(true) }
@@ -418,7 +449,7 @@ private fun BankAccountsSection() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text  = "${bankAccounts.size} Accounts",
+                        text  = "${accounts.size} Accounts",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -482,42 +513,57 @@ private fun BankAccountsSection() {
                 exit    = shrinkVertically() + fadeOut()
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
-                    AnimatedContent(
-                        targetState = isGridView,
-                        label       = "BankAccountsViewToggle"
-                    ) { targetIsGrid ->
-                        if (targetIsGrid) {
-                            // 2-column grid of bank cards
-                            val rows = bankAccounts.chunked(2)
-                            Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
-                                rows.forEach { rowAccounts ->
-                                    Row(
-                                        modifier              = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
-                                    ) {
-                                        rowAccounts.forEach { account ->
-                                            BankAccountCard(
-                                                account  = account,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-                                        if (rowAccounts.size < 2) {
-                                            Spacer(modifier = Modifier.weight(1f))
+                    if (isLoading && accounts.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = dims.itemSpacingLarge),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        AnimatedContent(
+                            targetState = isGridView,
+                            label       = "BankAccountsViewToggle"
+                        ) { targetIsGrid ->
+                            if (targetIsGrid) {
+                                // 2-column grid of bank cards
+                                val rows = accounts.chunked(2)
+                                Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                                    rows.forEach { rowAccounts ->
+                                        Row(
+                                            modifier              = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                                        ) {
+                                            rowAccounts.forEach { account ->
+                                                BankAccountCard(
+                                                    account  = account,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+                                            if (rowAccounts.size < 2) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        } else {
-                            // Sleek list view of bank accounts
-                            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                                bankAccounts.forEachIndexed { idx, account ->
-                                    BankAccountRow(account = account)
-                                    if (idx < bankAccounts.lastIndex) {
-                                        HorizontalDivider(
-                                            modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
-                                            thickness = 0.5.dp,
-                                            color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                        )
+                            } else {
+                                // Sleek list view of bank accounts
+                                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                    accounts.forEachIndexed { idx, account ->
+                                        BankAccountRow(account = account)
+                                        if (idx < accounts.lastIndex) {
+                                            HorizontalDivider(
+                                                modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
+                                                thickness = 0.5.dp,
+                                                color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -552,8 +598,9 @@ private fun BankAccountsSection() {
 }
 
 @Composable
-private fun BankAccountRow(account: BankAccount) {
+private fun BankAccountRow(account: AccountInfo) {
     val dims = Dimens.current
+    val isCreditCard = account.account.startsWith("CC-", ignoreCase = true)
     Row(
         modifier              = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -571,7 +618,7 @@ private fun BankAccountRow(account: BankAccount) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector        = Icons.Default.AccountBalance,
+                    imageVector        = if (isCreditCard) Icons.Default.CreditCard else Icons.Default.AccountBalance,
                     contentDescription = null,
                     tint               = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier           = Modifier.size(dims.iconSizeSmall + 2.dp)
@@ -579,19 +626,21 @@ private fun BankAccountRow(account: BankAccount) {
             }
             Column {
                 Text(
-                    text  = account.name,
+                    text  = account.account,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text  = account.accountMask,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (account.realBalance != null) {
+                    Text(
+                        text  = "Verified ✓",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = GainGreen
+                    )
+                }
             }
         }
         Text(
-            text  = formatCurrencyFull(account.balance),
+            text  = formatCurrencyFull(account.displayBalance),
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -600,10 +649,11 @@ private fun BankAccountRow(account: BankAccount) {
 
 @Composable
 private fun BankAccountCard(
-    account: BankAccount,
+    account: AccountInfo,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
+    val isCreditCard = account.account.startsWith("CC-", ignoreCase = true)
     Card(
         modifier  = modifier,
         shape     = RoundedCornerShape(12.dp),
@@ -632,29 +682,31 @@ private fun BankAccountCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector        = Icons.Default.AccountBalance,
+                        imageVector        = if (isCreditCard) Icons.Default.CreditCard else Icons.Default.AccountBalance,
                         contentDescription = null,
                         tint               = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier           = Modifier.size(16.dp)
                     )
                 }
-                Text(
-                    text  = account.accountMask,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (account.realBalance != null) {
+                    Text(
+                        text  = "Verified ✓",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = GainGreen
+                    )
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text     = account.name,
+                    text     = account.account,
                     style    = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     color    = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text     = formatCurrencyFull(account.balance),
+                    text     = formatCurrencyFull(account.displayBalance),
                     style    = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     color    = MaterialTheme.colorScheme.primary,
                     maxLines = 1,

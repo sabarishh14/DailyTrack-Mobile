@@ -28,8 +28,32 @@ enum class QuickFilterPreset {
     EXPENSES_ONLY
 }
 
+data class SplitMember(
+    val name: String,
+    val amount: Double,
+    val paid: Boolean
+)
+
+data class SplitInfo(
+    val id: Long,
+    val totalAmount: Double,
+    val members: List<SplitMember>
+)
+
+data class AccountInfo(
+    val account: String,
+    val balance: Double,
+    val realBalance: Double?,
+    val balanceTracked: Boolean
+) {
+    /** Returns the verified balance if available, otherwise the ledger balance */
+    val displayBalance: Double get() = realBalance ?: balance
+}
+
 data class Transaction(
+    val id: Long = 0L,
     val title: String,
+    val description: String? = null,
     val date: String,
     val bank: String,
     val amount: Double,
@@ -37,7 +61,9 @@ data class Transaction(
     val category: String,
     val emoji: String,
     val isExcluded: Boolean = false,
-    val timestampMillis: Long = System.currentTimeMillis()
+    val timestampMillis: Long = System.currentTimeMillis(),
+    val monthStr: String = "",
+    val split: SplitInfo? = null
 )
 
 data class SpendingCategory(
@@ -102,8 +128,53 @@ object ChartColors {
     val Transport     = Color(0xFF1ABC9C)   // cyan-green
     val Health        = Color(0xFFE91E63)   // pink
     val Entertainment = Color(0xFFFF7043)   // orange
+    val Cinema        = Color(0xFFE040FB)   // magenta
+    val DailyNeed     = Color(0xFF8D6E63)   // brown
+    val Education     = Color(0xFF42A5F5)   // light blue
+    val Investment    = Color(0xFF66BB6A)   // green
+    val Salary        = Color(0xFF26A69A)   // teal
     val IncomeGreen   = Color(0xFF2ECC71)   // emerald green
     val ExpenseRed    = Color(0xFFE74C3C)   // red
+
+    fun forCategory(category: String): Color = when (category) {
+        "Food"          -> Food
+        "Bills"         -> Bills
+        "Shopping"      -> Shopping
+        "Transport"     -> Transport
+        "Health"        -> Health
+        "Entertainment" -> Entertainment
+        "Cinema"        -> Cinema
+        "Daily Need"    -> DailyNeed
+        "Education"     -> Education
+        "Investment"    -> Investment
+        "Salary"        -> Salary
+        "Income"        -> IncomeGreen
+        else            -> Color(0xFF78909C) // blue-grey fallback
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Category Emoji Map
+// ─────────────────────────────────────────────────────────────────────────────
+
+object CategoryEmojis {
+    private val map = mapOf(
+        "Food" to "🍔",
+        "Bills" to "📺",
+        "Shopping" to "📦",
+        "Transport" to "⛽",
+        "Health" to "💊",
+        "Entertainment" to "🎮",
+        "Cinema" to "🎬",
+        "Daily Need" to "🛒",
+        "Education" to "📚",
+        "Investment" to "📈",
+        "Salary" to "💰",
+        "Income" to "💰",
+        "Savings" to "🏦"
+    )
+
+    fun forCategory(category: String): String = map[category] ?: "💳"
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,44 +183,57 @@ object ChartColors {
 
 data class MoneyState(
     val isLoading: Boolean = false,
+    val errorMessage: String? = null,
     val selectedTab: Int = 0,               // 0 = Analysis, 1 = List
     val searchQuery: String = "",
     val selectedCategory: String = "All",
     val isFilterSheetVisible: Boolean = false,
     val analysisFilterState: AnalysisFilterState = AnalysisFilterState(),
 
-    val spendingCategories: List<SpendingCategory> = listOf(
-        SpendingCategory("Food",          4_800.0,  ChartColors.Food),
-        SpendingCategory("Bills",         6_200.0,  ChartColors.Bills),
-        SpendingCategory("Shopping",      12_400.0, ChartColors.Shopping),
-        SpendingCategory("Transport",     3_800.0,  ChartColors.Transport),
-        SpendingCategory("Health",        2_500.0,  ChartColors.Health),
-        SpendingCategory("Entertainment", 1_800.0,  ChartColors.Entertainment),
-    ),
+    // API-driven data
+    val transactions: List<Transaction> = emptyList(),
+    val accounts: List<AccountInfo> = emptyList(),
+    val apiCategories: List<String> = emptyList(),
 
-    val totalIncome: Double = 1_13_000.0,
-    val totalExpenses: Double = 31_500.0,
-
-    val transactions: List<Transaction> = listOf(
-        Transaction("Swiggy Order",      "Jul 25", "HDFC",  488.0,    TransactionType.DEBIT,  "Food",          "🍔", timestampMillis = System.currentTimeMillis() - 2L * 86400000),
-        Transaction("Netflix",           "Jul 24", "ICICI", 649.0,    TransactionType.DEBIT,  "Bills",         "📺", timestampMillis = System.currentTimeMillis() - 3L * 86400000),
-        Transaction("Salary Credit",     "Jul 22", "Kotak", 95_000.0, TransactionType.CREDIT, "Income",        "💰", timestampMillis = System.currentTimeMillis() - 5L * 86400000),
-        Transaction("Petrol Fill",       "Jul 22", "HDFC",  2_200.0,  TransactionType.DEBIT,  "Transport",     "⛽", timestampMillis = System.currentTimeMillis() - 5L * 86400000),
-        Transaction("Amazon",            "Jul 20", "ICICI", 3_499.0,  TransactionType.DEBIT,  "Shopping",      "📦", timestampMillis = System.currentTimeMillis() - 7L * 86400000),
-        Transaction("Gym Membership",    "Jul 18", "HDFC",  2_500.0,  TransactionType.DEBIT,  "Health",        "💪", timestampMillis = System.currentTimeMillis() - 9L * 86400000),
-        Transaction("Freelance Payment", "Jul 16", "HDFC",  18_000.0, TransactionType.CREDIT, "Income",        "💸", timestampMillis = System.currentTimeMillis() - 11L * 86400000),
-        Transaction("Electricity Bill",  "Jul 15", "SBI",   1_840.0,  TransactionType.DEBIT,  "Bills",         "⚡", timestampMillis = System.currentTimeMillis() - 12L * 86400000),
-        Transaction("Zomato",            "Jul 14", "HDFC",  320.0,    TransactionType.DEBIT,  "Food",          "🍕", timestampMillis = System.currentTimeMillis() - 13L * 86400000),
-        Transaction("Movie Tickets",     "Jul 12", "ICICI", 750.0,    TransactionType.DEBIT,  "Entertainment", "🎬", timestampMillis = System.currentTimeMillis() - 15L * 86400000),
-        Transaction("Uber Ride",         "Jul 10", "HDFC",  380.0,    TransactionType.DEBIT,  "Transport",     "🚗", timestampMillis = System.currentTimeMillis() - 17L * 86400000),
-        Transaction("PhonePe Cashback",  "Jul 8",  "HDFC",  100.0,    TransactionType.CREDIT, "Income",        "🎁", timestampMillis = System.currentTimeMillis() - 19L * 86400000),
-    )
+    // Pagination
+    val currentOffset: Int = 0,
+    val hasMore: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val totalTransactionCount: Int = 0
 ) {
+    // ── Computed properties ──────────────────────────────────────────
+
+    val totalIncome: Double
+        get() = transactions
+            .filter { it.type == TransactionType.CREDIT }
+            .sumOf { it.amount }
+
+    val totalExpenses: Double
+        get() = transactions
+            .filter { it.type == TransactionType.DEBIT && !it.isExcluded }
+            .sumOf { it.amount }
+
+    val spendingCategories: List<SpendingCategory>
+        get() {
+            val debits = transactions.filter { it.type == TransactionType.DEBIT && !it.isExcluded }
+            return debits.groupBy { it.category }
+                .map { (cat, txs) ->
+                    SpendingCategory(
+                        name = cat,
+                        amount = txs.sumOf { it.amount },
+                        color = ChartColors.forCategory(cat)
+                    )
+                }
+                .sortedByDescending { it.amount }
+        }
+
     val allAvailableCategories: List<String>
-        get() = listOf("Food", "Bills", "Shopping", "Transport", "Health", "Entertainment", "Income")
+        get() = if (apiCategories.isNotEmpty()) apiCategories
+                else transactions.map { it.category }.distinct().sorted()
 
     val allAvailableAccounts: List<String>
-        get() = listOf("HDFC", "ICICI", "Kotak", "SBI")
+        get() = if (accounts.isNotEmpty()) accounts.map { it.account }
+                else transactions.map { it.bank }.distinct().sorted()
 
     val filteredTransactions: List<Transaction>
         get() {
@@ -161,6 +245,7 @@ data class MoneyState(
                 val q = searchQuery.lowercase()
                 list = list.filter {
                     it.title.lowercase().contains(q) ||
+                    (it.description?.lowercase()?.contains(q) == true) ||
                     it.bank.lowercase().contains(q) ||
                     it.category.lowercase().contains(q)
                 }
@@ -213,14 +298,6 @@ data class MoneyState(
     val filteredSpendingCategories: List<SpendingCategory>
         get() {
             val txList = filteredAnalysisTransactions.filter { it.type == TransactionType.DEBIT }
-            val colorMap = mapOf(
-                "Food" to ChartColors.Food,
-                "Bills" to ChartColors.Bills,
-                "Shopping" to ChartColors.Shopping,
-                "Transport" to ChartColors.Transport,
-                "Health" to ChartColors.Health,
-                "Entertainment" to ChartColors.Entertainment
-            )
 
             // Group filtered debits by category
             val grouped = txList.groupBy { it.category }
@@ -244,7 +321,7 @@ data class MoneyState(
                 if (result.none { it.name == catName }) {
                     val sum = txs.sumOf { it.amount }
                     if (sum > 0) {
-                        result.add(SpendingCategory(catName, sum, colorMap[catName] ?: ChartColors.Shopping))
+                        result.add(SpendingCategory(catName, sum, ChartColors.forCategory(catName)))
                     }
                 }
             }
@@ -266,4 +343,3 @@ data class MoneyState(
             totalExpenses
         }
 }
-

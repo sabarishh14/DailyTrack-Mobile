@@ -43,3 +43,18 @@ fun SyncBrokerScreen(
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared helper used across all form screens
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    )
+}

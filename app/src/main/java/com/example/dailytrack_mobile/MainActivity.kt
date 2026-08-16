@@ -22,7 +22,9 @@ import com.example.dailytrack_mobile.presentation.screens.settings.SettingsVM
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsVMFactory
 import com.example.dailytrack_mobile.presentation.theme.DailyTrackTheme
 import com.example.dailytrack_mobile.presentation.util.ProvideAppDimensions
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

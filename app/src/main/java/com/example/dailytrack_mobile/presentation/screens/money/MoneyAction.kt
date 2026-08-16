@@ -5,6 +5,10 @@ sealed class MoneyAction {
     data class UpdateSearchQuery(val query: String) : MoneyAction()
     data class SelectCategory(val category: String) : MoneyAction()
 
+    // Data loading actions
+    object Refresh : MoneyAction()
+    object LoadMore : MoneyAction()
+
     // Filter Sheet actions
     data class SetFilterSheetVisible(val visible: Boolean) : MoneyAction()
     data class ApplyAnalysisFilters(val filterState: AnalysisFilterState) : MoneyAction()
@@ -16,4 +20,3 @@ sealed class MoneyAction {
     object ClearFinancialYearFilter : MoneyAction()
     object ClearDateRangeFilter : MoneyAction()
 }
-

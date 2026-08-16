@@ -3,7 +3,16 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.devtools.ksp)
     alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
+    alias(libs.plugins.hilt.android.plugin)
 }
+
+val localProperties = java.util.Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val apiBaseUrl = localProperties.getProperty("API_BASE_URL") ?: ""
+val apiSecretKey = localProperties.getProperty("API_SECRET_KEY") ?: ""
 
 android {
     namespace = "com.example.dailytrack_mobile"
@@ -17,6 +26,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        buildConfigField("String", "BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "API_KEY", "\"$apiSecretKey\"")
     }
 
     buildTypes {
@@ -32,6 +44,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -84,6 +97,9 @@ dependencies {
     androidTestImplementation(libs.androidx.runner)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation(libs.hilt.android)
+    implementation(libs.hilt.navigation.compose)
     "ksp"(libs.androidx.room.compiler)
     "ksp"(libs.moshi.kotlin.codegen)
+    "ksp"(libs.hilt.android.compiler)
 }

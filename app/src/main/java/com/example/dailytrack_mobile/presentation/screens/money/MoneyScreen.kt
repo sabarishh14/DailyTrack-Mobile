@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.screens.money.components.AnalysisTab
 import com.example.dailytrack_mobile.presentation.screens.money.components.FilterBottomSheet
 import com.example.dailytrack_mobile.presentation.screens.money.components.TransactionsTab
@@ -24,7 +24,7 @@ import com.example.dailytrack_mobile.presentation.util.Dimens
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun MoneyScreen(
-    viewModel: MoneyVM = viewModel()
+    viewModel: MoneyVM = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current

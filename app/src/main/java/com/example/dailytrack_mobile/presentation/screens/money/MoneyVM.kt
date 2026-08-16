@@ -1,21 +1,119 @@
 package com.example.dailytrack_mobile.presentation.screens.money
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.dailytrack_mobile.data.repository.MoneyRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import java.text.SimpleDateFormat
+import java.util.Locale
+import javax.inject.Inject
 
-class MoneyVM : ViewModel() {
+@HiltViewModel
+class MoneyVM @Inject constructor(
+    private val repository: MoneyRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(MoneyState())
     val state: StateFlow<MoneyState> = _state.asStateFlow()
+
+    companion object {
+        private const val PAGE_SIZE = 50
+    }
+
+    init {
+        loadInitialData()
+    }
+
+    private fun loadInitialData() {
+        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            // Launch all three in parallel
+            val accountsDeferred = async { repository.getAccounts() }
+            val transactionsDeferred = async { repository.getTransactions(limit = PAGE_SIZE, offset = 0) }
+            val categoriesDeferred = async { repository.getCategories() }
+
+            val accountsResult = accountsDeferred.await()
+            val transactionsResult = transactionsDeferred.await()
+            val categoriesResult = categoriesDeferred.await()
+
+            _state.update { current ->
+                var updated = current.copy(isLoading = false)
+
+                // Process accounts
+                accountsResult.onSuccess { accounts ->
+                    updated = updated.copy(
+                        accounts = accounts.map { dto ->
+                            AccountInfo(
+                                account = dto.account,
+                                balance = dto.balance,
+                                realBalance = dto.realBalance,
+                                balanceTracked = dto.balanceTracked
+                            )
+                        }
+                    )
+                }
+
+                // Process transactions
+                transactionsResult.onSuccess { response ->
+                    updated = updated.copy(
+                        transactions = response.transactions.map { it.toDomain() },
+                        currentOffset = response.offset + response.limit,
+                        hasMore = response.hasMore,
+                        totalTransactionCount = response.total
+                    )
+                }.onFailure { error ->
+                    updated = updated.copy(errorMessage = error.message ?: "Failed to load transactions")
+                }
+
+                // Process categories
+                categoriesResult.onSuccess { categories ->
+                    updated = updated.copy(apiCategories = categories)
+                }
+
+                updated
+            }
+        }
+    }
+
+    private fun loadMoreTransactions() {
+        val currentState = _state.value
+        if (currentState.isLoadingMore || !currentState.hasMore) return
+
+        _state.update { it.copy(isLoadingMore = true) }
+        viewModelScope.launch {
+            repository.getTransactions(
+                limit = PAGE_SIZE,
+                offset = currentState.currentOffset
+            ).onSuccess { response ->
+                _state.update { current ->
+                    current.copy(
+                        transactions = current.transactions + response.transactions.map { it.toDomain() },
+                        currentOffset = response.offset + response.limit,
+                        hasMore = response.hasMore,
+                        totalTransactionCount = response.total,
+                        isLoadingMore = false
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(isLoadingMore = false) }
+            }
+        }
+    }
 
     fun onAction(action: MoneyAction) {
         when (action) {
             is MoneyAction.SelectTab -> _state.update { it.copy(selectedTab = action.index) }
             is MoneyAction.UpdateSearchQuery -> _state.update { it.copy(searchQuery = action.query) }
             is MoneyAction.SelectCategory -> _state.update { it.copy(selectedCategory = action.category) }
+
+            is MoneyAction.Refresh -> loadInitialData()
+            is MoneyAction.LoadMore -> loadMoreTransactions()
 
             is MoneyAction.SetFilterSheetVisible -> _state.update {
                 it.copy(isFilterSheetVisible = action.visible)
@@ -138,3 +236,44 @@ class MoneyVM : ViewModel() {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DTO → Domain mapping
+// ─────────────────────────────────────────────────────────────────────────────
+
+private val apiDateParser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+private val displayDateFormat = SimpleDateFormat("MMM dd", Locale.US)
+
+private fun com.example.dailytrack_mobile.data.remote.dto.TransactionDto.toDomain(): Transaction {
+    val parsedDate = try { apiDateParser.parse(date) } catch (_: Exception) { null }
+    val displayDate = parsedDate?.let { displayDateFormat.format(it) } ?: date
+    val timestampMs = parsedDate?.time ?: System.currentTimeMillis()
+
+    val txType = when (type.lowercase()) {
+        "credit" -> TransactionType.CREDIT
+        else -> TransactionType.DEBIT
+    }
+
+    return Transaction(
+        id = id,
+        title = description ?: heading,
+        description = if (description != null) heading else null,
+        date = displayDate,
+        bank = account,
+        amount = amount,
+        type = txType,
+        category = heading,
+        emoji = CategoryEmojis.forCategory(heading),
+        isExcluded = excludeAnalytics,
+        timestampMillis = timestampMs,
+        monthStr = month,
+        split = split?.let { s ->
+            SplitInfo(
+                id = s.id,
+                totalAmount = s.totalAmount,
+                members = s.members.map { m ->
+                    SplitMember(name = m.name, amount = m.amount, paid = m.paid)
+                }
+            )
+        }
+    )
+}
