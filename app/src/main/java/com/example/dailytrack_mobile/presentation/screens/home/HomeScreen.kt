@@ -96,31 +96,14 @@ private val totalCurrent     = investments.sumOf { it.current }
 private val totalReturns     = totalCurrent - totalInvested
 private val cashBalance      = 15_000.0
 
-private fun getIncomeBreakdown(month: Month, year: Int): List<FlowBreakdown> {
-    val factor = 1.0 + ((month.value % 5) - 2) * 0.05
-    return listOf(
-        FlowBreakdown("Cash",         Icons.Default.Money,          15_000.0 * factor),
-        FlowBreakdown("HDFC Savings", Icons.Default.AccountBalance, 45_000.0 * factor),
-        FlowBreakdown("SBI Current",  Icons.Default.AccountBalance, 12_500.0 * factor),
-        FlowBreakdown("Axis Savings", Icons.Default.AccountBalance,  8_000.0 * factor),
-        FlowBreakdown("ICICI Salary", Icons.Default.AccountBalance, 85_000.0 * factor),
-        FlowBreakdown("HDFC CC",      Icons.Default.CreditCard,          0.0),
-        FlowBreakdown("SBI CC",       Icons.Default.CreditCard,          0.0),
-    )
+private fun getIconForAccount(accountName: String): ImageVector {
+    return when {
+        accountName.contains("Cash", ignoreCase = true) -> Icons.Default.Money
+        accountName.contains("CC", ignoreCase = true) || accountName.contains("Credit", ignoreCase = true) -> Icons.Default.CreditCard
+        else -> Icons.Default.AccountBalance
+    }
 }
 
-private fun getExpenseBreakdown(month: Month, year: Int): List<FlowBreakdown> {
-    val factor = 1.0 + ((month.value % 4) - 1.5) * 0.06
-    return listOf(
-        FlowBreakdown("Cash",         Icons.Default.Money,           3_500.0 * factor),
-        FlowBreakdown("HDFC Savings", Icons.Default.AccountBalance, 12_400.0 * factor),
-        FlowBreakdown("SBI Current",  Icons.Default.AccountBalance,  4_200.0 * factor),
-        FlowBreakdown("Axis Savings", Icons.Default.AccountBalance,  1_800.0 * factor),
-        FlowBreakdown("ICICI Salary", Icons.Default.AccountBalance,  9_100.0 * factor),
-        FlowBreakdown("HDFC CC",      Icons.Default.CreditCard,     18_600.0 * factor),
-        FlowBreakdown("SBI CC",       Icons.Default.CreditCard,      6_300.0 * factor),
-    )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -154,14 +137,28 @@ fun HomeScreen(
 ) {
     val homeState by viewModel.state.collectAsState()
     val dims = Dimens.current
-    var selectedMonth by remember { mutableStateOf(Month.AUGUST) }
-    var selectedYear by remember { mutableIntStateOf(2026) }
+    val selectedMonth = homeState.selectedMonth
+    val selectedYear = homeState.selectedYear
 
-    val incomeFlows = remember(selectedMonth, selectedYear) {
-        getIncomeBreakdown(selectedMonth, selectedYear)
+    val incomeFlows = remember(homeState.accounts, homeState.incomeByAccount) {
+        homeState.accounts.filter { it.balanceTracked }.map { account ->
+            val amount = homeState.incomeByAccount[account.account] ?: 0.0
+            FlowBreakdown(
+                label = account.account,
+                icon = getIconForAccount(account.account),
+                amount = amount
+            )
+        }
     }
-    val expenseFlows = remember(selectedMonth, selectedYear) {
-        getExpenseBreakdown(selectedMonth, selectedYear)
+    val expenseFlows = remember(homeState.accounts, homeState.expenseByAccount) {
+        homeState.accounts.filter { it.balanceTracked }.map { account ->
+            val amount = homeState.expenseByAccount[account.account] ?: 0.0
+            FlowBreakdown(
+                label = account.account,
+                icon = getIconForAccount(account.account),
+                amount = amount
+            )
+        }
     }
 
     // Compute bank balance from API accounts
@@ -206,8 +203,7 @@ fun HomeScreen(
                 selectedMonth = selectedMonth,
                 selectedYear  = selectedYear,
                 onDateChange  = { m, y ->
-                    selectedMonth = m
-                    selectedYear  = y
+                    viewModel.onAction(HomeAction.DateSelected(m, y))
                 }
             )
         }
@@ -219,8 +215,7 @@ fun HomeScreen(
                 selectedMonth = selectedMonth,
                 selectedYear  = selectedYear,
                 onDateChange  = { m, y ->
-                    selectedMonth = m
-                    selectedYear  = y
+                    viewModel.onAction(HomeAction.DateSelected(m, y))
                 }
             )
         }
