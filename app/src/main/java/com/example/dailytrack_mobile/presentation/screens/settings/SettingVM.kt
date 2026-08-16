@@ -36,7 +36,21 @@ class SettingsVM(private val themeManager: ThemeManager) : ViewModel() {
                 }
             }
             is SettingsAction.OnBackClicked -> {
-                // Handle navigation back (can be hoisted to the Screen composable)
+                // Navigation is hoisted to the Screen composable
+            }
+            is SettingsAction.OnAppLockToggled -> {
+                _state.update { it.copy(isAppLockEnabled = action.enabled) }
+                // TODO: persist app lock preference
+            }
+            is SettingsAction.OnHideBalancesToggled -> {
+                _state.update { it.copy(isHideBalancesOnStartup = action.enabled) }
+                // TODO: persist hide-balances preference
+            }
+            is SettingsAction.OnForceSyncClicked -> {
+                // TODO: trigger sync logic
+            }
+            is SettingsAction.OnServerStatusClicked -> {
+                // TODO: navigate to or show server status
             }
         }
     }

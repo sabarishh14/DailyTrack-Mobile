@@ -21,6 +21,7 @@ import com.example.dailytrack_mobile.presentation.screens.settings.SettingsScree
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsVM
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsVMFactory
 import com.example.dailytrack_mobile.presentation.theme.DailyTrackTheme
+import com.example.dailytrack_mobile.presentation.util.ProvideAppDimensions
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,24 +44,26 @@ class MainActivity : ComponentActivity() {
 
             // Pass the state's selected theme into the DailyTrackTheme
             DailyTrackTheme(appTheme = state.selectedTheme) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (currentScreen == "Main") {
-                        MainScreen(
-                            onNavigateToSettings = { currentScreen = "Settings" }
-                        )
-                    } else {
-                        SettingsScreen(
-                            state = state,
-                            onAction = { action ->
-                                settingsVM.onAction(action)
-                                if (action is SettingsAction.OnBackClicked) {
-                                    currentScreen = "Main"
+                ProvideAppDimensions {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        if (currentScreen == "Main") {
+                            MainScreen(
+                                onNavigateToSettings = { currentScreen = "Settings" }
+                            )
+                        } else {
+                            SettingsScreen(
+                                state = state,
+                                onAction = { action ->
+                                    settingsVM.onAction(action)
+                                    if (action is SettingsAction.OnBackClicked) {
+                                        currentScreen = "Main"
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
