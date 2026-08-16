@@ -6,7 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -39,7 +39,10 @@ private enum class InvestmentFrequency(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AddInvestmentScreen() {
+fun AddInvestmentScreen(
+    onDirtyStateChanged: (Boolean) -> Unit = {},
+    onSaveSuccess: () -> Unit = {}
+) {
     var selectedCategory by remember { mutableStateOf<InvestmentCategory?>(null) }
     var selectedFrequency by remember { mutableStateOf(InvestmentFrequency.ONE_TIME) }
     var investmentName by remember { mutableStateOf("") }
@@ -47,6 +50,19 @@ fun AddInvestmentScreen() {
     var interestRate by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     val dims = Dimens.current
+
+    val isDirty = remember(selectedCategory, selectedFrequency, investmentName, amount, interestRate, note) {
+        selectedCategory != null ||
+                investmentName.isNotBlank() ||
+                amount.isNotBlank() ||
+                interestRate.isNotBlank() ||
+                note.isNotBlank() ||
+                selectedFrequency != InvestmentFrequency.ONE_TIME
+    }
+
+    LaunchedEffect(isDirty) {
+        onDirtyStateChanged(isDirty)
+    }
 
     Column(
         modifier = Modifier
@@ -153,7 +169,7 @@ fun AddInvestmentScreen() {
             onValueChange = { note = it },
             placeholder = { Text("Maturity date, lock-in period, etc.", style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = {
-                Icon(Icons.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
+                Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
             },
             minLines = 2,
             maxLines = 3,
@@ -165,7 +181,7 @@ fun AddInvestmentScreen() {
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { /* TODO */ },
+            onClick = { onSaveSuccess() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

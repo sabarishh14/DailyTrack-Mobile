@@ -6,7 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,7 +31,10 @@ private enum class AssetClass(val label: String, val emoji: String) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AddAssetScreen() {
+fun AddAssetScreen(
+    onDirtyStateChanged: (Boolean) -> Unit = {},
+    onSaveSuccess: () -> Unit = {}
+) {
     var selectedClass by remember { mutableStateOf<AssetClass?>(null) }
 
     var assetName by remember { mutableStateOf("") }
@@ -39,6 +42,18 @@ fun AddAssetScreen() {
     var currentValue by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     val dims = Dimens.current
+
+    val isDirty = remember(selectedClass, assetName, purchasePrice, currentValue, note) {
+        selectedClass != null ||
+                assetName.isNotBlank() ||
+                purchasePrice.isNotBlank() ||
+                currentValue.isNotBlank() ||
+                note.isNotBlank()
+    }
+
+    LaunchedEffect(isDirty) {
+        onDirtyStateChanged(isDirty)
+    }
 
     Column(
         modifier = Modifier
@@ -122,7 +137,7 @@ fun AddAssetScreen() {
             onValueChange = { note = it },
             placeholder = { Text("Any details about this asset", style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = {
-                Icon(Icons.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
+                Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
             },
             minLines = 2,
             maxLines = 3,
@@ -134,7 +149,7 @@ fun AddAssetScreen() {
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { /* TODO */ },
+            onClick = { onSaveSuccess() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

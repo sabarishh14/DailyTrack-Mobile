@@ -6,7 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -42,12 +42,23 @@ private enum class MoneyCategory(val label: String, val emoji: String) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AddMoneyScreen() {
+fun AddMoneyScreen(
+    onDirtyStateChanged: (Boolean) -> Unit = {},
+    onSaveSuccess: () -> Unit = {}
+) {
     var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var selectedCategory by remember { mutableStateOf<MoneyCategory?>(null) }
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     val dims = Dimens.current
+
+    val isDirty = remember(selectedType, selectedCategory, amount, note) {
+        amount.isNotBlank() || selectedCategory != null || note.isNotBlank() || selectedType != TransactionType.EXPENSE
+    }
+
+    LaunchedEffect(isDirty) {
+        onDirtyStateChanged(isDirty)
+    }
 
     Column(
         modifier = Modifier
@@ -123,7 +134,7 @@ fun AddMoneyScreen() {
             onValueChange = { note = it },
             placeholder = { Text("What was this for?", style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = {
-                Icon(Icons.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
+                Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
             },
             minLines = 2,
             maxLines = 3,
@@ -135,7 +146,7 @@ fun AddMoneyScreen() {
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { /* TODO */ },
+            onClick = { onSaveSuccess() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

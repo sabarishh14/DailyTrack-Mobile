@@ -5,7 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
@@ -44,7 +44,10 @@ private enum class WatchPlatform(val label: String, val emoji: String) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AddMovieScreen() {
+fun AddMovieScreen(
+    onDirtyStateChanged: (Boolean) -> Unit = {},
+    onSaveSuccess: () -> Unit = {}
+) {
     var title by remember { mutableStateOf("") }
     var selectedContentType by remember { mutableStateOf(ContentType.MOVIE) }
     var selectedStatus by remember { mutableStateOf<WatchStatus?>(null) }
@@ -52,6 +55,19 @@ fun AddMovieScreen() {
     var rating by remember { mutableIntStateOf(0) }
     var review by remember { mutableStateOf("") }
     val dims = Dimens.current
+
+    val isDirty = remember(title, selectedContentType, selectedStatus, selectedPlatform, rating, review) {
+        title.isNotBlank() ||
+                selectedStatus != null ||
+                selectedPlatform != null ||
+                rating > 0 ||
+                review.isNotBlank() ||
+                selectedContentType != ContentType.MOVIE
+    }
+
+    LaunchedEffect(isDirty) {
+        onDirtyStateChanged(isDirty)
+    }
 
     Column(
         modifier = Modifier
@@ -144,7 +160,7 @@ fun AddMovieScreen() {
             onValueChange = { review = it },
             placeholder = { Text("What did you think?", style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = {
-                Icon(Icons.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
+                Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
             },
             minLines = 2,
             maxLines = 4,
@@ -156,7 +172,7 @@ fun AddMovieScreen() {
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { /* TODO */ },
+            onClick = { onSaveSuccess() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

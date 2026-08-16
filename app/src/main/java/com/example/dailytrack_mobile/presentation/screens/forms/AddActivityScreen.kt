@@ -6,8 +6,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -41,7 +41,10 @@ private enum class Intensity(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AddActivityScreen() {
+fun AddActivityScreen(
+    onDirtyStateChanged: (Boolean) -> Unit = {},
+    onSaveSuccess: () -> Unit = {}
+) {
     var selectedActivities by remember { mutableStateOf(setOf<FormActivityType>()) }
     var selectedIntensity by remember { mutableStateOf<Intensity?>(null) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -50,6 +53,19 @@ fun AddActivityScreen() {
     var note by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
     val dims = Dimens.current
+
+    val isDirty = remember(selectedActivities, selectedIntensity, hours, minutes, note, selectedDate) {
+        selectedActivities.isNotEmpty() ||
+                selectedIntensity != null ||
+                hours.isNotBlank() ||
+                minutes.isNotBlank() ||
+                note.isNotBlank() ||
+                selectedDate != LocalDate.now()
+    }
+
+    LaunchedEffect(isDirty) {
+        onDirtyStateChanged(isDirty)
+    }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
 
@@ -200,7 +216,7 @@ fun AddActivityScreen() {
             onValueChange = { note = it },
             placeholder = { Text("How did it go?", style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = {
-                Icon(Icons.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
+                Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
             },
             minLines = 2,
             maxLines = 3,
@@ -212,7 +228,7 @@ fun AddActivityScreen() {
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { /* TODO */ },
+            onClick = { onSaveSuccess() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

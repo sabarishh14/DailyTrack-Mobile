@@ -1,5 +1,6 @@
 package com.example.dailytrack_mobile.presentation.screens.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -77,6 +78,10 @@ fun SettingsScreen(
     state: SettingsState,
     onAction: (SettingsAction) -> Unit
 ) {
+    BackHandler {
+        onAction(SettingsAction.OnBackClicked)
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     val dims = Dimens.current
 
