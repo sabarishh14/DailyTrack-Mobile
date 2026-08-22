@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.time.Month
 import java.time.format.TextStyle
@@ -47,7 +47,7 @@ import java.util.Locale
 private val activityColors: Map<ActivityType, Color> = mapOf(
     ActivityType.GYM          to Color(0xFF2ECC71),   // emerald green
     ActivityType.BADMINTON     to Color(0xFFF39C12),   // amber
-    ActivityType.RUNNING       to Color(0xFF3498DB),   // sky blue
+    ActivityType.CRICKET       to Color(0xFF3498DB),   // sky blue
     ActivityType.TABLE_TENNIS  to Color(0xFF9B59B6),   // purple
     ActivityType.OTHERS        to Color(0xFF95A5A6),   // slate
 )
@@ -58,7 +58,7 @@ private val activityColors: Map<ActivityType, Color> = mapOf(
 
 @Composable
 fun ActivitiesScreen(
-    viewModel: ActivitiesVM = viewModel()
+    viewModel: ActivitiesVM = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current
@@ -133,7 +133,7 @@ fun ActivitiesScreen(
 private val cycleOrder = listOf(
     ActivityType.GYM,
     ActivityType.BADMINTON,
-    ActivityType.RUNNING,
+    ActivityType.CRICKET,
     ActivityType.TABLE_TENNIS,
     ActivityType.OTHERS
 )
@@ -230,7 +230,7 @@ private fun CyclingStatCard(
     val currentLabel = when (currentType) {
         ActivityType.GYM         -> "Gym Days"
         ActivityType.BADMINTON   -> "Badminton Days"
-        ActivityType.RUNNING     -> "Running Days"
+        ActivityType.CRICKET     -> "Cricket Days"
         ActivityType.TABLE_TENNIS -> "TT Days"
         ActivityType.OTHERS      -> "Other Days"
     }

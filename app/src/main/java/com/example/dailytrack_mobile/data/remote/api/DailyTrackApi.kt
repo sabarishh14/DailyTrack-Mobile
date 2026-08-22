@@ -5,6 +5,7 @@ import com.example.dailytrack_mobile.data.remote.dto.CategoriesResponseDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
 import retrofit2.http.GET
 import retrofit2.http.Query
+import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
 
 interface DailyTrackApi {
 
@@ -20,4 +21,7 @@ interface DailyTrackApi {
 
     @GET("/api/transactions/categories")
     suspend fun getCategories(): CategoriesResponseDto
+
+    @GET("/api/physical")
+    suspend fun getPhysicalActivities(): List<PhysicalActivityDto>
 }

@@ -10,7 +10,7 @@ import java.time.Year
 enum class ActivityType(val label: String) {
     GYM("Gym"),
     BADMINTON("Badminton"),
-    RUNNING("Running"),
+    CRICKET("Cricket"),
     TABLE_TENNIS("TT"),
     OTHERS("Others")
 }
@@ -18,7 +18,9 @@ enum class ActivityType(val label: String) {
 data class ActivityEntry(
     val dayOfMonth: Int,
     val dayOfWeek: String,   // e.g. "FRI"
-    val activities: List<ActivityType>  // empty list means rest day
+    val activities: List<ActivityType>,  // empty list means rest day
+    val month: Int = 0,
+    val year: Int = 0
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,7 +31,8 @@ data class ActivitiesState(
     val isLoading: Boolean = false,
     val selectedMonth: Month = Month.JULY,
     val selectedYear: Int = 2026,
-    val activityLog: List<ActivityEntry> = sampleActivities()
+    val allActivities: List<ActivityEntry> = emptyList(),
+    val activityLog: List<ActivityEntry> = emptyList()
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,18 +40,18 @@ data class ActivitiesState(
 // ─────────────────────────────────────────────────────────────────────────────
 
 private fun sampleActivities(): List<ActivityEntry> = listOf(
-    ActivityEntry(26, "SUN", listOf(ActivityType.RUNNING)),
-    ActivityEntry(25, "SAT", listOf(ActivityType.GYM, ActivityType.RUNNING)),
+    ActivityEntry(26, "SUN", listOf(ActivityType.CRICKET)),
+    ActivityEntry(25, "SAT", listOf(ActivityType.GYM, ActivityType.CRICKET)),
     ActivityEntry(24, "FRI", listOf(ActivityType.BADMINTON)),
     ActivityEntry(23, "THU", listOf()),
     ActivityEntry(22, "WED", listOf(ActivityType.GYM)),
-    ActivityEntry(21, "TUE", listOf(ActivityType.TABLE_TENNIS, ActivityType.RUNNING)),
+    ActivityEntry(21, "TUE", listOf(ActivityType.TABLE_TENNIS, ActivityType.CRICKET)),
     ActivityEntry(20, "MON", listOf()),
     ActivityEntry(19, "SUN", listOf(ActivityType.GYM, ActivityType.BADMINTON)),
     ActivityEntry(18, "SAT", listOf(ActivityType.GYM)),
     ActivityEntry(17, "FRI", listOf(ActivityType.TABLE_TENNIS)),
     ActivityEntry(16, "THU", listOf()),
-    ActivityEntry(15, "WED", listOf(ActivityType.GYM, ActivityType.RUNNING)),
+    ActivityEntry(15, "WED", listOf(ActivityType.GYM, ActivityType.CRICKET)),
     ActivityEntry(14, "TUE", listOf(ActivityType.BADMINTON)),
     ActivityEntry(13, "MON", listOf(ActivityType.GYM)),
 )

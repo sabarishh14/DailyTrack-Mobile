@@ -1,21 +1,75 @@
 package com.example.dailytrack_mobile.presentation.screens.activities
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.dailytrack_mobile.data.repository.ActivitiesRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+import javax.inject.Inject
 
-class ActivitiesVM : ViewModel() {
+@HiltViewModel
+class ActivitiesVM @Inject constructor(
+    private val repository: ActivitiesRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivitiesState())
     val state = _state.asStateFlow()
+    
+    init {
+        val now = LocalDate.now()
+        _state.update { it.copy(selectedMonth = now.month, selectedYear = now.year, allActivities = emptyList(), activityLog = emptyList()) }
+        loadActivities()
+    }
 
     fun onAction(action: ActivitiesAction) {
         when (action) {
             is ActivitiesAction.OnMonthChanged -> {
                 _state.update { it.copy(selectedMonth = action.month, selectedYear = action.year) }
-                // TODO: Load data for the selected month/year from database when wired up
+                filterActivities()
             }
         }
+    }
+
+    private fun loadActivities() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            repository.getPhysicalActivities().onSuccess { dtoList ->
+                val entries = dtoList.map { dto ->
+                    val date = LocalDate.parse(dto.date)
+                    val acts = mutableListOf<ActivityType>()
+                    if (dto.gym) acts.add(ActivityType.GYM)
+                    if (dto.badminton) acts.add(ActivityType.BADMINTON)
+                    if (dto.tableTennis) acts.add(ActivityType.TABLE_TENNIS)
+                    if (dto.cricket) acts.add(ActivityType.CRICKET)
+                    if (dto.others) acts.add(ActivityType.OTHERS)
+
+                    ActivityEntry(
+                        dayOfMonth = date.dayOfMonth,
+                        dayOfWeek = date.dayOfWeek.name.take(3),
+                        activities = acts,
+                        month = date.monthValue,
+                        year = date.year
+                    )
+                }
+                
+                _state.update { it.copy(allActivities = entries, isLoading = false) }
+                filterActivities()
+            }.onFailure {
+                _state.update { it.copy(isLoading = false, allActivities = emptyList(), activityLog = emptyList()) }
+            }
+        }
+    }
+    
+    private fun filterActivities() {
+        val currentState = _state.value
+        val filtered = currentState.allActivities.filter { 
+            it.month == currentState.selectedMonth.value && it.year == currentState.selectedYear 
+        }.sortedByDescending { it.dayOfMonth }
+        
+        _state.update { it.copy(activityLog = filtered) }
     }
 }
