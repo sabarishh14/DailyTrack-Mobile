@@ -232,6 +232,14 @@ class MoneyVM @Inject constructor(
                             )
                         )
                     }
+                    QuickFilterPreset.INCOME_ONLY -> {
+                        val isIncomeOnly = filters.selectedTypes == setOf(TransactionType.CREDIT)
+                        current.copy(
+                            analysisFilterState = filters.copy(
+                                selectedTypes = if (isIncomeOnly) emptySet() else setOf(TransactionType.CREDIT)
+                            )
+                        )
+                    }
                 }
             }
 

@@ -25,7 +25,8 @@ enum class FilterMode {
 enum class QuickFilterPreset {
     LAST_30_DAYS,
     THIS_MONTH,
-    EXPENSES_ONLY
+    EXPENSES_ONLY,
+    INCOME_ONLY
 }
 
 data class SplitMember(

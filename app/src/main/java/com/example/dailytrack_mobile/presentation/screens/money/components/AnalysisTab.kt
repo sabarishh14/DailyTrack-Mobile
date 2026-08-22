@@ -215,6 +215,14 @@ private fun AnalysisFilterRow(
                 onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
             )
 
+            // 4. "Income Only" Quick Preset Pill
+            val isIncomeOnly = filterState.selectedTypes == setOf(TransactionType.CREDIT)
+            QuickPresetChip(
+                text = "Income Only",
+                isSelected = isIncomeOnly,
+                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.INCOME_ONLY)) }
+            )
+
             // Active Financial Year Chip (if selected via bottom sheet)
             if (!filterState.financialYear.isNullOrBlank() && filterState.financialYear != "All Time") {
                 ActiveFilterRemovableChip(
@@ -233,8 +241,8 @@ private fun AnalysisFilterRow(
                 }
             }
 
-            // Active Types (if not standard single debit preset)
-            if (filterState.selectedTypes != setOf(TransactionType.DEBIT)) {
+            // Active Types (if not standard single debit or credit preset)
+            if (filterState.selectedTypes != setOf(TransactionType.DEBIT) && filterState.selectedTypes != setOf(TransactionType.CREDIT)) {
                 filterState.selectedTypes.forEach { type ->
                     ActiveFilterRemovableChip(
                         text = if (type == TransactionType.DEBIT) "Debit" else "Credit",
@@ -437,6 +445,21 @@ private fun CashFlowBreakdownCard(
     val dims = Dimens.current
     val total = categories.sumOf { it.amount }
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val processedCategories = remember(categories, primaryColor) {
+        val baseList = if (categories.size > 6) {
+            val top6 = categories.take(6)
+            val othersTotal = categories.drop(6).sumOf { it.amount }
+            top6 + SpendingCategory("Others", othersTotal, primaryColor)
+        } else {
+            categories
+        }
+        
+        baseList.mapIndexed { index, cat ->
+            cat.copy(color = primaryColor.copy(alpha = (1f - (index * 0.12f)).coerceAtLeast(0.3f)))
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(dims.cardCornerRadius),
@@ -464,7 +487,7 @@ private fun CashFlowBreakdownCard(
 
             Spacer(modifier = Modifier.height(dims.sectionSpacing))
 
-            // Donut chart with center text (3D version)
+            // Donut chart with center text (2D version)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -475,8 +498,8 @@ private fun CashFlowBreakdownCard(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                DonutChart3D(
-                    categories = categories,
+                DonutChart2D(
+                    categories = processedCategories,
                     total = total,
                     modifier = Modifier.size(dims.donutChartSize)
                 )
@@ -485,7 +508,7 @@ private fun CashFlowBreakdownCard(
             Spacer(modifier = Modifier.height(dims.sectionSpacing))
 
             // Legend grid — 2 columns, 3 rows
-            LegendGrid(categories = categories)
+            LegendGrid(categories = processedCategories)
         }
     }
 }
@@ -542,10 +565,10 @@ private fun EmptyFilterResultsCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3D Donut Chart (Canvas)
+// 2D Donut Chart (Canvas)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun DonutChart3D(
+private fun DonutChart2D(
     categories: List<SpendingCategory>,
     total: Double,
     modifier: Modifier = Modifier
@@ -563,38 +586,10 @@ private fun DonutChart3D(
                 (size.width - diameter) / 2f,
                 (size.height - diameter) / 2f
             )
-            val depthOffset = Offset(topLeft.x, topLeft.y + 16f) // Shift down for 3D effect
             val arcSize = Size(diameter, diameter)
 
-            // Draw depth layer (darkened)
-            var startAngle = -90f
-            categories.forEach { category ->
-                val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
-                if (sweep > 0f) {
-                    val darkened = Color(
-                        red = category.color.red * 0.45f,
-                        green = category.color.green * 0.45f,
-                        blue = category.color.blue * 0.45f,
-                        alpha = 1f
-                    )
-                    drawArc(
-                        color = darkened,
-                        startAngle = startAngle,
-                        sweepAngle = sweep,
-                        useCenter = false,
-                        topLeft = depthOffset,
-                        size = arcSize,
-                        style = Stroke(
-                            width = strokeWidth,
-                            cap = StrokeCap.Round
-                        )
-                    )
-                }
-                startAngle += sweep + gapDegrees
-            }
-
             // Draw top layer
-            startAngle = -90f
+            var startAngle = -90f
             categories.forEach { category ->
                 val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
                 if (sweep > 0f) {
