@@ -195,7 +195,7 @@ fun HomeScreen(
         item { InvestmentPortfolioSection() }
         item {
             FlowSection(
-                title         = "Income by Account",
+                title         = "INCOME BY ACCOUNT",
                 flows         = incomeFlows,
                 isIncome      = true,
                 selectedMonth = selectedMonth,
@@ -207,7 +207,7 @@ fun HomeScreen(
         }
         item {
             FlowSection(
-                title         = "Expenses by Account",
+                title         = "EXPENSES BY ACCOUNT",
                 flows         = expenseFlows,
                 isIncome      = false,
                 selectedMonth = selectedMonth,
@@ -428,7 +428,7 @@ private fun BankAccountsSection(
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
             // Header Row
             Row(
-                modifier              = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth().heightIn(min = 28.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
@@ -724,7 +724,7 @@ private fun InvestmentPortfolioSection() {
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
             Row(
-                modifier              = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth().heightIn(min = 28.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
@@ -858,7 +858,7 @@ private fun FlowSection(
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
             // Header row with Section Label and Month/Year filter pill
             Row(
-                modifier              = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth().heightIn(min = 28.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
@@ -929,14 +929,16 @@ private fun FlowSection(
                     )
 
                     // Flow breakdown items
-                    flows.forEachIndexed { idx, flow ->
-                        FlowRow(flow = flow, accentColor = accentColor)
-                        if (idx < flows.lastIndex) {
-                            HorizontalDivider(
-                                modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
-                                thickness = 0.5.dp,
-                                color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        flows.forEachIndexed { idx, flow ->
+                            FlowRow(flow = flow, accentColor = accentColor)
+                            if (idx < flows.lastIndex) {
+                                HorizontalDivider(
+                                    modifier  = Modifier.padding(vertical = dims.itemSpacingMedium),
+                                    thickness = 0.5.dp,
+                                    color     = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+                            }
                         }
                     }
                 }
