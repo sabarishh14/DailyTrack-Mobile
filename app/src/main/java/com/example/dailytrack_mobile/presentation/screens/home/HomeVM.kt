@@ -46,16 +46,13 @@ class HomeVM @Inject constructor(
                 val income = mutableMapOf<String, Double>()
                 val expense = mutableMapOf<String, Double>()
                 
-                accounts.forEach { 
-                    income[it.account] = 0.0
-                    expense[it.account] = 0.0
-                }
-                
                 transactions.forEach { t ->
                     if (t.type == "Credit") {
-                        income[t.account] = (income[t.account] ?: 0.0) + t.amount
+                        val key = if (t.heading.isNotBlank()) t.heading else "Uncategorized"
+                        income[key] = (income[key] ?: 0.0) + t.amount
                     } else if (t.type == "Debit") {
-                        expense[t.account] = (expense[t.account] ?: 0.0) + t.amount
+                        val key = if (t.heading.isNotBlank()) t.heading else "Uncategorized"
+                        expense[key] = (expense[key] ?: 0.0) + t.amount
                     }
                 }
                 
@@ -63,8 +60,8 @@ class HomeVM @Inject constructor(
                     it.copy(
                         isLoading = false,
                         accounts = accounts,
-                        incomeByAccount = income,
-                        expenseByAccount = expense
+                        incomeByCategory = income,
+                        expenseByCategory = expense
                     )
                 }
             } else {

@@ -140,25 +140,23 @@ fun HomeScreen(
     val selectedMonth = homeState.selectedMonth
     val selectedYear = homeState.selectedYear
 
-    val incomeFlows = remember(homeState.accounts, homeState.incomeByAccount) {
-        homeState.accounts.filter { it.balanceTracked }.map { account ->
-            val amount = homeState.incomeByAccount[account.account] ?: 0.0
+    val incomeFlows = remember(homeState.incomeByCategory) {
+        homeState.incomeByCategory.map { (category, amount) ->
             FlowBreakdown(
-                label = account.account,
-                icon = getIconForAccount(account.account),
+                label = category,
+                icon = Icons.AutoMirrored.Filled.TrendingUp,
                 amount = amount
             )
-        }
+        }.sortedByDescending { it.amount }
     }
-    val expenseFlows = remember(homeState.accounts, homeState.expenseByAccount) {
-        homeState.accounts.filter { it.balanceTracked }.map { account ->
-            val amount = homeState.expenseByAccount[account.account] ?: 0.0
+    val expenseFlows = remember(homeState.expenseByCategory) {
+        homeState.expenseByCategory.map { (category, amount) ->
             FlowBreakdown(
-                label = account.account,
-                icon = getIconForAccount(account.account),
+                label = category,
+                icon = Icons.AutoMirrored.Filled.TrendingDown,
                 amount = amount
             )
-        }
+        }.sortedByDescending { it.amount }
     }
 
     // Compute bank balance from API accounts
