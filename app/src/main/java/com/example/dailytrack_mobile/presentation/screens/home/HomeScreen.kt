@@ -195,7 +195,7 @@ fun HomeScreen(
         item { InvestmentPortfolioSection() }
         item {
             FlowSection(
-                title         = "TOTAL INCOME",
+                title         = "Income by Account",
                 flows         = incomeFlows,
                 isIncome      = true,
                 selectedMonth = selectedMonth,
@@ -207,7 +207,7 @@ fun HomeScreen(
         }
         item {
             FlowSection(
-                title         = "TOTAL EXPENSES",
+                title         = "Expenses by Account",
                 flows         = expenseFlows,
                 isIncome      = false,
                 selectedMonth = selectedMonth,

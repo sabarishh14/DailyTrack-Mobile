@@ -39,7 +39,7 @@ class HomeVM @Inject constructor(
                         realBalance = dto.realBalance,
                         balanceTracked = dto.balanceTracked
                     )
-                }
+                }.sortedByDescending { it.realBalance != null }
                 
                 val transactions = transactionsResult.getOrThrow().transactions
                 
@@ -48,10 +48,10 @@ class HomeVM @Inject constructor(
                 
                 transactions.forEach { t ->
                     if (t.type == "Credit") {
-                        val key = if (t.heading.isNotBlank()) t.heading else "Uncategorized"
+                        val key = if (t.account.isNotBlank()) t.account else "Uncategorized"
                         income[key] = (income[key] ?: 0.0) + t.amount
                     } else if (t.type == "Debit") {
-                        val key = if (t.heading.isNotBlank()) t.heading else "Uncategorized"
+                        val key = if (t.account.isNotBlank()) t.account else "Uncategorized"
                         expense[key] = (expense[key] ?: 0.0) + t.amount
                     }
                 }
