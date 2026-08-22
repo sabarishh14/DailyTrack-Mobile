@@ -268,6 +268,10 @@ data class MoneyState(
                     return@filter false
                 }
 
+                // Web unconditionally hides exclude_analytics == true from the analyzer and charts
+                if (tx.isExcluded) return@filter false
+
+
                 // Category Include / Exclude
                 val incCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
                 val excCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.EXCLUDED }.keys
@@ -279,6 +283,7 @@ data class MoneyState(
                 val excAccounts = filters.accountFilters.filter { it.value == ItemFilterStatus.EXCLUDED }.keys
                 if (excAccounts.contains(tx.bank)) return@filter false
                 if (incAccounts.isNotEmpty() && !incAccounts.contains(tx.bank)) return@filter false
+
 
                 // Date Range
                 filters.customDateRange?.let { range ->
@@ -293,40 +298,36 @@ data class MoneyState(
         }
 
     /**
-     * Dynamically computed spending categories for Analysis based on active filters.
+     * Dynamically computed spending categories for Analysis based on active filters,
+     * mirroring the Web Spending Analyser logic.
      */
-    val filteredSpendingCategories: List<SpendingCategory>
+    val spendingAnalyzerData: List<SpendingCategory>
         get() {
-            val txList = filteredAnalysisTransactions.filter { it.type == TransactionType.DEBIT }
+            val txList = filteredAnalysisTransactions
 
-            // Group filtered debits by category
-            val grouped = txList.groupBy { it.category }
-            val result = mutableListOf<SpendingCategory>()
-
-            // Ensure categories that exist in baseline or filtered list are represented
-            spendingCategories.forEach { baseCat ->
-                val matchingTxs = grouped[baseCat.name]
-                if (matchingTxs != null) {
-                    val sum = matchingTxs.sumOf { it.amount }
-                    if (sum > 0) {
-                        result.add(SpendingCategory(baseCat.name, sum, baseCat.color))
-                    }
-                } else if (!analysisFilterState.hasActiveFilters) {
-                    result.add(baseCat)
-                }
+            // Drill-down logic: If exactly one category is included, group by description.
+            val incCategories = analysisFilterState.categoryFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
+            val isDrillDown = incCategories.size == 1
+            
+            val grouped = if (isDrillDown) {
+                txList.groupBy { it.description?.takeIf { d -> d.isNotBlank() }?.trim() ?: "No Description" }
+            } else {
+                txList.groupBy { it.category }
             }
 
-            // Also add any other debit categories if present
-            grouped.forEach { (catName, txs) ->
-                if (result.none { it.name == catName }) {
-                    val sum = txs.sumOf { it.amount }
-                    if (sum > 0) {
-                        result.add(SpendingCategory(catName, sum, ChartColors.forCategory(catName)))
-                    }
+            val result = grouped.map { (key, txs) ->
+                val sum = txs.sumOf { Math.abs(it.amount) }
+                val color = if (isDrillDown) {
+                    val hash = Math.abs(key.hashCode())
+                    val hue = (hash % 360).toFloat()
+                    androidx.compose.ui.graphics.Color.hsv(hue, 0.6f, 0.9f)
+                } else {
+                    ChartColors.forCategory(key)
                 }
-            }
-
-            return result
+                SpendingCategory(key, sum, color)
+            }.filter { it.amount > 0 }
+            
+            return result.sortedByDescending { it.amount }
         }
 
     val filteredTotalIncome: Double

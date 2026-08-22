@@ -78,32 +78,45 @@ class MoneyVM @Inject constructor(
 
                 updated
             }
+
+            // Fire off a background task to progressively fetch the REST of the transactions
+            // for the spending analyser, exactly like the Web app does.
+            if (_state.value.hasMore) {
+                fetchAllTransactionsProgressively()
+            }
+        }
+    }
+
+    private fun fetchAllTransactionsProgressively() {
+        viewModelScope.launch {
+            var hasMore = _state.value.hasMore
+            var offset = _state.value.currentOffset
+
+            while (hasMore) {
+                val result = repository.getTransactions(limit = 500, offset = offset).getOrNull()
+                if (result == null || result.transactions.isEmpty()) break
+
+                _state.update { current ->
+                    // Make sure not to add duplicates
+                    val existingIds = current.transactions.map { it.id }.toSet()
+                    val newTxs = result.transactions.map { it.toDomain() }.filter { !existingIds.contains(it.id) }
+                    
+                    current.copy(
+                        transactions = current.transactions + newTxs,
+                        currentOffset = result.offset + result.limit,
+                        hasMore = result.hasMore,
+                        totalTransactionCount = result.total
+                    )
+                }
+                hasMore = result.hasMore
+                offset += 500
+            }
         }
     }
 
     private fun loadMoreTransactions() {
-        val currentState = _state.value
-        if (currentState.isLoadingMore || !currentState.hasMore) return
-
-        _state.update { it.copy(isLoadingMore = true) }
-        viewModelScope.launch {
-            repository.getTransactions(
-                limit = PAGE_SIZE,
-                offset = currentState.currentOffset
-            ).onSuccess { response ->
-                _state.update { current ->
-                    current.copy(
-                        transactions = current.transactions + response.transactions.map { it.toDomain() },
-                        currentOffset = response.offset + response.limit,
-                        hasMore = response.hasMore,
-                        totalTransactionCount = response.total,
-                        isLoadingMore = false
-                    )
-                }
-            }.onFailure {
-                _state.update { it.copy(isLoadingMore = false) }
-            }
-        }
+        // We now fetch all transactions progressively in the background on init,
+        // so manual pagination scrolling is no longer needed.
     }
 
     fun onAction(action: MoneyAction) {
@@ -124,6 +137,10 @@ class MoneyVM @Inject constructor(
                     analysisFilterState = action.filterState.copy(activeDatePreset = null),
                     isFilterSheetVisible = false
                 )
+            }
+
+            is MoneyAction.UpdateAnalysisFilterState -> _state.update {
+                it.copy(analysisFilterState = action.filterState)
             }
 
             is MoneyAction.ResetAnalysisFilters -> _state.update {

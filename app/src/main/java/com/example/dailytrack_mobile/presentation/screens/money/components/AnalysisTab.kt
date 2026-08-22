@@ -18,13 +18,17 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -55,7 +59,7 @@ fun AnalysisTab(
     onAction: (MoneyAction) -> Unit
 ) {
     val dims = Dimens.current
-    val categories = state.filteredSpendingCategories
+    val categories = state.spendingAnalyzerData
     val filterState = state.analysisFilterState
 
     LazyColumn(
@@ -82,7 +86,7 @@ fun AnalysisTab(
             if (categories.isNotEmpty()) {
                 CashFlowBreakdownCard(
                     categories = categories,
-                    periodLabel = filterState.financialYear ?: "JUL 2025"
+                    periodLabel = filterState.financialYear ?: "ALL TIME"
                 )
             } else {
                 EmptyFilterResultsCard(
@@ -113,6 +117,18 @@ private fun AnalysisFilterRow(
 ) {
     val dims = Dimens.current
 
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val clearButtonWidthPx = remember { with(density) { 88.dp.toPx().toInt() } }
+    val scrollState = rememberScrollState(initial = if (filterState.hasActiveFilters) clearButtonWidthPx else 0)
+
+    LaunchedEffect(filterState.hasActiveFilters) {
+        if (filterState.hasActiveFilters && scrollState.value < clearButtonWidthPx) {
+            scrollState.scrollTo(clearButtonWidthPx)
+        } else if (!filterState.hasActiveFilters) {
+            scrollState.scrollTo(0)
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
@@ -120,10 +136,15 @@ private fun AnalysisFilterRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .horizontalScroll(scrollState),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Hidden "Pull to Reveal" Clear Button
+            if (filterState.hasActiveFilters) {
+                DottedClearButton(onClick = { onAction(MoneyAction.ResetAnalysisFilters) })
+            }
+
             // Main Filter Button with Badge
             FilterChip(
                 selected = filterState.hasActiveFilters,
@@ -263,21 +284,42 @@ private fun AnalysisFilterRow(
                     ItemFilterStatus.NEUTRAL -> Unit
                 }
             }
-
-            // Clear All quick button when any filter is active
-            if (filterState.hasActiveFilters) {
-                TextButton(
-                    onClick = { onAction(MoneyAction.ResetAnalysisFilters) },
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) {
-                    Text(
-                        text = "Clear all",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dotted Clear Button Component
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun DottedClearButton(onClick: () -> Unit) {
+    val dims = Dimens.current
+    val color = ChartColors.ExpenseRed
+    
+    Box(
+        modifier = Modifier
+            .width(80.dp)
+            .height(32.dp)
+            .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
+            .clickable { onClick() }
+            .drawBehind {
+                drawRoundRect(
+                    color = color.copy(alpha = 0.8f),
+                    size = size,
+                    style = Stroke(
+                        width = 4f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
+                    ),
+                    cornerRadius = CornerRadius((dims.buttonCornerRadius - 2.dp).toPx())
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Clear",
+            color = color,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+        )
     }
 }
 
@@ -411,7 +453,7 @@ private fun CashFlowBreakdownCard(
         ) {
             // Section label
             Text(
-                text = "CASH FLOW BREAKDOWN — ${periodLabel.uppercase()}",
+                text = "SPENDING ANALYSER — ${periodLabel.uppercase()}",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp
@@ -422,12 +464,23 @@ private fun CashFlowBreakdownCard(
 
             Spacer(modifier = Modifier.height(dims.sectionSpacing))
 
-            // Donut chart with center text
-            DonutChart(
-                categories = categories,
-                total = total,
-                modifier = Modifier.size(dims.donutChartSize)
-            )
+            // Donut chart with center text (3D version)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                DonutChart3D(
+                    categories = categories,
+                    total = total,
+                    modifier = Modifier.size(dims.donutChartSize)
+                )
+            }
 
             Spacer(modifier = Modifier.height(dims.sectionSpacing))
 
@@ -489,10 +542,10 @@ private fun EmptyFilterResultsCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Donut Chart (Canvas)
+// 3D Donut Chart (Canvas)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun DonutChart(
+private fun DonutChart3D(
     categories: List<SpendingCategory>,
     total: Double,
     modifier: Modifier = Modifier
@@ -510,10 +563,38 @@ private fun DonutChart(
                 (size.width - diameter) / 2f,
                 (size.height - diameter) / 2f
             )
+            val depthOffset = Offset(topLeft.x, topLeft.y + 16f) // Shift down for 3D effect
             val arcSize = Size(diameter, diameter)
 
-            var startAngle = -90f  // start from top
+            // Draw depth layer (darkened)
+            var startAngle = -90f
+            categories.forEach { category ->
+                val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
+                if (sweep > 0f) {
+                    val darkened = Color(
+                        red = category.color.red * 0.45f,
+                        green = category.color.green * 0.45f,
+                        blue = category.color.blue * 0.45f,
+                        alpha = 1f
+                    )
+                    drawArc(
+                        color = darkened,
+                        startAngle = startAngle,
+                        sweepAngle = sweep,
+                        useCenter = false,
+                        topLeft = depthOffset,
+                        size = arcSize,
+                        style = Stroke(
+                            width = strokeWidth,
+                            cap = StrokeCap.Round
+                        )
+                    )
+                }
+                startAngle += sweep + gapDegrees
+            }
 
+            // Draw top layer
+            startAngle = -90f
             categories.forEach { category ->
                 val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
                 if (sweep > 0f) {
@@ -554,6 +635,7 @@ private fun DonutChart(
         }
     }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Legend Grid (2 columns)
