@@ -1,6 +1,7 @@
 package com.example.dailytrack_mobile.presentation.screens.sabdekho
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -26,48 +27,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.dailytrack_mobile.data.remote.dto.MediaShowDto
 import com.example.dailytrack_mobile.presentation.util.Dimens
-
-enum class MediaStatus(val label: String) {
-    WATCHING("WATCHING"),
-    WATCHED("WATCHED"),
-    QUEUE("QUEUE"),
-    DROPPED("DROPPED")
-}
-
-data class MediaItem(
-    val id: Int,
-    val title: String,
-    val type: String,
-    val status: MediaStatus,
-    val rating: Double,
-    val imageUrl: String
-)
-
-val mockMediaItems = listOf(
-    MediaItem(1, "Dune: Part Two", "Movie", MediaStatus.WATCHING, 9.1, "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2JGqqUT1O.jpg"),
-    MediaItem(2, "Shogun", "Series", MediaStatus.WATCHING, 9.3, "https://image.tmdb.org/t/p/w500/7O4iVfOMQmdCSxhOg1WNzG1SyKy.jpg"),
-    MediaItem(3, "The Bear", "Series", MediaStatus.WATCHING, 8.7, "https://image.tmdb.org/t/p/w500/rFqETiaY6xGf2LbbFfE1P6qRjUa.jpg"),
-    MediaItem(4, "Oppenheimer", "Movie", MediaStatus.WATCHED, 8.9, "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg"),
-    MediaItem(5, "Fallout", "Series", MediaStatus.WATCHED, 8.6, "https://image.tmdb.org/t/p/w500/A8wQAh-JmXpA2B0s1eYjQdZqG1.jpg"),
-    MediaItem(6, "Civil War", "Movie", MediaStatus.QUEUE, 7.5, "https://image.tmdb.org/t/p/w500/sh7Rg8Er3tFcN9BpKIPOMvALgZd.jpg"),
-    MediaItem(7, "Severance", "Series", MediaStatus.QUEUE, 8.7, "https://image.tmdb.org/t/p/w500/zEqyD0SBt6HL7W9JQoWwtd5Do1O.jpg"),
-    MediaItem(8, "The Boys", "Series", MediaStatus.DROPPED, 8.4, "https://image.tmdb.org/t/p/w500/2zmTngn1tYC1rmbUTB1Vlu5hNdo.jpg"),
-    MediaItem(9, "3 Body Problem", "Series", MediaStatus.DROPPED, 7.6, "https://image.tmdb.org/t/p/w500/q3UfQfW00d-p-9zQzX28o5C31.jpg")
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SabdekhoScreen() {
-    var searchQuery by remember { mutableStateOf("") }
+fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
+    val state by viewModel.state.collectAsState()
     var gridSpan by remember { mutableIntStateOf(2) }
     val dims = Dimens.current
     
-    val filteredItems = remember(searchQuery) {
-        if (searchQuery.isBlank()) mockMediaItems
-        else mockMediaItems.filter { it.title.contains(searchQuery, ignoreCase = true) }
+    val filteredItems = remember(state.searchQuery, state.shows) {
+        if (state.searchQuery.isBlank()) state.shows
+        else state.shows.filter { it.name?.contains(state.searchQuery, ignoreCase = true) == true }
     }
 
     Column(
@@ -83,8 +58,8 @@ fun SabdekhoScreen() {
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+                value = state.searchQuery,
+                onValueChange = { viewModel.onAction(SabdekhoAction.SearchQueryChanged(it)) },
                 modifier = Modifier
                     .weight(1f)
                     .height(dims.searchBarHeight),
@@ -116,7 +91,7 @@ fun SabdekhoScreen() {
             
             Spacer(modifier = Modifier.width(dims.itemSpacingLarge))
             
-            // Grid option toggle (manual toggle preserved)
+            // Grid option toggle
             IconButton(
                 onClick = {
                     gridSpan = when (gridSpan) {
@@ -164,39 +139,53 @@ fun SabdekhoScreen() {
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
         ) {
-            FilterChipView("Watching", 3, isSelected = true)
-            FilterChipView("Watched", 2, isSelected = false)
-            FilterChipView("Queue", 2, isSelected = false)
-            FilterChipView("Dropped", 2, isSelected = false)
+            FilterChipView("Watching", isSelected = state.activeFilter == "WATCHING") {
+                viewModel.onAction(SabdekhoAction.ChangeFilter("WATCHING"))
+            }
+            FilterChipView("To Watch", isSelected = state.activeFilter == "TO WATCH") {
+                viewModel.onAction(SabdekhoAction.ChangeFilter("TO WATCH"))
+            }
+            FilterChipView("Watched", isSelected = state.activeFilter == "WATCHED") {
+                viewModel.onAction(SabdekhoAction.ChangeFilter("WATCHED"))
+            }
+            FilterChipView("Dropped", isSelected = state.activeFilter == "DROPPED") {
+                viewModel.onAction(SabdekhoAction.ChangeFilter("DROPPED"))
+            }
         }
         
         Spacer(modifier = Modifier.height(dims.itemSpacingLarge))
         
-        // Grid of items
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(gridSpan),
-            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-            contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 48.dp) // padding for bottom nav
-        ) {
-            items(filteredItems) { item ->
-                MediaCard(item = item, gridSpan = gridSpan)
+        if (state.isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            // Grid of items
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(gridSpan),
+                verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
+                horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
+                contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 48.dp) // padding for bottom nav
+            ) {
+                items(filteredItems, key = { it.id }) { item ->
+                    MediaCard(item = item, gridSpan = gridSpan)
+                }
             }
         }
     }
 }
 
 @Composable
-fun FilterChipView(label: String, count: Int, isSelected: Boolean) {
+fun FilterChipView(label: String, isSelected: Boolean, onClick: () -> Unit) {
     val dims = Dimens.current
     val containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    val badgeBg = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
     
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .background(containerColor, RoundedCornerShape(50))
+            .clickable { onClick() }
             .padding(horizontal = dims.itemSpacingLarge, vertical = dims.itemSpacingSmall + 2.dp)
     ) {
         Text(
@@ -205,25 +194,11 @@ fun FilterChipView(label: String, count: Int, isSelected: Boolean) {
             fontWeight = FontWeight.Medium,
             color = contentColor
         )
-        Spacer(modifier = Modifier.width(dims.itemSpacingSmall))
-        Box(
-            modifier = Modifier
-                .size(dims.avatarSizeSmall - 8.dp)
-                .background(badgeBg, RoundedCornerShape(50)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = contentColor
-            )
-        }
     }
 }
 
 @Composable
-fun MediaCard(item: MediaItem, gridSpan: Int) {
+fun MediaCard(item: MediaShowDto, gridSpan: Int) {
     val dims = Dimens.current
     // Dynamic height based on span to keep aspect ratio approximately 2:3 and scale with screen width
     val height = when (gridSpan) {
@@ -232,6 +207,9 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
         else -> dims.mediaCardHeight4Col
     }
     
+    val imageUrl = if (item.posterPath != null) "https://image.tmdb.org/t/p/w500${item.posterPath}" else ""
+    val typeLabel = if (item.type == "movie") "Movie" else "Series"
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -239,15 +217,17 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
             .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(item.imageUrl)
-                .crossfade(true)
-                .build(),
-            contentDescription = item.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+        if (imageUrl.isNotEmpty()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(imageUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = item.name ?: "",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         
         // Gradient overlay for bottom text
         Box(
@@ -262,7 +242,7 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
         )
         
         // Top Left: Type (Movie/Series)
-        if (gridSpan <= 3) {
+        if (gridSpan <= 3 && item.type != null) {
             Box(
                 modifier = Modifier
                     .padding(dims.itemSpacingMedium)
@@ -271,7 +251,7 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = item.type,
+                    text = typeLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
@@ -280,8 +260,9 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
         }
         
         // Top Right: Status
-        val statusBg = if (item.status == MediaStatus.WATCHING) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
-        val statusText = if (item.status == MediaStatus.WATCHING) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        val isWatching = item.status?.equals("WATCHING", ignoreCase = true) == true
+        val statusBg = if (isWatching) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+        val statusText = if (isWatching) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
         
         Box(
             modifier = Modifier
@@ -291,7 +272,7 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
             Text(
-                text = item.status.label,
+                text = item.status ?: "UNKNOWN",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = if (gridSpan == 4) 8.sp else 9.sp
                 ),
@@ -301,14 +282,14 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
             )
         }
         
-        // Bottom Left: Title & Rating
+        // Bottom Left: Title
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(dims.itemSpacingLarge - 2.dp)
         ) {
             Text(
-                text = item.title,
+                text = item.name ?: "Unknown",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 style = when (gridSpan) {
@@ -319,21 +300,6 @@ fun MediaCard(item: MediaItem, gridSpan: Int) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "★",
-                    color = Color(0xFFFFC107),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = item.rating.toString(),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
     }
 }

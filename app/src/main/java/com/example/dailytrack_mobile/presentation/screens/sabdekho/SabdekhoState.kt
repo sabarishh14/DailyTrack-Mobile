@@ -1,17 +1,11 @@
-﻿data class SabdekhoState(
+package com.example.dailytrack_mobile.presentation.screens.sabdekho
+
+import com.example.dailytrack_mobile.data.remote.dto.MediaShowDto
+
+data class SabdekhoState(
     val isLoading: Boolean = false,
-    val movies: List<Movie> = emptyList(), // list of movies
+    val shows: List<MediaShowDto> = emptyList(),
     val error: String? = null,
-
-    // Search state
     val searchQuery: String = "",
-    val isSearching: Boolean = false
-)
-
-data class Movie(
-    val id: Int,
-    val title: String,
-    val year: Int,
-    val posterUrl: String,
-    val rating: Double
+    val activeFilter: String = "WATCHING"
 )

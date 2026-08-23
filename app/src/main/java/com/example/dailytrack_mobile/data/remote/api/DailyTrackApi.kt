@@ -40,4 +40,12 @@ interface DailyTrackApi {
 
     @GET("/api/manual_assets")
     suspend fun getManualAssets(): List<ManualAssetDto>
+
+    @GET("/api/media/library")
+    suspend fun getMediaLibrary(
+        @Query("limit") limit: Int = 60,
+        @Query("offset") offset: Int = 0,
+        @Query("type") type: String = "all",
+        @Query("status") status: String = "WATCHING"
+    ): com.example.dailytrack_mobile.data.remote.dto.MediaLibraryResponseDto
 }
