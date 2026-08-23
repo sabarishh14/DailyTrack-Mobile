@@ -61,40 +61,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 private val GainGreen   = Color(0xFF2ECC71)
 private val LossRed     = Color(0xFFE74C3C)
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mock data models (Investments — still mock until API integration)
-// ─────────────────────────────────────────────────────────────────────────────
-
-private data class Investment(
-    val name: String,
-    val invested: Double,
-    val current: Double
-) {
-    val returns: Double get() = current - invested
-    val returnsPercent: Double get() = if (invested == 0.0) 0.0 else (returns / invested) * 100.0
-    val isGain: Boolean get() = returns >= 0
-}
+// Removed mock investments data
 
 private data class FlowBreakdown(
     val label: String,
     val icon: ImageVector,
     val amount: Double
 )
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mock data (investments only — bank accounts come from API now)
-// ─────────────────────────────────────────────────────────────────────────────
-private val investments = listOf(
-    Investment("Nifty 50 Index", 1_00_000.0, 1_14_320.0),
-    Investment("Mid Cap Fund",     50_000.0,    54_800.0),
-    Investment("US Tech ETF",      30_000.0,    27_150.0),
-    Investment("Gold ETF",         20_000.0,    22_100.0),
-)
-
-private val totalInvested    = investments.sumOf { it.invested }
-private val totalCurrent     = investments.sumOf { it.current }
-private val totalReturns     = totalCurrent - totalInvested
-private val cashBalance      = 15_000.0
 
 private fun getIconForAccount(accountName: String): ImageVector {
     return when {
@@ -162,7 +135,7 @@ fun HomeScreen(
     // Compute bank balance from API accounts
     val apiBankBalance = homeState.totalBankBalance
     val apiAccounts = homeState.accounts
-    val totalNetWorth = apiBankBalance + totalCurrent + cashBalance
+    val totalNetWorth = apiBankBalance + homeState.investmentTotalCurrent
 
     LazyColumn(
         modifier = Modifier
@@ -192,7 +165,12 @@ fun HomeScreen(
                 isLoading = homeState.isLoading
             )
         }
-        item { InvestmentPortfolioSection() }
+        item { 
+            InvestmentPortfolioSection(
+                totalInvested = homeState.investmentTotalInvested,
+                totalCurrent = homeState.investmentTotalCurrent
+            ) 
+        }
         item {
             FlowSection(
                 title         = "INCOME BY ACCOUNT",
@@ -714,8 +692,12 @@ private fun BankAccountCard(
 // Section 3 – Investment Portfolio (Collapsible on tapping name)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun InvestmentPortfolioSection() {
+private fun InvestmentPortfolioSection(
+    totalInvested: Double,
+    totalCurrent: Double
+) {
     val dims = Dimens.current
+    val totalReturns = totalCurrent - totalInvested
     val isOverallGain   = totalReturns >= 0
     val overallColor    = if (isOverallGain) GainGreen else LossRed
     val totalReturnsPct = if (totalInvested == 0.0) 0.0 else (totalReturns / totalInvested) * 100.0

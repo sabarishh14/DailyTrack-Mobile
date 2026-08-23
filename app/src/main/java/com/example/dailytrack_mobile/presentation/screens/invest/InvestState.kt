@@ -55,49 +55,31 @@ enum class InvestTab(val label: String) {
 // State
 // ─────────────────────────────────────────────────────────────────────────────
 
+enum class ChartTimeRange(val label: String) {
+    ONE_MONTH("1M"),
+    THREE_MONTHS("3M"),
+    SIX_MONTHS("6M"),
+    ONE_YEAR("1Y"),
+    YTD("YTD"),
+    ALL("ALL")
+}
+
+data class ChartPoint(
+    val date: String,
+    val invested: Float,
+    val current: Float
+) {
+    val pnl: Float get() = current - invested
+    val pnlPercent: Float get() = if (invested == 0f) 0f else (pnl / invested) * 100f
+}
+
 data class InvestState(
     val isLoading: Boolean = false,
     val selectedTab: InvestTab = InvestTab.OVERVIEW,
-
-    val holdings: List<InvestmentHolding> = listOf(
-        // ── Stocks ──────────────────────────────────────────────────
-        InvestmentHolding("Reliance Industries",  45_000.0,  52_300.0,  InvestCategory.STOCKS),
-        InvestmentHolding("TCS",                  35_000.0,  38_200.0,  InvestCategory.STOCKS),
-        InvestmentHolding("HDFC Bank",            40_000.0,  44_800.0,  InvestCategory.STOCKS),
-        InvestmentHolding("Infosys",              30_000.0,  33_500.0,  InvestCategory.STOCKS),
-        InvestmentHolding("Nifty 50 Index ETF",   55_000.0,  62_100.0,  InvestCategory.STOCKS),
-        InvestmentHolding("ITC",                  25_000.0,  26_850.0,  InvestCategory.STOCKS),
-        InvestmentHolding("Asian Paints",         20_000.0,  18_400.0,  InvestCategory.STOCKS),
-        InvestmentHolding("Wipro",                10_000.0,   9_600.0,  InvestCategory.STOCKS),
-
-        // ── Mutual Funds ────────────────────────────────────────────
-        InvestmentHolding("SBI Bluechip Fund",      50_000.0,  57_400.0, InvestCategory.MUTUAL_FUNDS),
-        InvestmentHolding("Axis Mid Cap Fund",      35_000.0,  40_800.0, InvestCategory.MUTUAL_FUNDS),
-        InvestmentHolding("Parag Parikh Flexi Cap", 45_000.0,  51_200.0, InvestCategory.MUTUAL_FUNDS),
-        InvestmentHolding("ICICI Prudential Value", 20_000.0,  22_100.0, InvestCategory.MUTUAL_FUNDS),
-        InvestmentHolding("Motilal Oswal Nasdaq",   30_000.0,  27_600.0, InvestCategory.MUTUAL_FUNDS),
-        InvestmentHolding("HDFC Small Cap Fund",    20_000.0,  23_900.0, InvestCategory.MUTUAL_FUNDS),
-
-        // ── Retirement ──────────────────────────────────────────────
-        InvestmentHolding("Employee PF",            2_40_000.0, 3_12_000.0, InvestCategory.RETIREMENT),
-        InvestmentHolding("Employer PF",            2_40_000.0, 3_12_000.0, InvestCategory.RETIREMENT),
-        InvestmentHolding("NPS - Tier I",             80_000.0,   97_600.0, InvestCategory.RETIREMENT),
-        InvestmentHolding("PPF",                    1_50_000.0, 1_82_400.0, InvestCategory.RETIREMENT),
-
-        // ── FD ──────────────────────────────────────────────────────
-        InvestmentHolding("SBI FD - 1Y",             1_00_000.0, 1_07_200.0, InvestCategory.FD),
-        InvestmentHolding("HDFC FD - 2Y",              75_000.0,   82_500.0, InvestCategory.FD),
-        InvestmentHolding("Post Office TD",            50_000.0,   54_100.0, InvestCategory.FD),
-
-        // ── Gold ────────────────────────────────────────────────────
-        InvestmentHolding("Sovereign Gold Bond",      60_000.0,   78_000.0, InvestCategory.GOLD),
-        InvestmentHolding("Gold ETF",                 40_000.0,   51_200.0, InvestCategory.GOLD),
-        InvestmentHolding("Digital Gold",             15_000.0,   18_900.0, InvestCategory.GOLD),
-
-        // ── Real Estate ─────────────────────────────────────────────
-        InvestmentHolding("2BHK Apartment (Velachery)", 45_00_000.0, 52_00_000.0, InvestCategory.REAL_ESTATE),
-        InvestmentHolding("Plot (ECR)",                12_00_000.0, 15_50_000.0, InvestCategory.REAL_ESTATE),
-    )
+    val holdings: List<InvestmentHolding> = emptyList(),
+    val historicalSnapshots: List<com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto> = emptyList(),
+    val selectedTimeRange: ChartTimeRange = ChartTimeRange.ALL,
+    val chartPoints: List<ChartPoint> = emptyList()
 ) {
     // ── Derived portfolio totals ────────────────────────────────────────
     val totalInvested: Double get() = holdings.sumOf { it.invested }
@@ -139,11 +121,9 @@ data class InvestState(
             InvestTab.REAL_ESTATE -> holdings.filter { it.category == InvestCategory.REAL_ESTATE }
         }
 
-    // ── Chart data points (fake historical for sparkline) ──────────────
-    val chartPoints: List<Float>
-        get() = listOf(
-            0.72f, 0.68f, 0.75f, 0.71f, 0.78f, 0.82f, 0.79f,
-            0.85f, 0.83f, 0.88f, 0.86f, 0.91f, 0.89f, 0.93f,
-            0.90f, 0.95f, 0.92f, 0.97f, 0.94f, 1.0f
-        )
+    val filteredInvested: Double get() = filteredHoldings.sumOf { it.invested }
+    val filteredCurrent: Double get() = filteredHoldings.sumOf { it.current }
+    val filteredPnl: Double get() = filteredCurrent - filteredInvested
+    val isFilteredGain: Boolean get() = filteredPnl >= 0
+
 }

@@ -3,6 +3,7 @@ package com.example.dailytrack_mobile.presentation.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dailytrack_mobile.data.repository.MoneyRepository
+import com.example.dailytrack_mobile.data.repository.InvestmentsRepository
 import com.example.dailytrack_mobile.presentation.screens.money.AccountInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeVM @Inject constructor(
-    private val repository: MoneyRepository
+    private val repository: MoneyRepository,
+    private val investmentsRepository: InvestmentsRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -30,6 +32,7 @@ class HomeVM @Inject constructor(
             val accountsResult = repository.getAccounts()
             val monthStr = String.format("%04d-%02d", _state.value.selectedYear, _state.value.selectedMonth.value)
             val transactionsResult = repository.getTransactions(limit = 1000, month = monthStr)
+            val investmentsResult = investmentsRepository.getFullPortfolio()
 
             if (accountsResult.isSuccess && transactionsResult.isSuccess) {
                 val accounts = accountsResult.getOrThrow().map { dto ->
@@ -56,12 +59,19 @@ class HomeVM @Inject constructor(
                     }
                 }
                 
+                val portfolioData = investmentsResult.getOrNull()
+                val latestSnapshot = portfolioData?.snapshots?.firstOrNull()
+                val totalInvested = latestSnapshot?.grandTotalInv ?: 0.0
+                val totalCurrent = latestSnapshot?.grandTotalCurr ?: 0.0
+                
                 _state.update {
                     it.copy(
                         isLoading = false,
                         accounts = accounts,
                         incomeByCategory = income,
-                        expenseByCategory = expense
+                        expenseByCategory = expense,
+                        investmentTotalInvested = totalInvested,
+                        investmentTotalCurrent = totalCurrent
                     )
                 }
             } else {

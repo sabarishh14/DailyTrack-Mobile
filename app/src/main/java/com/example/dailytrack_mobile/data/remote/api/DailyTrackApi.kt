@@ -6,6 +6,10 @@ import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
 import retrofit2.http.GET
 import retrofit2.http.Query
 import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
+import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
+import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
+import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
+import com.example.dailytrack_mobile.data.remote.dto.ManualAssetDto
 
 interface DailyTrackApi {
 
@@ -24,4 +28,16 @@ interface DailyTrackApi {
 
     @GET("/api/physical")
     suspend fun getPhysicalActivities(): List<PhysicalActivityDto>
+
+    @GET("/api/investments")
+    suspend fun getInvestments(): List<PortfolioSnapshotDto>
+
+    @GET("/api/equity")
+    suspend fun getEquityHoldings(): List<EquityHoldingDto>
+
+    @GET("/api/investments/{date}/holdings")
+    suspend fun getMutualFundHoldings(@retrofit2.http.Path("date") date: String): List<MutualFundHoldingDto>
+
+    @GET("/api/manual_assets")
+    suspend fun getManualAssets(): List<ManualAssetDto>
 }

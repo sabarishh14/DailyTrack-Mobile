@@ -11,7 +11,9 @@ data class HomeState(
     val selectedMonth: Month = LocalDate.now().month,
     val selectedYear: Int = LocalDate.now().year,
     val incomeByCategory: Map<String, Double> = emptyMap(),
-    val expenseByCategory: Map<String, Double> = emptyMap()
+    val expenseByCategory: Map<String, Double> = emptyMap(),
+    val investmentTotalInvested: Double = 0.0,
+    val investmentTotalCurrent: Double = 0.0
 ) {
     val totalBankBalance: Double
         get() = accounts

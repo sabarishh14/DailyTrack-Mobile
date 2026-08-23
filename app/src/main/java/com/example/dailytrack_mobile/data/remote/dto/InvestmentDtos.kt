@@ -1,0 +1,61 @@
+package com.example.dailytrack_mobile.data.remote.dto
+
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+
+@JsonClass(generateAdapter = true)
+data class PortfolioSnapshotDto(
+    val id: Long,
+    val date: String,
+    
+    @Json(name = "inv_stocks") val invStocks: Double?,
+    @Json(name = "curr_stocks") val currStocks: Double?,
+    
+    @Json(name = "inv_mf") val invMf: Double?,
+    @Json(name = "curr_mf") val currMf: Double?,
+    
+    @Json(name = "inv_fixed") val invFixed: Double?,
+    @Json(name = "curr_fixed") val currFixed: Double?,
+    
+    @Json(name = "inv_prov") val invProv: Double?,
+    @Json(name = "curr_prov") val currProv: Double?,
+    
+    @Json(name = "inv_gold") val invGold: Double?,
+    @Json(name = "curr_gold") val currGold: Double?,
+    
+    @Json(name = "total_inv") val grandTotalInv: Double?,
+    @Json(name = "total_curr") val grandTotalCurr: Double?
+)
+
+@JsonClass(generateAdapter = true)
+data class EquityHoldingDto(
+    val symbol: String,
+    val quantity: Double,
+    @Json(name = "average_price") val averagePrice: Double,
+    val ltp: Double,
+    @Json(name = "invested_value") val investedValue: Double,
+    @Json(name = "current_value") val currentValue: Double
+)
+
+@JsonClass(generateAdapter = true)
+data class MutualFundHoldingDto(
+    val symbol: String,
+    val quantity: Double,
+    @Json(name = "average_price") val averagePrice: Double,
+    val nav: Double,
+    @Json(name = "invested_value") val investedValue: Double,
+    @Json(name = "current_value") val currentValue: Double
+)
+
+@JsonClass(generateAdapter = true)
+data class ManualAssetDto(
+    val id: Long,
+    val category: String, // e.g. "FD", "EPF", "PPF", "NPS", "SGB", "RealEstate", "Cash"
+    val name: String,
+    @Json(name = "invested_value") val investedValue: Double,
+    @Json(name = "current_value") val currentValue: Double,
+    @Json(name = "interest_rate") val interestRate: Double?,
+    @Json(name = "start_date") val startDate: String?,
+    @Json(name = "maturity_date") val maturityDate: String?,
+    @Json(name = "last_updated") val lastUpdated: String?
+)
