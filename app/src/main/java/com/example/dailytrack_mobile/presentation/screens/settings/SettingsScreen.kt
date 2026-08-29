@@ -25,14 +25,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
+import com.example.dailytrack_mobile.data.local.security.AppLockManager
+import com.example.dailytrack_mobile.data.local.security.LockType
+import com.example.dailytrack_mobile.presentation.screens.lock.components.PinVerifyDialog
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import com.example.dailytrack_mobile.presentation.theme.GreenThemeColors
 import com.example.dailytrack_mobile.presentation.theme.PurpleThemeColors
 import com.example.dailytrack_mobile.presentation.theme.TealThemeColors
 import com.example.dailytrack_mobile.presentation.theme.YellowThemeColors
+import com.example.dailytrack_mobile.presentation.util.BiometricHelper
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,9 +82,29 @@ private fun previewColorsFor(theme: AppTheme): ThemePreviewColors = when (theme)
 @Composable
 fun SettingsScreen(
     state: SettingsState,
+    appLockManager: AppLockManager? = null,
     onAction: (SettingsAction) -> Unit
 ) {
+    val context = LocalContext.current
+    val effectiveLockManager = appLockManager ?: remember { AppLockManager(context) }
     var currentSubScreen by remember { mutableStateOf<String?>(null) }
+    var showPinVerifyForDemoMode by remember { mutableStateOf(false) }
+
+    if (showPinVerifyForDemoMode) {
+        PinVerifyDialog(
+            appLockManager = effectiveLockManager,
+            title = "Disable Demo Mode",
+            subtitle = "Enter your 4-digit PIN to switch to live data",
+            showBiometricOption = state.isBiometricWithPinEnabled,
+            onSuccess = {
+                showPinVerifyForDemoMode = false
+                onAction(SettingsAction.OnDemoModeToggled(false))
+            },
+            onDismiss = {
+                showPinVerifyForDemoMode = false
+            }
+        )
+    }
 
     if (currentSubScreen == "AppLockSettings") {
         AppLockSettingsScreen(
@@ -234,7 +260,38 @@ fun SettingsScreen(
                         title = "Demo Mode",
                         subtitle = "Hydrates screens with realistic sample data stored locally",
                         checked = state.isDemoModeEnabled,
-                        onCheckedChange = { onAction(SettingsAction.OnDemoModeToggled(it)) }
+                        onCheckedChange = { requestedState ->
+                            if (!requestedState) {
+                                // Turning Demo Mode OFF -> verify PIN / Biometric if App Lock is enabled
+                                if (state.isAppLockEnabled) {
+                                    if (state.lockType == LockType.SYSTEM) {
+                                        val activity = context as? FragmentActivity
+                                        if (activity != null) {
+                                            BiometricHelper.showBiometricPrompt(
+                                                activity = activity,
+                                                title = "Disable Demo Mode",
+                                                subtitle = "Verify your identity to switch to live data",
+                                                allowDeviceCredential = true,
+                                                onSuccess = {
+                                                    onAction(SettingsAction.OnDemoModeToggled(false))
+                                                }
+                                            )
+                                        } else {
+                                            onAction(SettingsAction.OnDemoModeToggled(false))
+                                        }
+                                    } else {
+                                        // LockType.PIN -> Show PIN verification dialog (with biometric fallback if enabled)
+                                        showPinVerifyForDemoMode = true
+                                    }
+                                } else {
+                                    // App Lock not enabled -> directly turn off
+                                    onAction(SettingsAction.OnDemoModeToggled(false))
+                                }
+                            } else {
+                                // Turning Demo Mode ON -> directly turn on
+                                onAction(SettingsAction.OnDemoModeToggled(true))
+                            }
+                        }
                     )
                 }
             }

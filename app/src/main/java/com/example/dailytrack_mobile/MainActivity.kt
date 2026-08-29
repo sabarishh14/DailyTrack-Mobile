@@ -97,6 +97,7 @@ class MainActivity : FragmentActivity() {
                             } else {
                                 SettingsScreen(
                                     state = state,
+                                    appLockManager = appLockManager,
                                     onAction = { action ->
                                         settingsVM.onAction(action)
                                         if (action is SettingsAction.OnBackClicked) {
