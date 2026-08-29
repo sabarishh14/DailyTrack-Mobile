@@ -2,6 +2,7 @@ package com.example.dailytrack_mobile.presentation.screens.money
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
 import com.example.dailytrack_mobile.data.repository.MoneyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MoneyVM @Inject constructor(
-    private val repository: MoneyRepository
+    private val repository: MoneyRepository,
+    private val demoModeManager: DemoModeManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MoneyState())
@@ -26,13 +28,27 @@ class MoneyVM @Inject constructor(
         private const val PAGE_SIZE = 50
     }
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private var progressiveFetchJob: kotlinx.coroutines.Job? = null
+
     init {
-        loadInitialData()
+        viewModelScope.launch {
+            demoModeManager.isDemoModeEnabledFlow.collect {
+                loadInitialData()
+            }
+        }
+        viewModelScope.launch {
+            repository.dataUpdateFlow.collect {
+                loadInitialData()
+            }
+        }
     }
 
     private fun loadInitialData() {
+        loadJob?.cancel()
+        progressiveFetchJob?.cancel()
         _state.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             // Launch all three in parallel
             val accountsDeferred = async { repository.getAccounts() }
             val transactionsDeferred = async { repository.getTransactions(limit = PAGE_SIZE, offset = 0) }
@@ -88,7 +104,8 @@ class MoneyVM @Inject constructor(
     }
 
     private fun fetchAllTransactionsProgressively() {
-        viewModelScope.launch {
+        progressiveFetchJob?.cancel()
+        progressiveFetchJob = viewModelScope.launch {
             var hasMore = _state.value.hasMore
             var offset = _state.value.currentOffset
 

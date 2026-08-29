@@ -2,6 +2,7 @@ package com.example.dailytrack_mobile.presentation.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
 import com.example.dailytrack_mobile.data.repository.MoneyRepository
 import com.example.dailytrack_mobile.data.repository.InvestmentsRepository
 import com.example.dailytrack_mobile.presentation.screens.money.AccountInfo
@@ -16,14 +17,24 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeVM @Inject constructor(
     private val repository: MoneyRepository,
-    private val investmentsRepository: InvestmentsRepository
+    private val investmentsRepository: InvestmentsRepository,
+    private val demoModeManager: DemoModeManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
     init {
-        loadAccountsAndTransactions()
+        viewModelScope.launch {
+            demoModeManager.isDemoModeEnabledFlow.collect {
+                loadAccountsAndTransactions()
+            }
+        }
+        viewModelScope.launch {
+            repository.dataUpdateFlow.collect {
+                loadAccountsAndTransactions()
+            }
+        }
     }
 
     private fun loadAccountsAndTransactions() {

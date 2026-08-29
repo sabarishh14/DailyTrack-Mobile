@@ -14,7 +14,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
 import com.example.dailytrack_mobile.data.local.datastore.ThemeManager
+import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.presentation.screens.lock.AppLockScreen
 import com.example.dailytrack_mobile.presentation.screens.main.MainScreen
@@ -35,7 +37,9 @@ class MainActivity : FragmentActivity() {
         // Initialize Managers manually
         val themeManager = ThemeManager(applicationContext)
         val appLockManager = AppLockManager(applicationContext)
-        val viewModelFactory = SettingsVMFactory(themeManager, appLockManager)
+        val demoModeManager = DemoModeManager(applicationContext)
+        val demoDataManager = DemoDataManager(applicationContext, demoModeManager)
+        val viewModelFactory = SettingsVMFactory(themeManager, appLockManager, demoModeManager, demoDataManager)
 
         setContent {
             // Provide SettingsVM

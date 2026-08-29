@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
+import androidx.hilt.navigation.compose.hiltViewModel
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Add Asset Form
 // ─────────────────────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ private enum class AssetClass(val label: String, val emoji: String) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddAssetScreen(
+    formsVM: FormsVM = hiltViewModel(),
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
@@ -149,7 +152,18 @@ fun AddAssetScreen(
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { onSaveSuccess() },
+            onClick = {
+                val pPrice = purchasePrice.toDoubleOrNull() ?: 0.0
+                val cVal = currentValue.toDoubleOrNull() ?: pPrice
+                formsVM.saveAsset(
+                    name = assetName,
+                    assetClass = selectedClass?.label ?: "Other",
+                    purchasePrice = pPrice,
+                    currentValue = cVal,
+                    note = note.takeIf { it.isNotBlank() },
+                    onSuccess = onSaveSuccess
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

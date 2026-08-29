@@ -11,5 +11,5 @@ data class SettingsState(
     val lockType: LockType = LockType.SYSTEM,
     val isBiometricWithPinEnabled: Boolean = true,
     val hasCustomPin: Boolean = false,
-    val isHideBalancesOnStartup: Boolean = false
+    val isDemoModeEnabled: Boolean = false
 )

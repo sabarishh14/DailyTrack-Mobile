@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
+import androidx.hilt.navigation.compose.hiltViewModel
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Add Investment Form
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ private enum class InvestmentFrequency(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddInvestmentScreen(
+    formsVM: FormsVM = hiltViewModel(),
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
@@ -181,7 +184,17 @@ fun AddInvestmentScreen(
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { onSaveSuccess() },
+            onClick = {
+                val amt = amount.toDoubleOrNull() ?: 0.0
+                formsVM.saveInvestment(
+                    name = investmentName,
+                    category = selectedCategory?.label ?: "Other",
+                    amount = amt,
+                    frequency = selectedFrequency.label,
+                    note = note.takeIf { it.isNotBlank() },
+                    onSuccess = onSaveSuccess
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

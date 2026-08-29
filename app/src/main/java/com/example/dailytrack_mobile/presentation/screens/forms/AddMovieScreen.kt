@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
+import androidx.hilt.navigation.compose.hiltViewModel
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Add Movie / Show Form
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,11 +28,11 @@ private enum class ContentType(val label: String) {
     DOCUMENTARY("Documentary")
 }
 
-private enum class WatchStatus(val label: String, val emoji: String) {
-    WATCHED("Watched", "✅"),
-    IN_PROGRESS("In Progress", "▶️"),
-    PLAN_TO_WATCH("Plan to Watch", "📋"),
-    DROPPED("Dropped", "❌")
+private enum class WatchStatus(val label: String, val emoji: String, val dbStatus: String) {
+    WATCHED("Watched", "✅", "WATCHED"),
+    IN_PROGRESS("In Progress", "▶️", "WATCHING"),
+    PLAN_TO_WATCH("Plan to Watch", "📋", "TO WATCH"),
+    DROPPED("Dropped", "❌", "DROPPED")
 }
 
 private enum class WatchPlatform(val label: String, val emoji: String) {
@@ -45,6 +47,7 @@ private enum class WatchPlatform(val label: String, val emoji: String) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddMovieScreen(
+    formsVM: FormsVM = hiltViewModel(),
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
@@ -172,7 +175,17 @@ fun AddMovieScreen(
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { onSaveSuccess() },
+            onClick = {
+                formsVM.saveMediaShow(
+                    title = title,
+                    type = selectedContentType.label,
+                    status = selectedStatus?.dbStatus ?: "WATCHING",
+                    platform = selectedPlatform?.label,
+                    rating = rating,
+                    review = review.takeIf { it.isNotBlank() },
+                    onSuccess = onSaveSuccess
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

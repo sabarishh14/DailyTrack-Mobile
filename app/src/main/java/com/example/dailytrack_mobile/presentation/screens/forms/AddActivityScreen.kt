@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -25,8 +26,9 @@ import java.time.format.DateTimeFormatter
 private enum class FormActivityType(val label: String, val emoji: String) {
     GYM("Gym", "🏋️"),
     BADMINTON("Badminton", "🏸"),
-    RUNNING("Running", "🏃"),
+    CRICKET("Cricket", "🏏"),
     TABLE_TENNIS("Table Tennis", "🏓"),
+    RUNNING("Running", "🏃"),
     CYCLING("Cycling", "🚴"),
     SWIMMING("Swimming", "🏊"),
     YOGA("Yoga", "🧘"),
@@ -42,6 +44,7 @@ private enum class Intensity(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddActivityScreen(
+    formsVM: FormsVM = hiltViewModel(),
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
@@ -228,7 +231,23 @@ fun AddActivityScreen(
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { onSaveSuccess() },
+            onClick = {
+                val dateStr = selectedDate.format(DateTimeFormatter.ISO_DATE)
+                formsVM.saveActivity(
+                    date = dateStr,
+                    gym = selectedActivities.contains(FormActivityType.GYM),
+                    badminton = selectedActivities.contains(FormActivityType.BADMINTON),
+                    tableTennis = selectedActivities.contains(FormActivityType.TABLE_TENNIS),
+                    cricket = selectedActivities.contains(FormActivityType.CRICKET),
+                    others = selectedActivities.contains(FormActivityType.RUNNING) ||
+                            selectedActivities.contains(FormActivityType.CYCLING) ||
+                            selectedActivities.contains(FormActivityType.SWIMMING) ||
+                            selectedActivities.contains(FormActivityType.YOGA) ||
+                            selectedActivities.contains(FormActivityType.OTHERS),
+                    description = note.takeIf { it.isNotBlank() },
+                    onSuccess = onSaveSuccess
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

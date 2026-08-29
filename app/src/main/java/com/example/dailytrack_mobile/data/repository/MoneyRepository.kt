@@ -1,17 +1,27 @@
 package com.example.dailytrack_mobile.data.repository
 
+import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
 import com.example.dailytrack_mobile.data.remote.dto.AccountDto
+import com.example.dailytrack_mobile.data.remote.dto.TransactionDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
+import kotlinx.coroutines.flow.SharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class MoneyRepository @Inject constructor(
-    private val api: DailyTrackApi
+    private val api: DailyTrackApi,
+    private val demoDataManager: DemoDataManager
 ) {
+    val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
+
     suspend fun getAccounts(): Result<List<AccountDto>> = runCatching {
-        api.getAccounts()
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.getAccounts()
+        } else {
+            api.getAccounts()
+        }
     }
 
     suspend fun getTransactions(
@@ -19,10 +29,54 @@ class MoneyRepository @Inject constructor(
         offset: Int = 0,
         month: String? = null
     ): Result<TransactionsResponseDto> = runCatching {
-        api.getTransactions(limit = limit, offset = offset, month = month)
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.getTransactions(limit = limit, offset = offset, month = month)
+        } else {
+            api.getTransactions(limit = limit, offset = offset, month = month)
+        }
     }
 
     suspend fun getCategories(): Result<List<String>> = runCatching {
-        api.getCategories().categories
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.getCategories()
+        } else {
+            api.getCategories().categories
+        }
+    }
+
+    suspend fun addTransaction(
+        type: String,
+        category: String,
+        amount: Double,
+        note: String?,
+        accountName: String,
+        date: String,
+        excludeAnalytics: Boolean
+    ): Result<TransactionDto> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.addTransaction(
+                type = type,
+                category = category,
+                amount = amount,
+                note = note,
+                accountName = accountName,
+                date = date,
+                excludeAnalytics = excludeAnalytics
+            )
+        } else {
+            // Placeholder for live API post if implemented in backend
+            TransactionDto(
+                id = System.currentTimeMillis(),
+                account = accountName,
+                date = date,
+                month = date.take(7),
+                type = type,
+                heading = category,
+                description = note,
+                amount = amount,
+                excludeAnalytics = excludeAnalytics,
+                split = null
+            )
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.example.dailytrack_mobile.presentation.screens.activities
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
 import com.example.dailytrack_mobile.data.repository.ActivitiesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ActivitiesVM @Inject constructor(
-    private val repository: ActivitiesRepository
+    private val repository: ActivitiesRepository,
+    private val demoModeManager: DemoModeManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ActivitiesState())
@@ -22,7 +24,16 @@ class ActivitiesVM @Inject constructor(
     init {
         val now = LocalDate.now()
         _state.update { it.copy(selectedMonth = now.month, selectedYear = now.year, allActivities = emptyList(), activityLog = emptyList()) }
-        loadActivities()
+        viewModelScope.launch {
+            demoModeManager.isDemoModeEnabledFlow.collect {
+                loadActivities()
+            }
+        }
+        viewModelScope.launch {
+            repository.dataUpdateFlow.collect {
+                loadActivities()
+            }
+        }
     }
 
     fun onAction(action: ActivitiesAction) {

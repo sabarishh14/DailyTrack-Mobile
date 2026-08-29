@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -57,6 +58,7 @@ private val availableAccounts = listOf(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddMoneyScreen(
+    formsVM: FormsVM = hiltViewModel(),
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
@@ -119,7 +121,10 @@ fun AddMoneyScreen(
             TransactionType.entries.forEachIndexed { index, type ->
                 SegmentedButton(
                     selected = selectedType == type,
-                    onClick = { selectedType = type },
+                    onClick = { 
+                        selectedType = type
+                        selectedCategory = null
+                    },
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
                         count = TransactionType.entries.size
@@ -270,7 +275,20 @@ fun AddMoneyScreen(
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
-            onClick = { onSaveSuccess() },
+            onClick = {
+                val amt = amount.toDoubleOrNull() ?: 0.0
+                val dateStr = apiDateFormat.format(Date(selectedDate))
+                formsVM.saveTransaction(
+                    type = selectedType.dbValue,
+                    category = selectedCategory?.label ?: "Other",
+                    amount = amt,
+                    note = note.takeIf { it.isNotBlank() },
+                    accountName = selectedAccount ?: "HDFC",
+                    date = dateStr,
+                    excludeAnalytics = excludeAnalytics,
+                    onSuccess = onSaveSuccess
+                )
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),

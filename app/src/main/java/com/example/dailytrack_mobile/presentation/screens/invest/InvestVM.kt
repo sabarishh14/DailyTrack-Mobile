@@ -2,6 +2,7 @@ package com.example.dailytrack_mobile.presentation.screens.invest
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
 import com.example.dailytrack_mobile.data.repository.InvestmentsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,14 +14,24 @@ import javax.inject.Inject
 
 @HiltViewModel
 class InvestVM @Inject constructor(
-    private val repository: InvestmentsRepository
+    private val repository: InvestmentsRepository,
+    private val demoModeManager: DemoModeManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(InvestState(isLoading = true))
     val state: StateFlow<InvestState> = _state.asStateFlow()
 
     init {
-        loadInvestments()
+        viewModelScope.launch {
+            demoModeManager.isDemoModeEnabledFlow.collect {
+                loadInvestments()
+            }
+        }
+        viewModelScope.launch {
+            repository.dataUpdateFlow.collect {
+                loadInvestments()
+            }
+        }
     }
 
     fun onAction(action: InvestAction) {

@@ -1,5 +1,6 @@
 package com.example.dailytrack_mobile.data.repository
 
+import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
 import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.ManualAssetDto
@@ -7,6 +8,7 @@ import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.SharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,10 +21,17 @@ data class FullPortfolioData(
 
 @Singleton
 class InvestmentsRepository @Inject constructor(
-    private val api: DailyTrackApi
+    private val api: DailyTrackApi,
+    private val demoDataManager: DemoDataManager
 ) {
+    val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
+
     suspend fun getFullPortfolio(): Result<FullPortfolioData> = coroutineScope {
         try {
+            if (demoDataManager.isDemoModeEnabled()) {
+                return@coroutineScope Result.success(demoDataManager.getFullPortfolio())
+            }
+
             // 1. Fetch snapshots to get historical data and the latest date
             val snapshots = api.getInvestments()
             
@@ -55,6 +64,42 @@ class InvestmentsRepository @Inject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
+        }
+    }
+
+    suspend fun addInvestment(
+        name: String,
+        category: String,
+        amount: Double,
+        frequency: String,
+        note: String?
+    ): Result<Unit> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.addInvestment(
+                name = name,
+                category = category,
+                amount = amount,
+                frequency = frequency,
+                note = note
+            )
+        }
+    }
+
+    suspend fun addAsset(
+        name: String,
+        assetClass: String,
+        purchasePrice: Double,
+        currentValue: Double,
+        note: String?
+    ): Result<Unit> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.addManualAsset(
+                name = name,
+                assetClass = assetClass,
+                purchasePrice = purchasePrice,
+                currentValue = currentValue,
+                note = note
+            )
         }
     }
 }

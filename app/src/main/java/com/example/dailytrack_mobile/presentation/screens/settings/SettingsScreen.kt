@@ -230,10 +230,11 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                     )
                     SettingsToggleItem(
-                        icon = Icons.Default.VisibilityOff,
-                        title = "Hide Balances on Startup",
-                        checked = state.isHideBalancesOnStartup,
-                        onCheckedChange = { onAction(SettingsAction.OnHideBalancesToggled(it)) }
+                        icon = Icons.Default.Science,
+                        title = "Demo Mode",
+                        subtitle = "Hydrates screens with realistic sample data stored locally",
+                        checked = state.isDemoModeEnabled,
+                        onCheckedChange = { onAction(SettingsAction.OnDemoModeToggled(it)) }
                     )
                 }
             }
@@ -243,6 +244,18 @@ fun SettingsScreen(
                 SettingsSectionLabel(title = "Data & Sync")
                 Spacer(Modifier.height(dims.itemSpacingMedium))
                 SettingsCard {
+                    if (state.isDemoModeEnabled) {
+                        SettingsClickItem(
+                            icon = Icons.Default.RestartAlt,
+                            title = "Reset Demo Data",
+                            subtitle = "Restore default sample transactions & portfolio",
+                            onClick = { onAction(SettingsAction.OnResetDemoDataClicked) }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+                    }
                     SettingsClickItem(
                         icon = Icons.Default.Sync,
                         title = "Force Sync",
