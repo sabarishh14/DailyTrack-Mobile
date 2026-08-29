@@ -78,6 +78,17 @@ fun SettingsScreen(
     state: SettingsState,
     onAction: (SettingsAction) -> Unit
 ) {
+    var currentSubScreen by remember { mutableStateOf<String?>(null) }
+
+    if (currentSubScreen == "AppLockSettings") {
+        AppLockSettingsScreen(
+            state = state,
+            onAction = onAction,
+            onNavigateBack = { currentSubScreen = null }
+        )
+        return
+    }
+
     BackHandler {
         onAction(SettingsAction.OnBackClicked)
     }
@@ -183,9 +194,37 @@ fun SettingsScreen(
                     SettingsToggleItem(
                         icon = Icons.Default.Lock,
                         title = "App Lock",
+                        subtitle = if (state.isAppLockEnabled) {
+                            if (state.lockType == com.example.dailytrack_mobile.data.local.security.LockType.SYSTEM)
+                                "Same as screen lock"
+                            else
+                                "Custom PIN"
+                        } else {
+                            "Disabled"
+                        },
                         checked = state.isAppLockEnabled,
-                        onCheckedChange = { onAction(SettingsAction.OnAppLockToggled(it)) }
+                        onCheckedChange = { enabled ->
+                            onAction(SettingsAction.OnAppLockToggled(enabled))
+                            if (enabled) {
+                                currentSubScreen = "AppLockSettings"
+                            }
+                        },
+                        onClickRow = {
+                            currentSubScreen = "AppLockSettings"
+                        }
                     )
+                    if (state.isAppLockEnabled) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+                        SettingsNavItem(
+                            icon = Icons.Default.Security,
+                            title = "Lock options",
+                            subtitle = "Change lock method or PIN",
+                            onClick = { currentSubScreen = "AppLockSettings" }
+                        )
+                    }
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 56.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
@@ -427,23 +466,26 @@ private fun SettingsClickItem(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Settings row: toggle item
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SettingsToggleItem(
     icon: ImageVector,
     title: String,
     subtitle: String? = null,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    onClickRow: (() -> Unit)? = null
 ) {
     val dims = Dimens.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .clickable {
+                if (onClickRow != null) {
+                    onClickRow()
+                } else {
+                    onCheckedChange(!checked)
+                }
+            }
             .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingMedium + 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

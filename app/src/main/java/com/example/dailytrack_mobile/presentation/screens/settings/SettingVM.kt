@@ -4,13 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.dailytrack_mobile.data.local.datastore.ThemeManager
+import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class SettingsVM(private val themeManager: ThemeManager) : ViewModel() {
+class SettingsVM(
+    private val themeManager: ThemeManager,
+    private val appLockManager: AppLockManager
+) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsState())
     val state = _state.asStateFlow()
@@ -26,6 +30,31 @@ class SettingsVM(private val themeManager: ThemeManager) : ViewModel() {
                 }
             }
         }
+
+        // Listen for app lock settings changes
+        viewModelScope.launch {
+            appLockManager.isAppLockEnabledFlow.collect { enabled ->
+                _state.update { it.copy(isAppLockEnabled = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
+            appLockManager.lockTypeFlow.collect { lockType ->
+                _state.update { it.copy(lockType = lockType) }
+            }
+        }
+
+        viewModelScope.launch {
+            appLockManager.isBiometricWithPinEnabledFlow.collect { enabled ->
+                _state.update { it.copy(isBiometricWithPinEnabled = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
+            appLockManager.hasCustomPinFlow.collect { hasPin ->
+                _state.update { it.copy(hasCustomPin = hasPin) }
+            }
+        }
     }
 
     fun onAction(action: SettingsAction) {
@@ -39,12 +68,28 @@ class SettingsVM(private val themeManager: ThemeManager) : ViewModel() {
                 // Navigation is hoisted to the Screen composable
             }
             is SettingsAction.OnAppLockToggled -> {
-                _state.update { it.copy(isAppLockEnabled = action.enabled) }
-                // TODO: persist app lock preference
+                viewModelScope.launch {
+                    appLockManager.setAppLockEnabled(action.enabled)
+                }
+            }
+            is SettingsAction.OnLockTypeSelected -> {
+                viewModelScope.launch {
+                    appLockManager.setLockType(action.lockType)
+                }
+            }
+            is SettingsAction.OnSaveCustomPin -> {
+                viewModelScope.launch {
+                    appLockManager.savePin(action.pin)
+                    appLockManager.setAppLockEnabled(true)
+                }
+            }
+            is SettingsAction.OnBiometricWithPinToggled -> {
+                viewModelScope.launch {
+                    appLockManager.setBiometricWithPinEnabled(action.enabled)
+                }
             }
             is SettingsAction.OnHideBalancesToggled -> {
                 _state.update { it.copy(isHideBalancesOnStartup = action.enabled) }
-                // TODO: persist hide-balances preference
             }
             is SettingsAction.OnForceSyncClicked -> {
                 // TODO: trigger sync logic
@@ -56,12 +101,14 @@ class SettingsVM(private val themeManager: ThemeManager) : ViewModel() {
     }
 }
 
-// Simple Factory for creating the ViewModel manually (since we aren't using Hilt for ThemeManager here)
-class SettingsVMFactory(private val themeManager: ThemeManager) : ViewModelProvider.Factory {
+class SettingsVMFactory(
+    private val themeManager: ThemeManager,
+    private val appLockManager: AppLockManager
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsVM::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsVM(themeManager) as T
+            return SettingsVM(themeManager, appLockManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
