@@ -18,5 +18,5 @@ data class HomeState(
     val totalBankBalance: Double
         get() = accounts
             .filter { it.balanceTracked }
-            .sumOf { it.displayBalance }
+            .sumOf { it.balance }
 }

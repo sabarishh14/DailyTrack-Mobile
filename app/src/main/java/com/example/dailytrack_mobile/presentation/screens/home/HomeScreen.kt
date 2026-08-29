@@ -611,7 +611,7 @@ private fun BankAccountRow(account: AccountInfo) {
             }
         }
         Text(
-            text  = formatCurrencyFull(account.displayBalance),
+            text  = formatCurrencyFull(account.balance),
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -677,7 +677,7 @@ private fun BankAccountCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text     = formatCurrencyFull(account.displayBalance),
+                    text     = formatCurrencyFull(account.balance),
                     style    = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     color    = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
