@@ -1,9 +1,13 @@
 package com.example.dailytrack_mobile.data.remote.api
 
 import com.example.dailytrack_mobile.data.remote.dto.AccountDto
+import com.example.dailytrack_mobile.data.remote.dto.AddTransactionRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.ApiResponseDto
 import com.example.dailytrack_mobile.data.remote.dto.CategoriesResponseDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Query
 import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
 import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
@@ -22,6 +26,11 @@ interface DailyTrackApi {
         @Query("offset") offset: Int = 0,
         @Query("month") month: String? = null
     ): TransactionsResponseDto
+
+    @POST("/api/transactions")
+    suspend fun addTransaction(
+        @Body transaction: AddTransactionRequestDto
+    ): ApiResponseDto
 
     @GET("/api/transactions/categories")
     suspend fun getCategories(): CategoriesResponseDto

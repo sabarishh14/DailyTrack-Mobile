@@ -45,3 +45,21 @@ data class CategoriesResponseDto(
     @Json(name = "success") val success: Boolean,
     @Json(name = "categories") val categories: List<String>
 )
+
+@JsonClass(generateAdapter = true)
+data class AddTransactionRequestDto(
+    @Json(name = "account") val account: String,
+    @Json(name = "date") val date: String,
+    @Json(name = "type") val type: String,
+    @Json(name = "heading") val heading: String,
+    @Json(name = "description") val description: String? = "",
+    @Json(name = "amount") val amount: Double,
+    @Json(name = "exclude_analytics") val excludeAnalytics: Boolean = false
+)
+
+@JsonClass(generateAdapter = true)
+data class ApiResponseDto(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "message") val message: String? = null
+)
+

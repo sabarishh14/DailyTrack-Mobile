@@ -7,8 +7,20 @@ import com.example.dailytrack_mobile.data.repository.InvestmentsRepository
 import com.example.dailytrack_mobile.data.repository.MoneyRepository
 import com.example.dailytrack_mobile.data.repository.SabdekhoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class AddMoneyFormState(
+    val isLoadingData: Boolean = false,
+    val isSaving: Boolean = false,
+    val accounts: List<String> = emptyList(),
+    val categories: List<String> = emptyList(),
+    val errorMessage: String? = null
+)
 
 @HiltViewModel
 class FormsVM @Inject constructor(
@@ -17,6 +29,33 @@ class FormsVM @Inject constructor(
     private val investmentsRepository: InvestmentsRepository,
     private val sabdekhoRepository: SabdekhoRepository
 ) : ViewModel() {
+
+    private val _addMoneyState = MutableStateFlow(AddMoneyFormState())
+    val addMoneyState: StateFlow<AddMoneyFormState> = _addMoneyState.asStateFlow()
+
+    init {
+        loadMoneyFormData()
+    }
+
+    fun loadMoneyFormData() {
+        viewModelScope.launch {
+            _addMoneyState.update { it.copy(isLoadingData = true) }
+            val accountsRes = moneyRepository.getAccounts()
+            val categoriesRes = moneyRepository.getCategories()
+
+            _addMoneyState.update { state ->
+                state.copy(
+                    isLoadingData = false,
+                    accounts = accountsRes.getOrNull()?.map { it.account } ?: state.accounts,
+                    categories = categoriesRes.getOrNull() ?: state.categories
+                )
+            }
+        }
+    }
+
+    fun clearAddMoneyError() {
+        _addMoneyState.update { it.copy(errorMessage = null) }
+    }
 
     fun saveTransaction(
         type: String,
@@ -29,7 +68,8 @@ class FormsVM @Inject constructor(
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
-            moneyRepository.addTransaction(
+            _addMoneyState.update { it.copy(isSaving = true, errorMessage = null) }
+            val result = moneyRepository.addTransaction(
                 type = type,
                 category = category,
                 amount = amount,
@@ -38,7 +78,18 @@ class FormsVM @Inject constructor(
                 date = date,
                 excludeAnalytics = excludeAnalytics
             )
-            onSuccess()
+
+            result.onSuccess {
+                _addMoneyState.update { it.copy(isSaving = false) }
+                onSuccess()
+            }.onFailure { error ->
+                _addMoneyState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = error.message ?: "Failed to add transaction"
+                    )
+                }
+            }
         }
     }
 

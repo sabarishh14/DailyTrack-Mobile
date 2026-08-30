@@ -84,6 +84,10 @@ class DemoDataManager @Inject constructor(
         _dataUpdateFlow.tryEmit(Unit)
     }
 
+    fun notifyDataUpdated() {
+        _dataUpdateFlow.tryEmit(Unit)
+    }
+
     suspend fun resetDemoData(): DemoStorageContainer = withContext(Dispatchers.IO) {
         val initial = generateSeedData()
         saveContainer(initial)
@@ -161,7 +165,18 @@ class DemoDataManager @Inject constructor(
         }
 
         val updatedTransactions = listOf(newTx) + current.transactions
-        saveContainer(current.copy(accounts = updatedAccounts, transactions = updatedTransactions))
+        val updatedCategories = if (category.isNotBlank() && !current.categories.any { it.equals(category.trim(), ignoreCase = true) }) {
+            current.categories + category.trim()
+        } else {
+            current.categories
+        }
+        saveContainer(
+            current.copy(
+                accounts = updatedAccounts,
+                transactions = updatedTransactions,
+                categories = updatedCategories
+            )
+        )
         newTx
     }
 

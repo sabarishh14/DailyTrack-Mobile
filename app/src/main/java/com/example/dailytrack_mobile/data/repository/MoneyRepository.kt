@@ -3,6 +3,7 @@ package com.example.dailytrack_mobile.data.repository
 import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
 import com.example.dailytrack_mobile.data.remote.dto.AccountDto
+import com.example.dailytrack_mobile.data.remote.dto.AddTransactionRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
 import kotlinx.coroutines.flow.SharedFlow
@@ -52,7 +53,7 @@ class MoneyRepository @Inject constructor(
         accountName: String,
         date: String,
         excludeAnalytics: Boolean
-    ): Result<TransactionDto> = runCatching {
+    ): Result<Unit> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.addTransaction(
                 type = type,
@@ -64,19 +65,20 @@ class MoneyRepository @Inject constructor(
                 excludeAnalytics = excludeAnalytics
             )
         } else {
-            // Placeholder for live API post if implemented in backend
-            TransactionDto(
-                id = System.currentTimeMillis(),
+            val request = AddTransactionRequestDto(
                 account = accountName,
                 date = date,
-                month = date.take(7),
                 type = type,
                 heading = category,
-                description = note,
+                description = note ?: "",
                 amount = amount,
-                excludeAnalytics = excludeAnalytics,
-                split = null
+                excludeAnalytics = excludeAnalytics
             )
+            val response = api.addTransaction(request)
+            if (!response.success) {
+                throw Exception(response.message ?: "Failed to add transaction")
+            }
+            demoDataManager.notifyDataUpdated()
         }
     }
 }
