@@ -12,7 +12,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Tune
@@ -86,7 +88,10 @@ fun AnalysisTab(
             if (categories.isNotEmpty()) {
                 CashFlowBreakdownCard(
                     categories = categories,
-                    periodLabel = filterState.financialYear ?: "ALL TIME"
+                    periodLabel = filterState.financialYear ?: "ALL TIME",
+                    onCategoryClick = { category ->
+                        onAction(MoneyAction.ViewCategoryTransactions(category))
+                    }
                 )
             } else {
                 EmptyFilterResultsCard(
@@ -100,6 +105,15 @@ fun AnalysisTab(
             IncomeExpenseRow(
                 income = state.filteredTotalIncome,
                 expenses = state.filteredTotalExpenses
+            )
+        }
+
+        // View Transactions Action Card
+        item {
+            ViewTransactionsActionCard(
+                transactionCount = state.filteredTransactions.size,
+                hasActiveFilters = filterState.hasActiveFilters,
+                onClick = { onAction(MoneyAction.SelectTab(1)) }
             )
         }
     }
@@ -440,7 +454,8 @@ private fun ActiveFilterRemovableChip(
 @Composable
 private fun CashFlowBreakdownCard(
     categories: List<SpendingCategory>,
-    periodLabel: String
+    periodLabel: String,
+    onCategoryClick: (String) -> Unit
 ) {
     val dims = Dimens.current
     val total = categories.sumOf { it.amount }
@@ -508,7 +523,10 @@ private fun CashFlowBreakdownCard(
             Spacer(modifier = Modifier.height(dims.sectionSpacing))
 
             // Legend grid — 2 columns, 3 rows
-            LegendGrid(categories = processedCategories)
+            LegendGrid(
+                categories = processedCategories,
+                onCategoryClick = onCategoryClick
+            )
         }
     }
 }
@@ -636,7 +654,10 @@ private fun DonutChart2D(
 // Legend Grid (2 columns)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun LegendGrid(categories: List<SpendingCategory>) {
+private fun LegendGrid(
+    categories: List<SpendingCategory>,
+    onCategoryClick: (String) -> Unit
+) {
     val dims = Dimens.current
     // Chunk into rows of 2
     val rows = categories.chunked(2)
@@ -649,6 +670,11 @@ private fun LegendGrid(categories: List<SpendingCategory>) {
                 row.forEach { category ->
                     LegendItem(
                         category = category,
+                        onClick = {
+                            if (category.name != "Others") {
+                                onCategoryClick(category.name)
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -662,10 +688,17 @@ private fun LegendGrid(categories: List<SpendingCategory>) {
 }
 
 @Composable
-private fun LegendItem(category: SpendingCategory, modifier: Modifier = Modifier) {
+private fun LegendItem(
+    category: SpendingCategory,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val dims = Dimens.current
     Row(
-        modifier = modifier,
+        modifier = modifier
+            .clip(RoundedCornerShape(dims.buttonCornerRadius - 4.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
     ) {
@@ -680,7 +713,8 @@ private fun LegendItem(category: SpendingCategory, modifier: Modifier = Modifier
         Text(
             text = category.name,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f, fill = false)
         )
         // Amount
         Text(
@@ -759,6 +793,88 @@ private fun SummaryCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// View Transactions Action Card
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun ViewTransactionsActionCard(
+    transactionCount: Int,
+    hasActiveFilters: Boolean,
+    onClick: () -> Unit
+) {
+    val dims = Dimens.current
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(dims.cardCornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = dims.cardInnerPadding, vertical = dims.itemSpacingLarge),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
+                modifier = Modifier.weight(1f)
+            ) {
+                // Icon Box
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                        contentDescription = "Transactions",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = if (hasActiveFilters) "View Filtered Transactions" else "View All Transactions",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (transactionCount == 1) "1 transaction matches current filters"
+                               else "$transactionCount transactions match current filters",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Arrow button / pill
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "View Transactions",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
     }
 }

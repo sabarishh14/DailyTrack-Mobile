@@ -276,6 +276,16 @@ class MoneyVM @Inject constructor(
                 )
             }
 
+            is MoneyAction.ViewCategoryTransactions -> _state.update { current ->
+                val updatedCats = current.analysisFilterState.categoryFilters.toMutableMap().apply {
+                    put(action.category, ItemFilterStatus.INCLUDED)
+                }
+                current.copy(
+                    analysisFilterState = current.analysisFilterState.copy(categoryFilters = updatedCats),
+                    selectedTab = 1
+                )
+            }
+
             is MoneyAction.ShowTransactionDetail -> _state.update {
                 it.copy(detailTransaction = action.transaction, editingTransaction = null, deletingTransaction = null)
             }

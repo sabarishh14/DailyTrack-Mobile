@@ -249,17 +249,48 @@ data class MoneyState(
 
     val filteredTransactions: List<Transaction>
         get() {
-            var list = transactions
+            val filters = analysisFilterState
+            var list = transactions.filter { tx ->
+                // Binary: Type filter
+                if (filters.selectedTypes.isNotEmpty() && !filters.selectedTypes.contains(tx.type)) {
+                    return@filter false
+                }
+
+                // Category Include / Exclude
+                val incCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
+                val excCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.EXCLUDED }.keys
+                if (excCategories.contains(tx.category)) return@filter false
+                if (incCategories.isNotEmpty() && !incCategories.contains(tx.category)) return@filter false
+
+                // Account Include / Exclude
+                val incAccounts = filters.accountFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
+                val excAccounts = filters.accountFilters.filter { it.value == ItemFilterStatus.EXCLUDED }.keys
+                if (excAccounts.contains(tx.bank)) return@filter false
+                if (incAccounts.isNotEmpty() && !incAccounts.contains(tx.bank)) return@filter false
+
+                // Date Range
+                filters.customDateRange?.let { range ->
+                    val start = range.first
+                    val end = range.second
+                    if (start != null && tx.timestampMillis < start) return@filter false
+                    if (end != null && tx.timestampMillis > end) return@filter false
+                }
+
+                true
+            }
+
             if (selectedCategory != "All") {
                 list = list.filter { it.category == selectedCategory }
             }
+
             if (searchQuery.isNotBlank()) {
-                val q = searchQuery.lowercase()
+                val q = searchQuery.lowercase().trim()
                 list = list.filter {
                     it.title.lowercase().contains(q) ||
                     (it.description?.lowercase()?.contains(q) == true) ||
                     it.bank.lowercase().contains(q) ||
-                    it.category.lowercase().contains(q)
+                    it.category.lowercase().contains(q) ||
+                    (it.note?.lowercase()?.contains(q) == true)
                 }
             }
             return list

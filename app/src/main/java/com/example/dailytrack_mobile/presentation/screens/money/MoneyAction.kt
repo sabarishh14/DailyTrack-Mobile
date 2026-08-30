@@ -20,6 +20,7 @@ sealed class MoneyAction {
     object ClearFinancialYearFilter : MoneyAction()
     object ClearDateRangeFilter : MoneyAction()
     data class UpdateAnalysisFilterState(val filterState: AnalysisFilterState) : MoneyAction()
+    data class ViewCategoryTransactions(val category: String) : MoneyAction()
 
     // Transaction Dialog & Modification actions
     data class ShowTransactionDetail(val transaction: Transaction?) : MoneyAction()
