@@ -55,6 +55,7 @@ data class Transaction(
     val id: Long = 0L,
     val title: String,
     val description: String? = null,
+    val note: String? = null,
     val date: String,
     val bank: String,
     val amount: Double,
@@ -64,6 +65,8 @@ data class Transaction(
     val isExcluded: Boolean = false,
     val timestampMillis: Long = System.currentTimeMillis(),
     val monthStr: String = "",
+    val rawDate: String = "",
+    val rawType: String = "",
     val split: SplitInfo? = null
 )
 
@@ -195,6 +198,13 @@ data class MoneyState(
     val transactions: List<Transaction> = emptyList(),
     val accounts: List<AccountInfo> = emptyList(),
     val apiCategories: List<String> = emptyList(),
+
+    // Dialog & Edit/Delete States
+    val editingTransaction: Transaction? = null,
+    val deletingTransaction: Transaction? = null,
+    val isUpdating: Boolean = false,
+    val isDeleting: Boolean = false,
+    val actionMessage: String? = null,
 
     // Pagination
     val currentOffset: Int = 0,

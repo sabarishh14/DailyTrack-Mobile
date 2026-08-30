@@ -32,6 +32,17 @@ interface DailyTrackApi {
         @Body transaction: AddTransactionRequestDto
     ): ApiResponseDto
 
+    @retrofit2.http.PUT("/api/transactions/{id}")
+    suspend fun updateTransaction(
+        @retrofit2.http.Path("id") id: Long,
+        @Body transaction: AddTransactionRequestDto
+    ): ApiResponseDto
+
+    @retrofit2.http.DELETE("/api/transactions/{id}")
+    suspend fun deleteTransaction(
+        @retrofit2.http.Path("id") id: Long
+    ): ApiResponseDto
+
     @GET("/api/transactions/categories")
     suspend fun getCategories(): CategoriesResponseDto
 

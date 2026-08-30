@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.screens.money.ChartColors
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyAction
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyState
@@ -193,7 +194,10 @@ fun TransactionsTab(
                         items = state.filteredTransactions,
                         key = { it.id }
                     ) { transaction ->
-                        TransactionItemCard(transaction = transaction)
+                        TransactionItemCard(
+                            transaction = transaction,
+                            onClick = { onAction(MoneyAction.ShowEditDialog(transaction)) }
+                        )
                     }
 
                     // Loading more indicator
@@ -314,13 +318,18 @@ private fun CategoryFilterRow(
 // Transaction Item Card
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun TransactionItemCard(transaction: Transaction) {
+private fun TransactionItemCard(
+    transaction: Transaction,
+    onClick: () -> Unit
+) {
     val dims = Dimens.current
     val emojiBgColor = categoryEmojiColors[transaction.category]
         ?: MaterialTheme.colorScheme.surfaceContainerHighest
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(dims.cardCornerRadius - 4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -348,7 +357,7 @@ private fun TransactionItemCard(transaction: Transaction) {
                 )
             }
 
-            // Title + Description + Date/Bank
+            // Title + Description + Date/Bank/Excluded
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -372,17 +381,42 @@ private fun TransactionItemCard(transaction: Transaction) {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = transaction.date,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
+                        text = "•",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Text(
                         text = transaction.bank,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (transaction.isExcluded) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "Excluded",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 9.sp
+                                ),
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 }
             }
 

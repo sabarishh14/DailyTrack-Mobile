@@ -20,4 +20,22 @@ sealed class MoneyAction {
     object ClearFinancialYearFilter : MoneyAction()
     object ClearDateRangeFilter : MoneyAction()
     data class UpdateAnalysisFilterState(val filterState: AnalysisFilterState) : MoneyAction()
+
+    // Transaction Dialog & Modification actions
+    data class ShowEditDialog(val transaction: Transaction?) : MoneyAction()
+    data class ShowDeleteConfirmation(val transaction: Transaction?) : MoneyAction()
+    object DismissDialogs : MoneyAction()
+    data class UpdateTransaction(
+        val id: Long,
+        val type: String,
+        val category: String,
+        val amount: Double,
+        val note: String?,
+        val accountName: String,
+        val date: String,
+        val excludeAnalytics: Boolean
+    ) : MoneyAction()
+    data class DeleteTransaction(val id: Long) : MoneyAction()
+    data class ToggleExcludeAnalytics(val id: Long, val currentExcluded: Boolean) : MoneyAction()
+    object ClearActionMessage : MoneyAction()
 }

@@ -180,6 +180,99 @@ class DemoDataManager @Inject constructor(
         newTx
     }
 
+    suspend fun updateTransaction(
+        id: Long,
+        type: String,
+        category: String,
+        amount: Double,
+        note: String?,
+        accountName: String,
+        date: String,
+        excludeAnalytics: Boolean
+    ): TransactionDto = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val oldTx = current.transactions.find { it.id == id }
+            ?: throw IllegalArgumentException("Transaction not found with id: $id")
+
+        val monthStr = date.take(7)
+        val normalizedType = if (type.equals("Credit", ignoreCase = true) || type.equals("Income", ignoreCase = true)) "Credit" else "Debit"
+
+        val updatedTx = oldTx.copy(
+            account = accountName,
+            date = date,
+            month = monthStr,
+            type = normalizedType,
+            heading = category,
+            description = note,
+            amount = amount,
+            excludeAnalytics = excludeAnalytics
+        )
+
+        // 1. Revert old transaction effect on old account
+        // 2. Apply new transaction effect on new account
+        val updatedAccounts = current.accounts.map { acc ->
+            var bal = acc.balance
+            var realBal = acc.realBalance
+
+            // Revert old
+            if (acc.account.equals(oldTx.account, ignoreCase = true)) {
+                val oldDelta = if (oldTx.type == "Credit") -oldTx.amount else oldTx.amount
+                bal += oldDelta
+                realBal = realBal?.let { it + oldDelta }
+            }
+
+            // Apply new
+            if (acc.account.equals(accountName, ignoreCase = true)) {
+                val newDelta = if (normalizedType == "Credit") amount else -amount
+                bal += newDelta
+                realBal = realBal?.let { it + newDelta }
+            }
+
+            acc.copy(balance = bal, realBalance = realBal)
+        }
+
+        val updatedTransactions = current.transactions.map { if (it.id == id) updatedTx else it }
+        val updatedCategories = if (category.isNotBlank() && !current.categories.any { it.equals(category.trim(), ignoreCase = true) }) {
+            current.categories + category.trim()
+        } else {
+            current.categories
+        }
+
+        saveContainer(
+            current.copy(
+                accounts = updatedAccounts,
+                transactions = updatedTransactions,
+                categories = updatedCategories
+            )
+        )
+        updatedTx
+    }
+
+    suspend fun deleteTransaction(id: Long) = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val oldTx = current.transactions.find { it.id == id } ?: return@withContext
+
+        // Revert balance
+        val updatedAccounts = current.accounts.map { acc ->
+            if (acc.account.equals(oldTx.account, ignoreCase = true)) {
+                val oldDelta = if (oldTx.type == "Credit") -oldTx.amount else oldTx.amount
+                val newBal = acc.balance + oldDelta
+                val newRealBal = acc.realBalance?.let { it + oldDelta } ?: newBal
+                acc.copy(balance = newBal, realBalance = newRealBal)
+            } else {
+                acc
+            }
+        }
+
+        val updatedTransactions = current.transactions.filterNot { it.id == id }
+        saveContainer(
+            current.copy(
+                accounts = updatedAccounts,
+                transactions = updatedTransactions
+            )
+        )
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // Investments
     // ─────────────────────────────────────────────────────────────────────────────

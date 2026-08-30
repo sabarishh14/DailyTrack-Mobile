@@ -81,4 +81,55 @@ class MoneyRepository @Inject constructor(
             demoDataManager.notifyDataUpdated()
         }
     }
+
+    suspend fun updateTransaction(
+        id: Long,
+        type: String,
+        category: String,
+        amount: Double,
+        note: String?,
+        accountName: String,
+        date: String,
+        excludeAnalytics: Boolean
+    ): Result<Unit> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.updateTransaction(
+                id = id,
+                type = type,
+                category = category,
+                amount = amount,
+                note = note,
+                accountName = accountName,
+                date = date,
+                excludeAnalytics = excludeAnalytics
+            )
+        } else {
+            val request = AddTransactionRequestDto(
+                account = accountName,
+                date = date,
+                type = type,
+                heading = category,
+                description = note ?: "",
+                amount = amount,
+                excludeAnalytics = excludeAnalytics
+            )
+            val response = api.updateTransaction(id, request)
+            if (!response.success) {
+                throw Exception(response.message ?: "Failed to update transaction")
+            }
+            demoDataManager.notifyDataUpdated()
+        }
+    }
+
+    suspend fun deleteTransaction(id: Long): Result<Unit> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.deleteTransaction(id)
+        } else {
+            val response = api.deleteTransaction(id)
+            if (!response.success) {
+                throw Exception(response.message ?: "Failed to delete transaction")
+            }
+            demoDataManager.notifyDataUpdated()
+        }
+    }
 }

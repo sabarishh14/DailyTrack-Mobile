@@ -15,6 +15,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.screens.money.components.AnalysisTab
+import com.example.dailytrack_mobile.presentation.screens.money.components.DeleteConfirmationDialog
+import com.example.dailytrack_mobile.presentation.screens.money.components.EditTransactionDialog
 import com.example.dailytrack_mobile.presentation.screens.money.components.FilterBottomSheet
 import com.example.dailytrack_mobile.presentation.screens.money.components.TransactionsTab
 import com.example.dailytrack_mobile.presentation.util.Dimens
@@ -28,43 +30,101 @@ fun MoneyScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Custom pill tab bar
-        PillTabBar(
-            selectedIndex = state.selectedTab,
-            tabs = listOf("Cash Flow", "Transactions"),
-            onTabSelected = { viewModel.onAction(MoneyAction.SelectTab(it)) },
-            modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge)
-        )
+    LaunchedEffect(state.actionMessage) {
+        state.actionMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.onAction(MoneyAction.ClearActionMessage)
+        }
+    }
 
-        // Tab content with crossfade
-        AnimatedContent(
-            targetState = state.selectedTab,
-            transitionSpec = {
-                fadeIn() + slideInHorizontally(
-                    initialOffsetX = { if (targetState > initialState) it / 4 else -it / 4 }
-                ) togetherWith fadeOut() + slideOutHorizontally(
-                    targetOffsetX = { if (targetState > initialState) -it / 4 else it / 4 }
-                )
-            },
-            label = "MoneyTabContent"
-        ) { tabIndex ->
-            when (tabIndex) {
-                0 -> AnalysisTab(
-                    state = state,
-                    onAction = viewModel::onAction
-                )
-                1 -> TransactionsTab(
-                    state = state,
-                    onAction = viewModel::onAction
-                )
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Custom pill tab bar
+            PillTabBar(
+                selectedIndex = state.selectedTab,
+                tabs = listOf("Cash Flow", "Transactions"),
+                onTabSelected = { viewModel.onAction(MoneyAction.SelectTab(it)) },
+                modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge)
+            )
+
+            // Tab content with crossfade
+            AnimatedContent(
+                targetState = state.selectedTab,
+                transitionSpec = {
+                    fadeIn() + slideInHorizontally(
+                        initialOffsetX = { if (targetState > initialState) it / 4 else -it / 4 }
+                    ) togetherWith fadeOut() + slideOutHorizontally(
+                        targetOffsetX = { if (targetState > initialState) -it / 4 else it / 4 }
+                    )
+                },
+                label = "MoneyTabContent"
+            ) { tabIndex ->
+                when (tabIndex) {
+                    0 -> AnalysisTab(
+                        state = state,
+                        onAction = viewModel::onAction
+                    )
+                    1 -> TransactionsTab(
+                        state = state,
+                        onAction = viewModel::onAction
+                    )
+                }
             }
         }
+    }
+
+    // Edit Transaction Dialog
+    state.editingTransaction?.let { tx ->
+        EditTransactionDialog(
+            transaction = tx,
+            availableAccounts = state.allAvailableAccounts,
+            availableCategories = state.allAvailableCategories,
+            isUpdating = state.isUpdating,
+            onSave = { id, type, category, amount, note, accountName, date, excludeAnalytics ->
+                viewModel.onAction(
+                    MoneyAction.UpdateTransaction(
+                        id = id,
+                        type = type,
+                        category = category,
+                        amount = amount,
+                        note = note,
+                        accountName = accountName,
+                        date = date,
+                        excludeAnalytics = excludeAnalytics
+                    )
+                )
+            },
+            onDelete = { transactionToDelete ->
+                viewModel.onAction(MoneyAction.ShowDeleteConfirmation(transactionToDelete))
+            },
+            onDismiss = {
+                viewModel.onAction(MoneyAction.DismissDialogs)
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    state.deletingTransaction?.let { tx ->
+        DeleteConfirmationDialog(
+            transaction = tx,
+            isDeleting = state.isDeleting,
+            onConfirm = {
+                viewModel.onAction(MoneyAction.DeleteTransaction(tx.id))
+            },
+            onDismiss = {
+                viewModel.onAction(MoneyAction.DismissDialogs)
+            }
+        )
     }
 
     // Filter Bottom Sheet for Spending Analyzer

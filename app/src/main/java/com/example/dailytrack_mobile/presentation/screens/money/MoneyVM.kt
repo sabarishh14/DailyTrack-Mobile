@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
@@ -274,6 +275,121 @@ class MoneyVM @Inject constructor(
                     )
                 )
             }
+
+            is MoneyAction.ShowEditDialog -> _state.update {
+                it.copy(editingTransaction = action.transaction, deletingTransaction = null)
+            }
+
+            is MoneyAction.ShowDeleteConfirmation -> _state.update {
+                it.copy(deletingTransaction = action.transaction)
+            }
+
+            is MoneyAction.DismissDialogs -> _state.update {
+                it.copy(editingTransaction = null, deletingTransaction = null)
+            }
+
+            is MoneyAction.ClearActionMessage -> _state.update {
+                it.copy(actionMessage = null)
+            }
+
+            is MoneyAction.UpdateTransaction -> {
+                viewModelScope.launch {
+                    _state.update { it.copy(isUpdating = true) }
+                    val result = repository.updateTransaction(
+                        id = action.id,
+                        type = action.type,
+                        category = action.category,
+                        amount = action.amount,
+                        note = action.note,
+                        accountName = action.accountName,
+                        date = action.date,
+                        excludeAnalytics = action.excludeAnalytics
+                    )
+
+                    result.onSuccess {
+                        _state.update {
+                            it.copy(
+                                isUpdating = false,
+                                editingTransaction = null,
+                                actionMessage = "Transaction updated successfully"
+                            )
+                        }
+                        loadInitialData()
+                    }.onFailure { error ->
+                        _state.update {
+                            it.copy(
+                                isUpdating = false,
+                                errorMessage = error.message ?: "Failed to update transaction"
+                            )
+                        }
+                    }
+                }
+            }
+
+            is MoneyAction.DeleteTransaction -> {
+                viewModelScope.launch {
+                    _state.update { it.copy(isDeleting = true) }
+                    val result = repository.deleteTransaction(action.id)
+
+                    result.onSuccess {
+                        _state.update {
+                            it.copy(
+                                isDeleting = false,
+                                deletingTransaction = null,
+                                editingTransaction = null,
+                                actionMessage = "Transaction deleted successfully"
+                            )
+                        }
+                        loadInitialData()
+                    }.onFailure { error ->
+                        _state.update {
+                            it.copy(
+                                isDeleting = false,
+                                errorMessage = error.message ?: "Failed to delete transaction"
+                            )
+                        }
+                    }
+                }
+            }
+
+            is MoneyAction.ToggleExcludeAnalytics -> {
+                viewModelScope.launch {
+                    val tx = _state.value.transactions.find { it.id == action.id } ?: return@launch
+                    val newExcluded = !action.currentExcluded
+                    
+                    // Optimistic update
+                    _state.update { current ->
+                        current.copy(
+                            transactions = current.transactions.map {
+                                if (it.id == action.id) it.copy(isExcluded = newExcluded) else it
+                            }
+                        )
+                    }
+
+                    val result = repository.updateTransaction(
+                        id = tx.id,
+                        type = tx.rawType.ifEmpty { if (tx.type == TransactionType.CREDIT) "Credit" else "Debit" },
+                        category = tx.category,
+                        amount = tx.amount,
+                        note = tx.note,
+                        accountName = tx.bank,
+                        date = tx.rawDate.ifEmpty { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(tx.timestampMillis)) },
+                        excludeAnalytics = newExcluded
+                    )
+
+                    result.onFailure {
+                        // Revert on failure
+                        _state.update { current ->
+                            current.copy(
+                                transactions = current.transactions.map {
+                                    if (it.id == action.id) it.copy(isExcluded = action.currentExcluded) else it
+                                },
+                                errorMessage = "Failed to update Spending Analyser setting"
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -286,19 +402,22 @@ private val apiDateParser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 private val displayDateFormat = SimpleDateFormat("MMM dd", Locale.US)
 
 private fun com.example.dailytrack_mobile.data.remote.dto.TransactionDto.toDomain(): Transaction {
-    val parsedDate = try { apiDateParser.parse(date) } catch (_: Exception) { null }
-    val displayDate = parsedDate?.let { displayDateFormat.format(it) } ?: date
+    val dateOnly = if (date.contains("T")) date.substringBefore("T") else date
+    val parsedDate = try { apiDateParser.parse(dateOnly) } catch (_: Exception) { null }
+    val displayDate = parsedDate?.let { displayDateFormat.format(it) } ?: dateOnly
     val timestampMs = parsedDate?.time ?: System.currentTimeMillis()
 
-    val txType = when (type.lowercase()) {
-        "credit" -> TransactionType.CREDIT
+    val normalizedType = if (type.equals("Credit", ignoreCase = true) || type.equals("Income", ignoreCase = true)) "Credit" else "Debit"
+    val txType = when (normalizedType) {
+        "Credit" -> TransactionType.CREDIT
         else -> TransactionType.DEBIT
     }
 
     return Transaction(
         id = id,
-        title = description ?: heading,
-        description = if (description != null) heading else null,
+        title = if (!description.isNullOrBlank()) description else heading,
+        description = if (!description.isNullOrBlank()) heading else null,
+        note = description,
         date = displayDate,
         bank = account,
         amount = amount,
@@ -308,6 +427,8 @@ private fun com.example.dailytrack_mobile.data.remote.dto.TransactionDto.toDomai
         isExcluded = excludeAnalytics,
         timestampMillis = timestampMs,
         monthStr = month,
+        rawDate = dateOnly,
+        rawType = normalizedType,
         split = split?.let { s ->
             SplitInfo(
                 id = s.id,
