@@ -1,21 +1,31 @@
 package com.example.dailytrack_mobile.data.remote.api
 
 import com.example.dailytrack_mobile.data.remote.dto.AccountDto
+import com.example.dailytrack_mobile.data.remote.dto.AddActivityRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.AddManualAssetRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.AddMediaResponseDto
+import com.example.dailytrack_mobile.data.remote.dto.AddMovieDiaryRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.AddMovieRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.AddTransactionRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.AddTvDiaryRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.AddTvShowRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.ApiResponseDto
 import com.example.dailytrack_mobile.data.remote.dto.CategoriesResponseDto
+import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
+import com.example.dailytrack_mobile.data.remote.dto.ManualAssetDto
+import com.example.dailytrack_mobile.data.remote.dto.MediaLibraryResponseDto
+import com.example.dailytrack_mobile.data.remote.dto.MediaSearchResponseDto
+import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
+import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
+import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
 import retrofit2.http.Query
-import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
-import com.example.dailytrack_mobile.data.remote.dto.AddActivityRequestDto
-import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
-import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
-import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
-import com.example.dailytrack_mobile.data.remote.dto.ManualAssetDto
-import com.example.dailytrack_mobile.data.remote.dto.AddManualAssetRequestDto
 
 interface DailyTrackApi {
 
@@ -34,15 +44,15 @@ interface DailyTrackApi {
         @Body transaction: AddTransactionRequestDto
     ): ApiResponseDto
 
-    @retrofit2.http.PUT("/api/transactions/{id}")
+    @PUT("/api/transactions/{id}")
     suspend fun updateTransaction(
-        @retrofit2.http.Path("id") id: Long,
+        @Path("id") id: Long,
         @Body transaction: AddTransactionRequestDto
     ): ApiResponseDto
 
-    @retrofit2.http.DELETE("/api/transactions/{id}")
+    @DELETE("/api/transactions/{id}")
     suspend fun deleteTransaction(
-        @retrofit2.http.Path("id") id: Long
+        @Path("id") id: Long
     ): ApiResponseDto
 
     @GET("/api/transactions/categories")
@@ -63,7 +73,7 @@ interface DailyTrackApi {
     suspend fun getEquityHoldings(): List<EquityHoldingDto>
 
     @GET("/api/investments/{date}/holdings")
-    suspend fun getMutualFundHoldings(@retrofit2.http.Path("date") date: String): List<MutualFundHoldingDto>
+    suspend fun getMutualFundHoldings(@Path("date") date: String): List<MutualFundHoldingDto>
 
     @GET("/api/manual_assets")
     suspend fun getManualAssets(): List<ManualAssetDto>
@@ -79,5 +89,30 @@ interface DailyTrackApi {
         @Query("offset") offset: Int = 0,
         @Query("type") type: String = "all",
         @Query("status") status: String = "WATCHING"
-    ): com.example.dailytrack_mobile.data.remote.dto.MediaLibraryResponseDto
+    ): MediaLibraryResponseDto
+
+    @GET("/api/media/search")
+    suspend fun searchMedia(
+        @Query("q") query: String
+    ): MediaSearchResponseDto
+
+    @POST("/api/movies")
+    suspend fun addMovie(
+        @Body request: AddMovieRequestDto
+    ): AddMediaResponseDto
+
+    @POST("/api/tv/shows")
+    suspend fun addTvShow(
+        @Body request: AddTvShowRequestDto
+    ): AddMediaResponseDto
+
+    @POST("/api/movies/diary")
+    suspend fun addMovieDiary(
+        @Body request: AddMovieDiaryRequestDto
+    ): ApiResponseDto
+
+    @POST("/api/tv/diary")
+    suspend fun addTvDiary(
+        @Body request: AddTvDiaryRequestDto
+    ): ApiResponseDto
 }

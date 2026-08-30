@@ -24,38 +24,48 @@ class SabdekhoVM @Inject constructor(
     init {
         viewModelScope.launch {
             demoModeManager.isDemoModeEnabledFlow.collect {
-                loadShows(_state.value.activeFilter)
+                loadShows(status = _state.value.activeFilter, type = _state.value.mediaTypeFilter)
             }
         }
         viewModelScope.launch {
             repository.dataUpdateFlow.collect {
-                loadShows(_state.value.activeFilter)
+                loadShows(status = _state.value.activeFilter, type = _state.value.mediaTypeFilter)
             }
         }
     }
 
     fun onAction(action: SabdekhoAction) {
         when (action) {
-            is SabdekhoAction.LoadShows -> loadShows(action.status)
+            is SabdekhoAction.LoadShows -> {
+                loadShows(action.status, action.type)
+            }
             is SabdekhoAction.SearchQueryChanged -> {
                 _state.update { it.copy(searchQuery = action.query) }
             }
             is SabdekhoAction.ChangeFilter -> {
                 _state.update { it.copy(activeFilter = action.filter) }
-                loadShows(action.filter)
+                loadShows(action.filter, _state.value.mediaTypeFilter)
+            }
+            is SabdekhoAction.ChangeMediaType -> {
+                _state.update { it.copy(mediaTypeFilter = action.mediaType) }
+                loadShows(_state.value.activeFilter, action.mediaType)
+            }
+            is SabdekhoAction.Refresh -> {
+                loadShows(_state.value.activeFilter, _state.value.mediaTypeFilter)
             }
         }
     }
 
-    private fun loadShows(status: String) {
+    private fun loadShows(status: String, type: String = "all") {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            repository.getMediaLibrary(limit = 100, offset = 0, type = "all", status = status)
+            repository.getMediaLibrary(limit = 100, offset = 0, type = type, status = status)
                 .onSuccess { response ->
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            shows = response.shows ?: emptyList()
+                            shows = response.shows ?: emptyList(),
+                            totalCount = response.totalCount ?: (response.shows?.size ?: 0)
                         )
                     }
                 }

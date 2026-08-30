@@ -419,22 +419,56 @@ class DemoDataManager @Inject constructor(
         )
     }
 
+    suspend fun searchMedia(query: String): List<com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        val all = getOrLoadContainer().mediaShows
+        val localMatches = all.filter { it.name?.contains(trimmed, ignoreCase = true) == true }
+            .map { show ->
+                com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto(
+                    id = show.tmdbId ?: show.id,
+                    title = if (show.type == "movie") show.name else null,
+                    name = if (show.type != "movie") show.name else null,
+                    mediaType = show.type ?: "movie",
+                    posterPath = show.posterPath,
+                    releaseDate = "2024-01-01",
+                    voteAverage = 8.0,
+                    overview = "Tracked title: ${show.name}"
+                )
+            }
+        return if (localMatches.isNotEmpty()) localMatches else listOf(
+            com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto(
+                id = 99901,
+                title = trimmed,
+                mediaType = "movie",
+                posterPath = null,
+                releaseDate = "2024-01-01",
+                voteAverage = 8.5,
+                overview = "Demo search result for $trimmed"
+            )
+        )
+    }
+
     suspend fun addMediaShow(
         title: String,
         type: String, // "Movie", "Series", "Anime"
         status: String, // "WATCHING", "TO WATCH", "WATCHED", "DROPPED"
-        platform: String?,
-        rating: Int,
-        review: String?
+        posterPath: String? = null,
+        tmdbId: Int? = null,
+        platform: String? = null,
+        rating: Float? = null,
+        review: String? = null,
+        date: String? = null
     ): MediaShowDto = withContext(Dispatchers.IO) {
         val current = getOrLoadContainer()
         val newShow = MediaShowDto(
             id = idGenerator.incrementAndGet().toInt(),
-            tmdbId = null,
+            tmdbId = tmdbId,
             name = title,
-            posterPath = null,
-            type = type.lowercase(),
-            status = status
+            posterPath = posterPath,
+            type = if (type.equals("series", ignoreCase = true) || type.equals("tv", ignoreCase = true) || type.equals("anime", ignoreCase = true)) "tv" else "movie",
+            status = status,
+            addedOn = date ?: LocalDate.now().toString()
         )
 
         val updated = listOf(newShow) + current.mediaShows

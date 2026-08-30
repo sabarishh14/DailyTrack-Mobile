@@ -7,5 +7,7 @@ data class SabdekhoState(
     val shows: List<MediaShowDto> = emptyList(),
     val error: String? = null,
     val searchQuery: String = "",
-    val activeFilter: String = "WATCHING"
+    val activeFilter: String = "WATCHING",
+    val mediaTypeFilter: String = "all",
+    val totalCount: Int = 0
 )
