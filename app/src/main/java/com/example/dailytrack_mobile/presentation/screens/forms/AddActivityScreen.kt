@@ -1,20 +1,25 @@
 package com.example.dailytrack_mobile.presentation.screens.forms
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -29,19 +34,10 @@ private enum class FormActivityType(val label: String, val emoji: String) {
     CRICKET("Cricket", "🏏"),
     TABLE_TENNIS("Table Tennis", "🏓"),
     RUNNING("Running", "🏃"),
-    CYCLING("Cycling", "🚴"),
-    SWIMMING("Swimming", "🏊"),
-    YOGA("Yoga", "🧘"),
     OTHERS("Others", "⚡")
 }
 
-private enum class Intensity(val label: String) {
-    LIGHT("Light"),
-    MODERATE("Moderate"),
-    INTENSE("Intense")
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddActivityScreen(
     formsVM: FormsVM = hiltViewModel(),
@@ -49,19 +45,13 @@ fun AddActivityScreen(
     onSaveSuccess: () -> Unit = {}
 ) {
     var selectedActivities by remember { mutableStateOf(setOf<FormActivityType>()) }
-    var selectedIntensity by remember { mutableStateOf<Intensity?>(null) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var hours by remember { mutableStateOf("") }
-    var minutes by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
     val dims = Dimens.current
 
-    val isDirty = remember(selectedActivities, selectedIntensity, hours, minutes, note, selectedDate) {
+    val isDirty = remember(selectedActivities, note, selectedDate) {
         selectedActivities.isNotEmpty() ||
-                selectedIntensity != null ||
-                hours.isNotBlank() ||
-                minutes.isNotBlank() ||
                 note.isNotBlank() ||
                 selectedDate != LocalDate.now()
     }
@@ -71,6 +61,8 @@ fun AddActivityScreen(
     }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
+    val cardBg = MaterialTheme.colorScheme.surfaceContainer
+    val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
     // ── Date Picker Dialog ───────────────────────────────────────────
     if (showDatePicker) {
@@ -92,7 +84,7 @@ fun AddActivityScreen(
                         }
                         showDatePicker = false
                     }
-                ) { Text("OK") }
+                ) { Text("OK", fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
@@ -106,128 +98,209 @@ fun AddActivityScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
-        verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
+            .padding(horizontal = dims.screenHorizontalPadding, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Activity Type (multi-select) ─────────────────────────────
-        SectionLabel("What did you do?")
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
-            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+        // ── Activity Type Section (Large Cards) ───────────────────────
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            FormActivityType.entries.forEach { activity ->
-                val isSelected = activity in selectedActivities
-                FilterChip(
-                    selected = isSelected,
-                    onClick = {
-                        selectedActivities = if (isSelected) {
-                            selectedActivities - activity
-                        } else {
-                            selectedActivities + activity
-                        }
-                    },
-                    label = { Text("${activity.emoji} ${activity.label}", style = MaterialTheme.typography.bodyMedium) },
-                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
-                )
-            }
-        }
+            Text(
+                text = "WHAT DID YOU DO?",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 1.2.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+            )
 
-        // ── Intensity ────────────────────────────────────────────────
-        SectionLabel("Intensity")
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            Intensity.entries.forEachIndexed { index, intensity ->
-                SegmentedButton(
-                    selected = selectedIntensity == intensity,
-                    onClick = { selectedIntensity = intensity },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = Intensity.entries.size
-                    )
-                ) {
-                    Text(intensity.label, style = MaterialTheme.typography.bodyMedium)
+            val activities = FormActivityType.entries
+            val chunkedActivities = activities.chunked(2)
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                chunkedActivities.forEach { rowActivities ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        rowActivities.forEach { activity ->
+                            val isSelected = activity in selectedActivities
+                            val activityBg = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                cardBg
+                            }
+                            val activityBorder = if (isSelected) {
+                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                            } else {
+                                cardBorder
+                            }
+                            val labelColor = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = activityBg),
+                                border = activityBorder,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        selectedActivities = if (isSelected) {
+                                            selectedActivities - activity
+                                        } else {
+                                            selectedActivities + activity
+                                        }
+                                    }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 18.dp, horizontal = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = activity.emoji,
+                                            fontSize = 32.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = activity.label,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            ),
+                                            color = labelColor
+                                        )
+                                    }
+
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .align(Alignment.TopEnd)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // If odd number of items in the last row, insert placeholder spacer
+                        if (rowActivities.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
 
-        // ── Date & Duration (side by side) ───────────────────────────
-        SectionLabel("Date & Duration")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+        // ── Date Card ────────────────────────────────────────────────
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            border = cardBorder,
+            onClick = { showDatePicker = true },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Date field (read-only, opens picker on click)
-            OutlinedTextField(
-                value = selectedDate.format(dateFormatter),
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                label = { Text("Date") },
-                trailingIcon = {
-                    IconButton(onClick = { showDatePicker = true }) {
-                        Icon(
-                            Icons.Outlined.CalendarToday,
-                            contentDescription = "Pick date",
-                            modifier = Modifier.size(dims.iconSizeMedium)
-                        )
-                    }
-                },
-                shape = RoundedCornerShape(dims.buttonCornerRadius),
-                modifier = Modifier.weight(1f)
-            )
-
-            // Hours
-            OutlinedTextField(
-                value = hours,
-                onValueChange = { newValue ->
-                    if (newValue.length <= 2 && newValue.all { it.isDigit() }) {
-                        val num = newValue.toIntOrNull() ?: 0
-                        if (num <= 23) hours = newValue
-                    }
-                },
-                placeholder = { Text("0") },
-                suffix = { Text("h") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                label = { Text("Hrs") },
-                shape = RoundedCornerShape(dims.buttonCornerRadius),
-                modifier = Modifier.weight(0.5f)
-            )
-
-            // Minutes
-            OutlinedTextField(
-                value = minutes,
-                onValueChange = { newValue ->
-                    if (newValue.length <= 2 && newValue.all { it.isDigit() }) {
-                        val num = newValue.toIntOrNull() ?: 0
-                        if (num <= 59) minutes = newValue
-                    }
-                },
-                placeholder = { Text("0") },
-                suffix = { Text("m") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                label = { Text("Min") },
-                shape = RoundedCornerShape(dims.buttonCornerRadius),
-                modifier = Modifier.weight(0.5f)
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp)
+            ) {
+                Text(
+                    text = "DATE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = selectedDate.format(dateFormatter),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.CalendarToday,
+                        contentDescription = "Pick date",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
 
-        // ── Note ─────────────────────────────────────────────────────
-        SectionLabel("Note (optional)")
-        OutlinedTextField(
-            value = note,
-            onValueChange = { note = it },
-            placeholder = { Text("How did it go?", style = MaterialTheme.typography.bodyMedium) },
-            leadingIcon = {
-                Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null, modifier = Modifier.size(dims.iconSizeMedium))
-            },
-            minLines = 2,
-            maxLines = 3,
-            shape = RoundedCornerShape(dims.buttonCornerRadius),
+        // ── Description Card ─────────────────────────────────────────
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            border = cardBorder,
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    text = "DESCRIPTION",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
 
-        Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                BasicTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    textStyle = TextStyle(
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.TopStart) {
+                            if (note.isEmpty()) {
+                                Text(
+                                    text = "How did it go? (optional)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // ── Save Button ──────────────────────────────────────────────
         Button(
@@ -240,9 +313,6 @@ fun AddActivityScreen(
                     tableTennis = selectedActivities.contains(FormActivityType.TABLE_TENNIS),
                     cricket = selectedActivities.contains(FormActivityType.CRICKET),
                     others = selectedActivities.contains(FormActivityType.RUNNING) ||
-                            selectedActivities.contains(FormActivityType.CYCLING) ||
-                            selectedActivities.contains(FormActivityType.SWIMMING) ||
-                            selectedActivities.contains(FormActivityType.YOGA) ||
                             selectedActivities.contains(FormActivityType.OTHERS),
                     description = note.takeIf { it.isNotBlank() },
                     onSuccess = onSaveSuccess
@@ -256,7 +326,9 @@ fun AddActivityScreen(
         ) {
             Text(
                 "Save Activity",
-                style = MaterialTheme.typography.labelLarge
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold
+                )
             )
         }
 
