@@ -1,20 +1,26 @@
 package com.example.dailytrack_mobile.presentation.screens.sabdekho
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.ViewComfy
 import androidx.compose.material.icons.filled.ViewModule
@@ -35,12 +41,16 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto
 import com.example.dailytrack_mobile.data.remote.dto.MediaShowDto
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
+fun SabdekhoScreen(
+    viewModel: SabdekhoVM = hiltViewModel(),
+    onNavigateToAddMovie: (MediaSearchResultDto?) -> Unit = {}
+) {
     val state by viewModel.state.collectAsState()
     var gridSpan by remember { mutableIntStateOf(2) }
     val dims = Dimens.current
@@ -70,7 +80,7 @@ fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
                     .height(dims.searchBarHeight),
                 placeholder = {
                     Text(
-                        "Search titles...",
+                        "Search titles or TMDB...",
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -84,7 +94,13 @@ fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
                     )
                 },
                 trailingIcon = {
-                    if (state.searchQuery.isNotEmpty()) {
+                    if (state.isSearchingOnline) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else if (state.searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onAction(SabdekhoAction.SearchQueryChanged("")) }) {
                             Icon(
                                 Icons.Default.Close,
@@ -186,7 +202,11 @@ fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${filteredItems.size} TITLES TRACKED",
+                text = if (filteredItems.isNotEmpty() || state.searchQuery.isBlank()) {
+                    "${filteredItems.size} TITLES TRACKED"
+                } else {
+                    "ONLINE DISCOVERY"
+                },
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -235,34 +255,149 @@ fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
                 }
             }
         } else if (filteredItems.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.padding(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Movie,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        text = if (state.searchQuery.isNotBlank()) "No matches for \"${state.searchQuery}\"" else "No titles in this section",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Use the '+' button to add movies or shows to your library.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center
-                    )
+            // Local search has no matches
+            if (state.searchQuery.isNotBlank()) {
+                if (state.isSearchingOnline && state.onlineResults.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                            Text(
+                                text = "Searching TMDB / IMDb for \"${state.searchQuery}\"...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else if (state.onlineResults.isNotEmpty()) {
+                    // Display online TMDB/IMDb search results
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
+                        contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 48.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        item {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(dims.buttonCornerRadius),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Language,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Not in your library",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = "Found on TMDB/IMDb — Tap any title to add to your library",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        items(state.onlineResults, key = { "${it.id}_${it.mediaType}" }) { result ->
+                            OnlineMediaResultCard(
+                                item = result,
+                                onAddClick = { onNavigateToAddMovie(result) }
+                            )
+                        }
+                    }
+                } else {
+                    // No results found locally or online
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SearchOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                text = "No matches for \"${state.searchQuery}\"",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Couldn't find this title in your library or on TMDB/IMDb.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Button(
+                                onClick = { onNavigateToAddMovie(null) },
+                                shape = RoundedCornerShape(dims.buttonCornerRadius)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add Custom Title")
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Search query is empty and library has 0 items for current filter
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Movie,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "No titles in this section",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Use the '+' button to add movies or shows to your library.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = { onNavigateToAddMovie(null) },
+                            shape = RoundedCornerShape(dims.buttonCornerRadius)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Add Title")
+                        }
+                    }
                 }
             }
         } else {
-            // Grid of media posters
+            // Grid of media posters from local library
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridSpan),
                 verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
@@ -271,6 +406,156 @@ fun SabdekhoScreen(viewModel: SabdekhoVM = hiltViewModel()) {
             ) {
                 items(filteredItems, key = { it.id }) { item ->
                     MediaCard(item = item, gridSpan = gridSpan)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OnlineMediaResultCard(
+    item: MediaSearchResultDto,
+    onAddClick: () -> Unit
+) {
+    val dims = Dimens.current
+    val posterUrl = if (item.posterPath != null) "https://image.tmdb.org/t/p/w342${item.posterPath}" else ""
+    val isMovie = item.isMovie
+    val typeLabel = if (isMovie) "Movie" else "TV Series"
+    val typeIcon = if (isMovie) Icons.Default.Movie else Icons.Default.Tv
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAddClick() },
+        shape = RoundedCornerShape(dims.buttonCornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(dims.cardInnerPadding),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Poster thumbnail
+            Box(
+                modifier = Modifier
+                    .size(width = 65.dp, height = 95.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (posterUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(posterUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = item.displayTitle,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = typeIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(dims.itemSpacingLarge))
+
+            // Details Column
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 2.dp)
+            ) {
+                // Title
+                Text(
+                    text = item.displayTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Badges Row: Type + Year + Rating
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Type Badge
+                    Surface(
+                        color = if (isMovie) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = typeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isMovie) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    if (item.year.isNotEmpty()) {
+                        Text(
+                            text = item.year,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (item.voteAverage != null && item.voteAverage > 0) {
+                        Text(
+                            text = "⭐ ${String.format(java.util.Locale.US, "%.1f", item.voteAverage)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (!item.overview.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = item.overview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Add Button
+                FilledTonalButton(
+                    onClick = onAddClick,
+                    shape = RoundedCornerShape(dims.buttonCornerRadius),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isMovie) "Add Movie" else "Add Series",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

@@ -54,19 +54,28 @@ private enum class WatchStatus(val label: String, val emoji: String, val dbStatu
 @Composable
 fun AddMovieScreen(
     formsVM: FormsVM = hiltViewModel(),
+    initialMedia: MediaSearchResultDto? = null,
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
     val formState by formsVM.addMovieState.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
-    var selectedMedia by remember { mutableStateOf<MediaSearchResultDto?>(null) }
+    var selectedMedia by remember { mutableStateOf<MediaSearchResultDto?>(initialMedia) }
     var customTitle by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf<WatchStatus?>(WatchStatus.WATCHED) }
     var rating by remember { mutableFloatStateOf(0f) }
     var review by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialMedia) {
+        if (initialMedia != null) {
+            selectedMedia = initialMedia
+            searchQuery = ""
+            formsVM.clearSearchResults()
+        }
+    }
 
     val dims = Dimens.current
     val cardBg = MaterialTheme.colorScheme.surfaceContainer

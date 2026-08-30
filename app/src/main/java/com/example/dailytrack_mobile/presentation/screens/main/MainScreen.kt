@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto
 import com.example.dailytrack_mobile.presentation.navigation.Routes
 import com.example.dailytrack_mobile.presentation.navigation.components.BottomNavBar
 import com.example.dailytrack_mobile.presentation.screens.activities.ActivitiesScreen
@@ -38,6 +39,7 @@ fun MainScreen(
     var isCurrentFormDirty by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var pendingRoute by remember { mutableStateOf<String?>(null) }
+    var preselectedMediaForAddMovie by remember { mutableStateOf<MediaSearchResultDto?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -72,6 +74,7 @@ fun MainScreen(
     // Handles form save completion
     fun onFormSaved(message: String, destinationRoute: String = Routes.Home.route) {
         isCurrentFormDirty = false
+        preselectedMediaForAddMovie = null
         currentRoute = destinationRoute
         coroutineScope.launch {
             snackbarHostState.showSnackbar(
@@ -104,6 +107,9 @@ fun MainScreen(
     if (showAddSheet) {
         AddActionSheet(
             onActionSelected = { route ->
+                if (route == Routes.AddMovie.route) {
+                    preselectedMediaForAddMovie = null
+                }
                 navigateSafely(route)
             },
             onDismiss = {
@@ -146,6 +152,7 @@ fun MainScreen(
                     onClick = {
                         showDiscardDialog = false
                         isCurrentFormDirty = false
+                        preselectedMediaForAddMovie = null
                         val destination = pendingRoute ?: Routes.Home.route
                         pendingRoute = null
                         currentRoute = destination
@@ -225,15 +232,19 @@ fun MainScreen(
         bottomBar = {
             BottomNavBar(
                 currentRoute = currentRoute,
-                onNavigate = { route -> navigateSafely(route) }
+                onNavigate = { targetRoute ->
+                    navigateSafely(targetRoute)
+                }
             )
         },
         floatingActionButton = {
             if (!isFormScreen) {
                 FloatingActionButton(
                     onClick = { showAddSheet = true },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -261,7 +272,12 @@ fun MainScreen(
                 Routes.Money.route -> MoneyScreen()
                 Routes.Activities.route -> ActivitiesScreen()
                 Routes.Investments.route -> InvestmentsScreen()
-                Routes.Sabdekho.route -> SabdekhoScreen()
+                Routes.Sabdekho.route -> SabdekhoScreen(
+                    onNavigateToAddMovie = { media ->
+                        preselectedMediaForAddMovie = media
+                        navigateSafely(Routes.AddMovie.route)
+                    }
+                )
                 Routes.AddMoney.route -> AddMoneyScreen(
                     onDirtyStateChanged = { isCurrentFormDirty = it },
                     onSaveSuccess = { onFormSaved("Transaction saved successfully!", Routes.Money.route) }
@@ -271,6 +287,7 @@ fun MainScreen(
                     onSaveSuccess = { onFormSaved("Activity logged successfully!", Routes.Activities.route) }
                 )
                 Routes.AddMovie.route -> AddMovieScreen(
+                    initialMedia = preselectedMediaForAddMovie,
                     onDirtyStateChanged = { isCurrentFormDirty = it },
                     onSaveSuccess = { onFormSaved("Title added successfully!", Routes.Sabdekho.route) }
                 )

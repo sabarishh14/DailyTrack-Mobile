@@ -3,8 +3,11 @@ package com.example.dailytrack_mobile.presentation.screens.sabdekho
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
+import com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto
 import com.example.dailytrack_mobile.data.repository.SabdekhoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +23,8 @@ class SabdekhoVM @Inject constructor(
 
     private val _state = MutableStateFlow(SabdekhoState())
     val state: StateFlow<SabdekhoState> = _state.asStateFlow()
+
+    private var onlineSearchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -41,6 +46,7 @@ class SabdekhoVM @Inject constructor(
             }
             is SabdekhoAction.SearchQueryChanged -> {
                 _state.update { it.copy(searchQuery = action.query) }
+                performOnlineSearch(action.query)
             }
             is SabdekhoAction.ChangeFilter -> {
                 _state.update { it.copy(activeFilter = action.filter) }
@@ -52,6 +58,26 @@ class SabdekhoVM @Inject constructor(
             }
             is SabdekhoAction.Refresh -> {
                 loadShows(_state.value.activeFilter, _state.value.mediaTypeFilter)
+            }
+        }
+    }
+
+    private fun performOnlineSearch(query: String) {
+        onlineSearchJob?.cancel()
+        val trimmed = query.trim()
+        if (trimmed.length < 2) {
+            _state.update { it.copy(isSearchingOnline = false, onlineResults = emptyList()) }
+            return
+        }
+
+        onlineSearchJob = viewModelScope.launch {
+            delay(350) // Debounce
+            _state.update { it.copy(isSearchingOnline = true) }
+            val result = repository.searchMedia(trimmed)
+            result.onSuccess { list ->
+                _state.update { it.copy(isSearchingOnline = false, onlineResults = list) }
+            }.onFailure {
+                _state.update { it.copy(isSearchingOnline = false, onlineResults = emptyList()) }
             }
         }
     }
