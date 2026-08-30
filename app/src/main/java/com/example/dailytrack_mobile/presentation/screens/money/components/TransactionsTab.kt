@@ -173,6 +173,7 @@ fun TransactionsTab(
                             onSwipeStateChanged = { isSwiped ->
                                 swipedTransactionId = if (isSwiped) transaction.id else if (swipedTransactionId == transaction.id) null else swipedTransactionId
                             },
+                            onClick = { onAction(MoneyAction.ShowTransactionDetail(transaction)) },
                             onEdit = { onAction(MoneyAction.ShowEditDialog(transaction)) },
                             onDelete = { onAction(MoneyAction.ShowDeleteConfirmation(transaction)) }
                         )

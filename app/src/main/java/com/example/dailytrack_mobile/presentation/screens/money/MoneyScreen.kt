@@ -18,6 +18,7 @@ import com.example.dailytrack_mobile.presentation.screens.money.components.Analy
 import com.example.dailytrack_mobile.presentation.screens.money.components.DeleteConfirmationDialog
 import com.example.dailytrack_mobile.presentation.screens.money.components.EditTransactionDialog
 import com.example.dailytrack_mobile.presentation.screens.money.components.FilterBottomSheet
+import com.example.dailytrack_mobile.presentation.screens.money.components.TransactionDetailBottomSheet
 import com.example.dailytrack_mobile.presentation.screens.money.components.TransactionsTab
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
@@ -81,6 +82,22 @@ fun MoneyScreen(
                 }
             }
         }
+    }
+
+    // Transaction Detail Bottom Sheet
+    state.detailTransaction?.let { tx ->
+        TransactionDetailBottomSheet(
+            transaction = tx,
+            onEdit = { transactionToEdit ->
+                viewModel.onAction(MoneyAction.ShowEditDialog(transactionToEdit))
+            },
+            onDelete = { transactionToDelete ->
+                viewModel.onAction(MoneyAction.ShowDeleteConfirmation(transactionToDelete))
+            },
+            onDismiss = {
+                viewModel.onAction(MoneyAction.DismissDialogs)
+            }
+        )
     }
 
     // Edit Transaction Dialog

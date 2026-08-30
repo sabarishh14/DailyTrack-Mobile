@@ -276,16 +276,20 @@ class MoneyVM @Inject constructor(
                 )
             }
 
+            is MoneyAction.ShowTransactionDetail -> _state.update {
+                it.copy(detailTransaction = action.transaction, editingTransaction = null, deletingTransaction = null)
+            }
+
             is MoneyAction.ShowEditDialog -> _state.update {
-                it.copy(editingTransaction = action.transaction, deletingTransaction = null)
+                it.copy(editingTransaction = action.transaction, detailTransaction = null, deletingTransaction = null)
             }
 
             is MoneyAction.ShowDeleteConfirmation -> _state.update {
-                it.copy(deletingTransaction = action.transaction)
+                it.copy(deletingTransaction = action.transaction, detailTransaction = null)
             }
 
             is MoneyAction.DismissDialogs -> _state.update {
-                it.copy(editingTransaction = null, deletingTransaction = null)
+                it.copy(detailTransaction = null, editingTransaction = null, deletingTransaction = null)
             }
 
             is MoneyAction.ClearActionMessage -> _state.update {

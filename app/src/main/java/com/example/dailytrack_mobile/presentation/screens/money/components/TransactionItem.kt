@@ -70,6 +70,7 @@ fun SwipeableTransactionItem(
     transaction: Transaction,
     isSwiped: Boolean,
     onSwipeStateChanged: (Boolean) -> Unit,
+    onClick: () -> Unit = {},
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -236,7 +237,7 @@ fun SwipeableTransactionItem(
                             onSwipeStateChanged(false)
                         }
                     } else {
-                        onEdit()
+                        onClick()
                     }
                 }
         ) {

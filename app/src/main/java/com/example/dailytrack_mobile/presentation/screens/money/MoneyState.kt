@@ -199,7 +199,8 @@ data class MoneyState(
     val accounts: List<AccountInfo> = emptyList(),
     val apiCategories: List<String> = emptyList(),
 
-    // Dialog & Edit/Delete States
+    // Dialog & Edit/Delete/Detail States
+    val detailTransaction: Transaction? = null,
     val editingTransaction: Transaction? = null,
     val deletingTransaction: Transaction? = null,
     val isUpdating: Boolean = false,

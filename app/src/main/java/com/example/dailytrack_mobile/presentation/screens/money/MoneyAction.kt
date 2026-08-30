@@ -22,6 +22,7 @@ sealed class MoneyAction {
     data class UpdateAnalysisFilterState(val filterState: AnalysisFilterState) : MoneyAction()
 
     // Transaction Dialog & Modification actions
+    data class ShowTransactionDetail(val transaction: Transaction?) : MoneyAction()
     data class ShowEditDialog(val transaction: Transaction?) : MoneyAction()
     data class ShowDeleteConfirmation(val transaction: Transaction?) : MoneyAction()
     object DismissDialogs : MoneyAction()
