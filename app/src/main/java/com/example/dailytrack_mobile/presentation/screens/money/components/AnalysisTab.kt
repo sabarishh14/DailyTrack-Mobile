@@ -67,7 +67,7 @@ fun AnalysisTab(
         contentPadding = PaddingValues(
             start = dims.screenHorizontalPadding,
             end = dims.screenHorizontalPadding,
-            top = dims.screenTopPadding,
+            top = dims.itemSpacingMedium,
             bottom = dims.screenBottomPadding
         ),
         verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)

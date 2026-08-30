@@ -39,8 +39,13 @@ fun TransactionsTab(
     ) {
         // Search bar + category filters (non-scrollable header)
         Column(
-            modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
-            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+            modifier = Modifier.padding(
+                start = dims.screenHorizontalPadding,
+                end = dims.screenHorizontalPadding,
+                top = dims.itemSpacingMedium,
+                bottom = dims.itemSpacingSmall
+            ),
+            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
         ) {
             SearchBar(
                 query = state.searchQuery,

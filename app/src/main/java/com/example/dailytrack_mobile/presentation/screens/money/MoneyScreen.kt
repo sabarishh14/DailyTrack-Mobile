@@ -40,22 +40,25 @@ fun MoneyScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+            modifier = Modifier.fillMaxSize()
         ) {
             // Custom pill tab bar
             PillTabBar(
                 selectedIndex = state.selectedTab,
                 tabs = listOf("Cash Flow", "Transactions"),
                 onTabSelected = { viewModel.onAction(MoneyAction.SelectTab(it)) },
-                modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge)
+                modifier = Modifier.padding(
+                    start = dims.screenHorizontalPadding,
+                    end = dims.screenHorizontalPadding,
+                    top = dims.itemSpacingMedium,
+                    bottom = dims.itemSpacingSmall
+                )
             )
 
             // Tab content with crossfade
@@ -82,6 +85,11 @@ fun MoneyScreen(
                 }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     // Transaction Detail Bottom Sheet
@@ -196,7 +204,7 @@ private fun PillTabBar(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { onTabSelected(index) }
-                        .padding(vertical = dims.itemSpacingLarge),
+                        .padding(vertical = dims.itemSpacingMedium),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
