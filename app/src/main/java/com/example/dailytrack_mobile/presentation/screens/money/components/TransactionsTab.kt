@@ -9,57 +9,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.dailytrack_mobile.presentation.screens.money.ChartColors
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyAction
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyState
-import com.example.dailytrack_mobile.presentation.screens.money.Transaction
-import com.example.dailytrack_mobile.presentation.screens.money.TransactionType
 import com.example.dailytrack_mobile.presentation.util.Dimens
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-private fun formatAmount(transaction: Transaction): String {
-    val prefix = if (transaction.type == TransactionType.CREDIT) "+" else "-"
-    val abs = Math.abs(transaction.amount)
-    return when {
-        abs >= 1_00_000 -> "${prefix}₹%.0fL".format(abs / 1_00_000)
-        abs >= 1_000 && abs % 1_000 == 0.0 -> "${prefix}₹%,.0f".format(abs)
-        else -> "${prefix}₹%,.0f".format(abs)
-    }
-}
-
-private val categoryEmojiColors: Map<String, Color> = mapOf(
-    "Food"          to Color(0xFFF5A623),
-    "Bills"         to Color(0xFF4A90D9),
-    "Shopping"      to Color(0xFF9B59B6),
-    "Transport"     to Color(0xFF1ABC9C),
-    "Health"        to Color(0xFFE91E63),
-    "Entertainment" to Color(0xFFFF7043),
-    "Income"        to Color(0xFF2ECC71),
-    "Cinema"        to Color(0xFFE040FB),
-    "Daily Need"    to Color(0xFF8D6E63),
-    "Education"     to Color(0xFF42A5F5),
-    "Investment"    to Color(0xFF66BB6A),
-    "Salary"        to Color(0xFF26A69A),
-)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Transactions Tab
@@ -180,6 +143,16 @@ fun TransactionsTab(
                     }
                 }
 
+                // Track single swiped item state
+                var swipedTransactionId by remember { mutableStateOf<Long?>(null) }
+
+                // Auto-close swiped item when scrolling
+                LaunchedEffect(listState.isScrollInProgress) {
+                    if (listState.isScrollInProgress && swipedTransactionId != null) {
+                        swipedTransactionId = null
+                    }
+                }
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -194,9 +167,14 @@ fun TransactionsTab(
                         items = state.filteredTransactions,
                         key = { it.id }
                     ) { transaction ->
-                        TransactionItemCard(
+                        SwipeableTransactionItem(
                             transaction = transaction,
-                            onClick = { onAction(MoneyAction.ShowEditDialog(transaction)) }
+                            isSwiped = swipedTransactionId == transaction.id,
+                            onSwipeStateChanged = { isSwiped ->
+                                swipedTransactionId = if (isSwiped) transaction.id else if (swipedTransactionId == transaction.id) null else swipedTransactionId
+                            },
+                            onEdit = { onAction(MoneyAction.ShowEditDialog(transaction)) },
+                            onDelete = { onAction(MoneyAction.ShowDeleteConfirmation(transaction)) }
                         )
                     }
 
@@ -310,125 +288,6 @@ private fun CategoryFilterRow(
                             else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Transaction Item Card
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun TransactionItemCard(
-    transaction: Transaction,
-    onClick: () -> Unit
-) {
-    val dims = Dimens.current
-    val emojiBgColor = categoryEmojiColors[transaction.category]
-        ?: MaterialTheme.colorScheme.surfaceContainerHighest
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(dims.cardCornerRadius - 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
-        ) {
-            // Emoji icon in a coloured circle
-            Box(
-                modifier = Modifier
-                    .size(dims.iconSizeXLarge)
-                    .clip(CircleShape)
-                    .background(emojiBgColor.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = transaction.emoji,
-                    fontSize = dims.fontSizeTitleLarge
-                )
-            }
-
-            // Title + Description + Date/Bank/Excluded
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = transaction.title,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                // Show description (category) as subtitle when it differs from title
-                if (!transaction.description.isNullOrBlank()) {
-                    Text(
-                        text = transaction.description,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = transaction.date,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Text(
-                        text = transaction.bank,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (transaction.isExcluded) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "Excluded",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 9.sp
-                                ),
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Amount
-            Text(
-                text = formatAmount(transaction),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Bold
-                ),
-                color = if (transaction.type == TransactionType.CREDIT) ChartColors.IncomeGreen
-                        else MaterialTheme.colorScheme.onSurface
-            )
         }
     }
 }
