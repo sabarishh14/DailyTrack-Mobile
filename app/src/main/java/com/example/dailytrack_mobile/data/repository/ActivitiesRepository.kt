@@ -2,6 +2,7 @@ package com.example.dailytrack_mobile.data.repository
 
 import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
+import com.example.dailytrack_mobile.data.remote.dto.AddActivityRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
 import kotlinx.coroutines.flow.SharedFlow
 import javax.inject.Inject
@@ -30,7 +31,7 @@ class ActivitiesRepository @Inject constructor(
         cricket: Boolean,
         others: Boolean,
         description: String?
-    ): Result<PhysicalActivityDto> = runCatching {
+    ): Result<Unit> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.addPhysicalActivity(
                 date = date,
@@ -42,17 +43,20 @@ class ActivitiesRepository @Inject constructor(
                 description = description
             )
         } else {
-            // Live fallback
-            PhysicalActivityDto(
-                id = System.currentTimeMillis(),
+            val request = AddActivityRequestDto(
                 date = date,
                 gym = gym,
                 badminton = badminton,
                 tableTennis = tableTennis,
                 cricket = cricket,
                 others = others,
-                description = description
+                description = description ?: ""
             )
+            val response = api.addPhysicalActivity(request)
+            if (!response.success) {
+                throw Exception(response.message ?: "Failed to log activity")
+            }
+            demoDataManager.notifyDataUpdated()
         }
     }
 }

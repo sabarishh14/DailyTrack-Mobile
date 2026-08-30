@@ -22,6 +22,11 @@ data class AddMoneyFormState(
     val errorMessage: String? = null
 )
 
+data class AddActivityFormState(
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null
+)
+
 @HiltViewModel
 class FormsVM @Inject constructor(
     private val moneyRepository: MoneyRepository,
@@ -32,6 +37,9 @@ class FormsVM @Inject constructor(
 
     private val _addMoneyState = MutableStateFlow(AddMoneyFormState())
     val addMoneyState: StateFlow<AddMoneyFormState> = _addMoneyState.asStateFlow()
+
+    private val _addActivityState = MutableStateFlow(AddActivityFormState())
+    val addActivityState: StateFlow<AddActivityFormState> = _addActivityState.asStateFlow()
 
     init {
         loadMoneyFormData()
@@ -55,6 +63,10 @@ class FormsVM @Inject constructor(
 
     fun clearAddMoneyError() {
         _addMoneyState.update { it.copy(errorMessage = null) }
+    }
+
+    fun clearAddActivityError() {
+        _addActivityState.update { it.copy(errorMessage = null) }
     }
 
     fun saveTransaction(
@@ -104,7 +116,8 @@ class FormsVM @Inject constructor(
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
-            activitiesRepository.addPhysicalActivity(
+            _addActivityState.update { it.copy(isSaving = true, errorMessage = null) }
+            val result = activitiesRepository.addPhysicalActivity(
                 date = date,
                 gym = gym,
                 badminton = badminton,
@@ -113,7 +126,18 @@ class FormsVM @Inject constructor(
                 others = others,
                 description = description
             )
-            onSuccess()
+
+            result.onSuccess {
+                _addActivityState.update { it.copy(isSaving = false) }
+                onSuccess()
+            }.onFailure { error ->
+                _addActivityState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = error.message ?: "Failed to log activity"
+                    )
+                }
+            }
         }
     }
 

@@ -10,6 +10,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Query
 import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
+import com.example.dailytrack_mobile.data.remote.dto.AddActivityRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
 import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
@@ -48,6 +49,11 @@ interface DailyTrackApi {
 
     @GET("/api/physical")
     suspend fun getPhysicalActivities(): List<PhysicalActivityDto>
+
+    @POST("/api/physical")
+    suspend fun addPhysicalActivity(
+        @Body activity: AddActivityRequestDto
+    ): ApiResponseDto
 
     @GET("/api/investments")
     suspend fun getInvestments(): List<PortfolioSnapshotDto>

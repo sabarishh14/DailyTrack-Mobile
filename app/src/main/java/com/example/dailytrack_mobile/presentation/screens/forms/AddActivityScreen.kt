@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.*
@@ -44,6 +46,8 @@ fun AddActivityScreen(
     onDirtyStateChanged: (Boolean) -> Unit = {},
     onSaveSuccess: () -> Unit = {}
 ) {
+    val formState by formsVM.addActivityState.collectAsState()
+
     var selectedActivities by remember { mutableStateOf(setOf<FormActivityType>()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var note by remember { mutableStateOf("") }
@@ -101,6 +105,46 @@ fun AddActivityScreen(
             .padding(horizontal = dims.screenHorizontalPadding, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ── Error Banner ──────────────────────────────────────────────
+        formState.errorMessage?.let { errorMsg ->
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = "Error",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = errorMsg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { formsVM.clearAddActivityError() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // ── Activity Type Section (Large Cards) ───────────────────────
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -303,6 +347,9 @@ fun AddActivityScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Save Button ──────────────────────────────────────────────
+        val isSaving = formState.isSaving
+        val isFormValid = !isSaving && selectedActivities.isNotEmpty()
+
         Button(
             onClick = {
                 val dateStr = selectedDate.format(DateTimeFormatter.ISO_DATE)
@@ -322,14 +369,35 @@ fun AddActivityScreen(
                 .fillMaxWidth()
                 .height(dims.searchBarHeight),
             shape = RoundedCornerShape(dims.buttonCornerRadius),
-            enabled = selectedActivities.isNotEmpty()
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+            ),
+            enabled = isFormValid
         ) {
-            Text(
-                "Save Activity",
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.Bold
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp
                 )
-            )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    "Saving Activity...",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            } else {
+                Text(
+                    "Save Activity",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
