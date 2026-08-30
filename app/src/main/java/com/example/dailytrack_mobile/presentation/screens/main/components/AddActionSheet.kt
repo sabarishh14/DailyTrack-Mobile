@@ -1,5 +1,6 @@
 package com.example.dailytrack_mobile.presentation.screens.main.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,8 +14,6 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,10 +22,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.dailytrack_mobile.presentation.navigation.Routes
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 data class ActionItem(
     val title: String,
+    val subtitle: String,
     val icon: ImageVector,
     val route: String
 )
@@ -38,12 +39,30 @@ fun AddActionSheet(
     onDismiss: () -> Unit
 ) {
     val actions = listOf(
-        ActionItem("Money", Icons.Default.CurrencyRupee, "add_money"),
-        ActionItem("Activity", Icons.Default.FitnessCenter, "add_activity"),
-        ActionItem("Movie", Icons.Default.Movie, "add_movie"),
-        ActionItem("Asset", Icons.Default.AccountBalance, "add_asset"),
-        ActionItem("Investment", Icons.Default.TrendingUp, "add_investment"),
-        ActionItem("Sync", Icons.Default.Sync, "sync_broker")
+        ActionItem(
+            title = "Money",
+            subtitle = "Transaction",
+            icon = Icons.Default.CurrencyRupee,
+            route = Routes.AddMoney.route
+        ),
+        ActionItem(
+            title = "Activity",
+            subtitle = "Workout / Habit",
+            icon = Icons.Default.FitnessCenter,
+            route = Routes.AddActivity.route
+        ),
+        ActionItem(
+            title = "Movie",
+            subtitle = "Cinema & Shows",
+            icon = Icons.Default.Movie,
+            route = Routes.AddMovie.route
+        ),
+        ActionItem(
+            title = "Asset",
+            subtitle = "Manual & FD",
+            icon = Icons.Default.AccountBalance,
+            route = Routes.AddAsset.route
+        )
     )
     val dims = Dimens.current
 
@@ -66,9 +85,9 @@ fun AddActionSheet(
             )
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-                horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
+                columns = GridCells.Fixed(2),
+                verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
+                horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
                 modifier = Modifier.padding(bottom = dims.screenBottomPadding)
             ) {
                 items(actions) { action ->
@@ -94,19 +113,22 @@ fun ActionCard(
     Surface(
         shape = RoundedCornerShape(dims.cardCornerRadius),
         color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(dims.cardCornerRadius))
             .clickable { onClick() }
     ) {
-        Column(
-            modifier = Modifier.padding(dims.cardInnerPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = dims.itemSpacingMedium + 2.dp, vertical = dims.itemSpacingMedium + 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
         ) {
             Box(
                 modifier = Modifier
-                    .size(dims.avatarSizeLarge - 4.dp)
+                    .size(dims.avatarSizeMedium)
                     .background(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = CircleShape
@@ -117,15 +139,26 @@ fun ActionCard(
                     imageVector = item.icon,
                     contentDescription = item.title,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(dims.iconSizeLarge)
+                    modifier = Modifier.size(dims.iconSizeMedium)
                 )
             }
-            Spacer(modifier = Modifier.height(dims.itemSpacingLarge))
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = item.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
+

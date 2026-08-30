@@ -59,3 +59,20 @@ data class ManualAssetDto(
     @Json(name = "maturity_date") val maturityDate: String?,
     @Json(name = "last_updated") val lastUpdated: String?
 )
+
+@JsonClass(generateAdapter = true)
+data class AddManualAssetRequestDto(
+    val category: String,
+    val name: String,
+    @Json(name = "invested_value") val investedValue: Double,
+    @Json(name = "current_value") val currentValue: Double,
+    @Json(name = "interest_rate") val interestRate: Double? = null,
+    @Json(name = "start_date") val startDate: String? = null,
+    @Json(name = "maturity_date") val maturityDate: String? = null,
+    @Json(name = "is_recurring") val isRecurring: Boolean = false,
+    @Json(name = "amount_to_add") val amountToAdd: Double? = null,
+    @Json(name = "interval_value") val intervalValue: Int? = null,
+    @Json(name = "interval_unit") val intervalUnit: String? = null,
+    @Json(name = "next_run_date") val nextRunDate: String? = null
+)
+

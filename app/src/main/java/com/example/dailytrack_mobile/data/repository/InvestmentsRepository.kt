@@ -4,6 +4,7 @@ import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
 import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.ManualAssetDto
+import com.example.dailytrack_mobile.data.remote.dto.AddManualAssetRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
 import kotlinx.coroutines.async
@@ -85,21 +86,74 @@ class InvestmentsRepository @Inject constructor(
         }
     }
 
+    suspend fun addManualAsset(
+        category: String,
+        name: String,
+        investedValue: Double,
+        currentValue: Double,
+        interestRate: Double? = null,
+        startDate: String? = null,
+        maturityDate: String? = null,
+        isRecurring: Boolean = false,
+        amountToAdd: Double? = null,
+        intervalValue: Int? = null,
+        intervalUnit: String? = null,
+        nextRunDate: String? = null
+    ): Result<Unit> = coroutineScope {
+        try {
+            if (demoDataManager.isDemoModeEnabled()) {
+                demoDataManager.addManualAsset(
+                    category = category,
+                    name = name,
+                    investedValue = investedValue,
+                    currentValue = currentValue,
+                    interestRate = interestRate,
+                    startDate = startDate,
+                    maturityDate = maturityDate,
+                    isRecurring = isRecurring,
+                    amountToAdd = amountToAdd,
+                    intervalValue = intervalValue,
+                    intervalUnit = intervalUnit,
+                    nextRunDate = nextRunDate
+                )
+                return@coroutineScope Result.success(Unit)
+            }
+
+            val request = AddManualAssetRequestDto(
+                category = category,
+                name = name,
+                investedValue = investedValue,
+                currentValue = currentValue,
+                interestRate = interestRate,
+                startDate = startDate,
+                maturityDate = maturityDate,
+                isRecurring = isRecurring,
+                amountToAdd = amountToAdd,
+                intervalValue = intervalValue,
+                intervalUnit = intervalUnit,
+                nextRunDate = nextRunDate
+            )
+            val response = api.addManualAsset(request)
+            if (response.success) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.message ?: "Failed to save asset"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun addAsset(
         name: String,
         assetClass: String,
         purchasePrice: Double,
         currentValue: Double,
         note: String?
-    ): Result<Unit> = runCatching {
-        if (demoDataManager.isDemoModeEnabled()) {
-            demoDataManager.addManualAsset(
-                name = name,
-                assetClass = assetClass,
-                purchasePrice = purchasePrice,
-                currentValue = currentValue,
-                note = note
-            )
-        }
-    }
+    ): Result<Unit> = addManualAsset(
+        category = assetClass,
+        name = name,
+        investedValue = purchasePrice,
+        currentValue = currentValue
+    )
 }

@@ -27,6 +27,11 @@ data class AddActivityFormState(
     val errorMessage: String? = null
 )
 
+data class AddAssetFormState(
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null
+)
+
 @HiltViewModel
 class FormsVM @Inject constructor(
     private val moneyRepository: MoneyRepository,
@@ -40,6 +45,9 @@ class FormsVM @Inject constructor(
 
     private val _addActivityState = MutableStateFlow(AddActivityFormState())
     val addActivityState: StateFlow<AddActivityFormState> = _addActivityState.asStateFlow()
+
+    private val _addAssetState = MutableStateFlow(AddAssetFormState())
+    val addAssetState: StateFlow<AddAssetFormState> = _addAssetState.asStateFlow()
 
     init {
         loadMoneyFormData()
@@ -67,6 +75,10 @@ class FormsVM @Inject constructor(
 
     fun clearAddActivityError() {
         _addActivityState.update { it.copy(errorMessage = null) }
+    }
+
+    fun clearAddAssetError() {
+        _addAssetState.update { it.copy(errorMessage = null) }
     }
 
     fun saveTransaction(
@@ -161,6 +173,51 @@ class FormsVM @Inject constructor(
         }
     }
 
+    fun saveManualAsset(
+        category: String,
+        name: String,
+        investedValue: Double,
+        currentValue: Double,
+        interestRate: Double? = null,
+        startDate: String? = null,
+        maturityDate: String? = null,
+        isRecurring: Boolean = false,
+        amountToAdd: Double? = null,
+        intervalValue: Int? = null,
+        intervalUnit: String? = null,
+        nextRunDate: String? = null,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _addAssetState.update { it.copy(isSaving = true, errorMessage = null) }
+            val result = investmentsRepository.addManualAsset(
+                category = category,
+                name = name,
+                investedValue = investedValue,
+                currentValue = currentValue,
+                interestRate = interestRate,
+                startDate = startDate,
+                maturityDate = maturityDate,
+                isRecurring = isRecurring,
+                amountToAdd = amountToAdd,
+                intervalValue = intervalValue,
+                intervalUnit = intervalUnit,
+                nextRunDate = nextRunDate
+            )
+            result.onSuccess {
+                _addAssetState.update { it.copy(isSaving = false) }
+                onSuccess()
+            }.onFailure { error ->
+                _addAssetState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = error.message ?: "Failed to save asset"
+                    )
+                }
+            }
+        }
+    }
+
     fun saveAsset(
         name: String,
         assetClass: String,
@@ -169,16 +226,13 @@ class FormsVM @Inject constructor(
         note: String?,
         onSuccess: () -> Unit
     ) {
-        viewModelScope.launch {
-            investmentsRepository.addAsset(
-                name = name,
-                assetClass = assetClass,
-                purchasePrice = purchasePrice,
-                currentValue = currentValue,
-                note = note
-            )
-            onSuccess()
-        }
+        saveManualAsset(
+            category = assetClass,
+            name = name,
+            investedValue = purchasePrice,
+            currentValue = currentValue,
+            onSuccess = onSuccess
+        )
     }
 
     fun saveMediaShow(

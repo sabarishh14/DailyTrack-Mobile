@@ -325,24 +325,31 @@ class DemoDataManager @Inject constructor(
     }
 
     suspend fun addManualAsset(
+        category: String,
         name: String,
-        assetClass: String,
-        purchasePrice: Double,
+        investedValue: Double,
         currentValue: Double,
-        note: String?
+        interestRate: Double? = null,
+        startDate: String? = null,
+        maturityDate: String? = null,
+        isRecurring: Boolean = false,
+        amountToAdd: Double? = null,
+        intervalValue: Int? = null,
+        intervalUnit: String? = null,
+        nextRunDate: String? = null
     ) = withContext(Dispatchers.IO) {
         val current = getOrLoadContainer()
         val nowStr = LocalDate.now().format(DateTimeFormatter.ISO_DATE)
 
         val newAsset = ManualAssetDto(
             id = idGenerator.incrementAndGet(),
-            category = assetClass,
+            category = category,
             name = name,
-            investedValue = purchasePrice,
+            investedValue = investedValue,
             currentValue = currentValue,
-            interestRate = null,
-            startDate = nowStr,
-            maturityDate = null,
+            interestRate = interestRate,
+            startDate = startDate ?: nowStr,
+            maturityDate = maturityDate,
             lastUpdated = nowStr
         )
 

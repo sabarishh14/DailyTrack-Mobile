@@ -15,6 +15,7 @@ import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
 import com.example.dailytrack_mobile.data.remote.dto.EquityHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.ManualAssetDto
+import com.example.dailytrack_mobile.data.remote.dto.AddManualAssetRequestDto
 
 interface DailyTrackApi {
 
@@ -66,6 +67,11 @@ interface DailyTrackApi {
 
     @GET("/api/manual_assets")
     suspend fun getManualAssets(): List<ManualAssetDto>
+
+    @POST("/api/manual_assets")
+    suspend fun addManualAsset(
+        @Body asset: AddManualAssetRequestDto
+    ): ApiResponseDto
 
     @GET("/api/media/library")
     suspend fun getMediaLibrary(
