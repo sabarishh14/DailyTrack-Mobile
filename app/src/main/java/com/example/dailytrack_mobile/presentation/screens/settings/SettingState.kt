@@ -9,7 +9,7 @@ data class SettingsState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val withAmoled: Boolean = false,
     val appVersion: String = "v1.0.0",
-    val developerName: String = "Your Name",
+    val developerName: String = "Sabarish SB",
     val isAppLockEnabled: Boolean = false,
     val lockType: LockType = LockType.SYSTEM,
     val isBiometricWithPinEnabled: Boolean = true,

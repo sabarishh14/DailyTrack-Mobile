@@ -128,8 +128,8 @@ fun SettingsScreen(
                 id = "General",
                 icon = Icons.Default.Tune,
                 title = "General",
-                subtitle = "Demo mode, general preferences",
-                keywords = listOf("demo", "sample", "test", "data", "reset", "general")
+                subtitle = "Demo mode, scheduler, preferences",
+                keywords = listOf("demo", "sample", "test", "data", "reset", "general", "schedule", "scheduler", "notification", "reminder", "remind", "alarm", "time", "frequency", "daily", "alert")
             ),
             SettingsCategoryItem(
                 id = "Appearance",
@@ -144,13 +144,6 @@ fun SettingsScreen(
                 title = "Privacy & Security",
                 subtitle = if (state.isAppLockEnabled) "App lock enabled" else "App lock disabled",
                 keywords = listOf("lock", "pin", "fingerprint", "biometric", "security", "privacy", "password", "passcode")
-            ),
-            SettingsCategoryItem(
-                id = "Scheduler",
-                icon = Icons.Default.Schedule,
-                title = "Scheduler",
-                subtitle = "Schedule notifications at given frequency & time",
-                keywords = listOf("schedule", "scheduler", "notification", "reminder", "remind", "alarm", "time", "frequency", "daily", "alert")
             ),
             SettingsCategoryItem(
                 id = "Sync",
@@ -282,12 +275,6 @@ fun SettingsScreen(
             )
             return
         }
-        "Scheduler" -> {
-            SchedulerSettingsSubScreen(
-                onNavigateBack = { currentSubScreen = null }
-            )
-            return
-        }
         "Sync" -> {
             SyncSettingsSubScreen(
                 state = state,
@@ -396,15 +383,6 @@ fun SettingsScreen(
                 )
             }
 
-            // ── App Header (shown when not searching) ───────────────────────
-            if (searchQuery.isBlank()) {
-                item {
-                    AboutHeader(
-                        appVersion = state.appVersion,
-                        developerName = state.developerName
-                    )
-                }
-            }
 
             // ── Settings Categories ─────────────────────────────────────────
             item {
@@ -510,6 +488,11 @@ private fun GeneralSettingsSubScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
         ) {
+            // ── Data Preferences ────────────────────────────────────────────
+            item {
+                SettingsSectionLabel("Data Preferences")
+            }
+
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsCard {
@@ -561,6 +544,104 @@ private fun GeneralSettingsSubScreen(
                                 onClick = { onAction(SettingsAction.OnResetDemoDataClicked) }
                             )
                         }
+                    }
+                }
+            }
+
+            // ── Scheduler ───────────────────────────────────────────────────
+            item {
+                Spacer(Modifier.height(4.dp))
+                SettingsSectionLabel("Scheduler")
+            }
+
+            // Overview Banner Card
+            item {
+                Card(
+                    shape = RoundedCornerShape(dims.cardCornerRadius),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(dims.cardCornerRadius))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(22.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = "Notification Scheduler",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Set up scheduled notifications at your preferred frequency and time to keep your expenses, transactions, and activities on track.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "Feature In Development",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Planned Schedule Options (Placeholders)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Alarm,
+                            title = "Daily Reminder",
+                            subtitle = "Notify daily at 09:00 PM to log expenses",
+                            onClick = {}
+                        )
+                    }
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.DateRange,
+                            title = "Weekly Review",
+                            subtitle = "Financial digest every Sunday at 10:00 AM",
+                            onClick = {}
+                        )
+                    }
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Tune,
+                            title = "Custom Schedule Frequency",
+                            subtitle = "Choose specific days, intervals & custom reminder times",
+                            onClick = {}
+                        )
                     }
                 }
             }
@@ -757,150 +838,6 @@ private fun PrivacySecuritySettingsSubScreen(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Scheduler Settings Sub-Screen (Placeholder)
-// ─────────────────────────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SchedulerSettingsSubScreen(
-    onNavigateBack: () -> Unit
-) {
-    BackHandler { onNavigateBack() }
-    val dims = Dimens.current
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            MediumTopAppBar(
-                title = {
-                    Text(
-                        text = "Scheduler",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            modifier = Modifier.size(dims.iconSizeMedium)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background
-                ),
-                scrollBehavior = scrollBehavior
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = dims.screenHorizontalPadding),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
-        ) {
-            // Overview Banner Card
-            item {
-                Card(
-                    shape = RoundedCornerShape(dims.cardCornerRadius),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(dims.cardCornerRadius))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(22.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.NotificationsActive,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "Notification Scheduler",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "Set up scheduled notifications at your preferred frequency and time to keep your expenses, transactions, and activities on track.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = "Feature In Development",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Planned Schedule Options (Placeholders)
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.Alarm,
-                            title = "Daily Reminder",
-                            subtitle = "Notify daily at 09:00 PM to log expenses",
-                            onClick = {}
-                        )
-                    }
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.DateRange,
-                            title = "Weekly Review",
-                            subtitle = "Financial digest every Sunday at 10:00 AM",
-                            onClick = {}
-                        )
-                    }
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.Tune,
-                            title = "Custom Schedule Frequency",
-                            subtitle = "Choose specific days, intervals & custom reminder times",
-                            onClick = {}
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync Settings Sub-Screen
@@ -1050,28 +987,52 @@ private fun AboutSettingsSubScreen(
         ) {
             item {
                 AboutHeader(
-                    appVersion = state.appVersion,
-                    developerName = state.developerName
+                    appVersion = state.appVersion
                 )
             }
 
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.Code,
-                            title = "Version",
-                            subtitle = state.appVersion,
-                            onClick = {}
-                        )
-                    }
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.Person,
-                            title = "Developer",
-                            subtitle = state.developerName,
-                            onClick = {}
-                        )
+                // Developer Card
+                SettingsCard {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 82.dp)
+                            .padding(horizontal = 20.dp, vertical = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Avatar on the left
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Developer: ${state.developerName}",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(18.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = state.developerName,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 17.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Developer . Owner . Ideator",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -1085,8 +1046,7 @@ private fun AboutSettingsSubScreen(
 
 @Composable
 private fun AboutHeader(
-    appVersion: String,
-    developerName: String
+    appVersion: String
 ) {
     val dims = Dimens.current
     Card(
@@ -1140,22 +1100,6 @@ private fun AboutHeader(
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-
-            // Developer / info circular button
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.size(44.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Developer: $developerName",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(dims.iconSizeMedium + 2.dp)
-                    )
-                }
             }
         }
     }
