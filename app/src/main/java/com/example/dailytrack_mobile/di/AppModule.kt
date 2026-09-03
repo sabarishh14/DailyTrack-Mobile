@@ -70,4 +70,14 @@ object AppModule {
         api: DailyTrackApi,
         demoDataManager: DemoDataManager
     ): SabdekhoRepository = SabdekhoRepository(api, demoDataManager)
+
+    @Provides
+    @Singleton
+    fun provideReminderManager(@ApplicationContext context: Context): com.example.dailytrack_mobile.data.local.reminder.ReminderManager =
+        com.example.dailytrack_mobile.data.local.reminder.ReminderManager(context)
+
+    @Provides
+    @Singleton
+    fun provideReminderScheduler(@ApplicationContext context: Context): com.example.dailytrack_mobile.domain.reminder.ReminderScheduler =
+        com.example.dailytrack_mobile.data.reminder.ReminderSchedulerImpl(context)
 }

@@ -4,6 +4,8 @@ import com.example.dailytrack_mobile.data.local.security.LockType
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 
+import java.time.DayOfWeek
+
 data class SettingsState(
     val selectedTheme: AppTheme = AppTheme.YELLOW,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -19,5 +21,8 @@ data class SettingsState(
     val syncStatusMessage: String? = null,
     val isLastSyncSuccess: Boolean? = null,
     val syncStepDescription: String? = null,
-    val isRefreshingServerStatus: Boolean = false
+    val isRefreshingServerStatus: Boolean = false,
+    val isReminderEnabled: Boolean = false,
+    val reminderTime: String = "21:00",
+    val reminderDays: Set<DayOfWeek> = DayOfWeek.values().toSet()
 )

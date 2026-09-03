@@ -128,8 +128,15 @@ fun SettingsScreen(
                 id = "General",
                 icon = Icons.Default.Tune,
                 title = "General",
-                subtitle = "Demo mode, scheduler, preferences",
-                keywords = listOf("demo", "sample", "test", "data", "reset", "general", "schedule", "scheduler", "notification", "reminder", "remind", "alarm", "time", "frequency", "daily", "alert")
+                subtitle = "Demo mode, sample data, preferences",
+                keywords = listOf("demo", "sample", "test", "data", "reset", "general", "preferences")
+            ),
+            SettingsCategoryItem(
+                id = "Reminders",
+                icon = Icons.Default.Alarm,
+                title = "Reminders",
+                subtitle = "Daily tracking reminders & schedule",
+                keywords = listOf("reminder", "reminders", "schedule", "scheduler", "notification", "notifications", "alarm", "daily", "alert", "time")
             ),
             SettingsCategoryItem(
                 id = "Appearance",
@@ -253,6 +260,14 @@ fun SettingsScreen(
             GeneralSettingsSubScreen(
                 state = state,
                 appLockManager = effectiveLockManager,
+                onAction = onAction,
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "Reminders" -> {
+            RemindersSettingsScreen(
+                state = state,
                 onAction = onAction,
                 onNavigateBack = { currentSubScreen = null }
             )
@@ -544,104 +559,6 @@ private fun GeneralSettingsSubScreen(
                                 onClick = { onAction(SettingsAction.OnResetDemoDataClicked) }
                             )
                         }
-                    }
-                }
-            }
-
-            // ── Scheduler ───────────────────────────────────────────────────
-            item {
-                Spacer(Modifier.height(4.dp))
-                SettingsSectionLabel("Scheduler")
-            }
-
-            // Overview Banner Card
-            item {
-                Card(
-                    shape = RoundedCornerShape(dims.cardCornerRadius),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(dims.cardCornerRadius))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(22.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.NotificationsActive,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "Notification Scheduler",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "Set up scheduled notifications at your preferred frequency and time to keep your expenses, transactions, and activities on track.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = "Feature In Development",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Planned Schedule Options (Placeholders)
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.Alarm,
-                            title = "Daily Reminder",
-                            subtitle = "Notify daily at 09:00 PM to log expenses",
-                            onClick = {}
-                        )
-                    }
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.DateRange,
-                            title = "Weekly Review",
-                            subtitle = "Financial digest every Sunday at 10:00 AM",
-                            onClick = {}
-                        )
-                    }
-                    SettingsCard {
-                        SettingsClickItem(
-                            icon = Icons.Default.Tune,
-                            title = "Custom Schedule Frequency",
-                            subtitle = "Choose specific days, intervals & custom reminder times",
-                            onClick = {}
-                        )
                     }
                 }
             }

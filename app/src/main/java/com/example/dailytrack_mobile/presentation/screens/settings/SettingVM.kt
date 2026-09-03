@@ -26,7 +26,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.dailytrack_mobile.data.local.reminder.ReminderManager
+import com.example.dailytrack_mobile.domain.reminder.ReminderScheduler
+import com.example.dailytrack_mobile.notification.NotificationsHelper
 import java.text.SimpleDateFormat
+import java.time.DayOfWeek
+import java.time.LocalTime
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
@@ -38,6 +43,8 @@ class SettingsVM @Inject constructor(
     private val appLockManager: AppLockManager,
     private val demoModeManager: DemoModeManager,
     private val demoDataManager: DemoDataManager,
+    private val reminderManager: ReminderManager? = null,
+    private val reminderScheduler: ReminderScheduler? = null,
     private val moneyRepository: MoneyRepository? = null,
     private val activitiesRepository: ActivitiesRepository? = null,
     private val investmentsRepository: InvestmentsRepository? = null,
@@ -56,6 +63,8 @@ class SettingsVM @Inject constructor(
         appLockManager = appLockManager,
         demoModeManager = demoModeManager,
         demoDataManager = demoDataManager,
+        reminderManager = null,
+        reminderScheduler = null,
         moneyRepository = null,
         activitiesRepository = null,
         investmentsRepository = null,
@@ -126,6 +135,25 @@ class SettingsVM @Inject constructor(
                 _state.update { it.copy(isDemoModeEnabled = enabled) }
             }
         }
+
+        // Listen for Reminder settings changes
+        reminderManager?.let { rm ->
+            viewModelScope.launch {
+                rm.isReminderEnabledFlow.collect { enabled ->
+                    _state.update { it.copy(isReminderEnabled = enabled) }
+                }
+            }
+            viewModelScope.launch {
+                rm.reminderTimeFlow.collect { time ->
+                    _state.update { it.copy(reminderTime = time) }
+                }
+            }
+            viewModelScope.launch {
+                rm.reminderDaysFlow.collect { days ->
+                    _state.update { it.copy(reminderDays = days) }
+                }
+            }
+        }
     }
 
     fun onAction(action: SettingsAction) {
@@ -184,6 +212,44 @@ class SettingsVM @Inject constructor(
             }
             is SettingsAction.OnServerStatusClicked -> {
                 checkServerStatus()
+            }
+            is SettingsAction.OnReminderToggled -> {
+                viewModelScope.launch {
+                    reminderManager?.setReminderEnabled(action.enabled)
+                    if (action.enabled) {
+                        val time = runCatching { LocalTime.parse(_state.value.reminderTime) }.getOrDefault(LocalTime.of(21, 0))
+                        reminderScheduler?.scheduleReminder(time, _state.value.reminderDays)
+                    } else {
+                        reminderScheduler?.cancelReminder()
+                    }
+                }
+            }
+            is SettingsAction.OnReminderTimeChanged -> {
+                viewModelScope.launch {
+                    val timeStr = action.time.toString()
+                    reminderManager?.setReminderTime(timeStr)
+                    if (_state.value.isReminderEnabled) {
+                        reminderScheduler?.scheduleReminder(action.time, _state.value.reminderDays)
+                    }
+                }
+            }
+            is SettingsAction.OnReminderDayToggled -> {
+                viewModelScope.launch {
+                    val currentDays = _state.value.reminderDays
+                    val newDays = if (currentDays.contains(action.day)) {
+                        currentDays - action.day
+                    } else {
+                        currentDays + action.day
+                    }
+                    reminderManager?.setReminderDays(newDays)
+                    if (_state.value.isReminderEnabled) {
+                        val time = runCatching { LocalTime.parse(_state.value.reminderTime) }.getOrDefault(LocalTime.of(21, 0))
+                        reminderScheduler?.scheduleReminder(time, newDays)
+                    }
+                }
+            }
+            is SettingsAction.OnSendTestNotification -> {
+                NotificationsHelper(context).showReminderNotification()
             }
         }
     }
