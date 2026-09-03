@@ -1,5 +1,6 @@
 package com.example.dailytrack_mobile
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,6 +16,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
+import com.example.dailytrack_mobile.presentation.navigation.Routes
 import com.example.dailytrack_mobile.presentation.screens.lock.AppLockScreen
 import com.example.dailytrack_mobile.presentation.screens.main.MainScreen
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsAction
@@ -31,9 +33,31 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var appLockManager: AppLockManager
 
+    private var pendingDeepLinkRoute by mutableStateOf<String?>(null)
+
+    private fun extractDeepLinkRoute(intent: Intent?): String? {
+        val uri = intent?.data ?: return null
+        return when {
+            (uri.scheme == "dailytrack" && uri.host == "add_money") ||
+            (uri.scheme == "myapp" && uri.host == "input_form") -> Routes.AddMoney.route
+            else -> null
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val route = extractDeepLinkRoute(intent)
+        if (route != null) {
+            pendingDeepLinkRoute = route
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        pendingDeepLinkRoute = extractDeepLinkRoute(intent)
 
         setContent {
             // Provide SettingsVM via Hilt
@@ -44,6 +68,13 @@ class MainActivity : FragmentActivity() {
 
             // Simple navigation state
             var currentScreen by rememberSaveable { mutableStateOf("Main") }
+
+            // Switch to Main screen if a deep link is received while viewing Settings
+            LaunchedEffect(pendingDeepLinkRoute) {
+                if (pendingDeepLinkRoute != null) {
+                    currentScreen = "Main"
+                }
+            }
 
             // App Lock State
             var isAppLocked by rememberSaveable { mutableStateOf(false) }
@@ -90,7 +121,9 @@ class MainActivity : FragmentActivity() {
                         } else {
                             if (currentScreen == "Main") {
                                 MainScreen(
-                                    onNavigateToSettings = { currentScreen = "Settings" }
+                                    onNavigateToSettings = { currentScreen = "Settings" },
+                                    targetRoute = pendingDeepLinkRoute,
+                                    onRouteConsumed = { pendingDeepLinkRoute = null }
                                 )
                             } else {
                                 SettingsScreen(

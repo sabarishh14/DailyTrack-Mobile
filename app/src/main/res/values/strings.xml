@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">DailyTrack-Mobile</string>
+    <string name="shortcut_add_money_short">Add Money</string>
+    <string name="shortcut_add_money_long">Add Money Form</string>
 </resources>

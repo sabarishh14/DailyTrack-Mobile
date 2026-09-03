@@ -32,9 +32,11 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    targetRoute: String? = null,
+    onRouteConsumed: () -> Unit = {}
 ) {
-    var currentRoute by remember { mutableStateOf(Routes.Home.route) }
+    var currentRoute by remember { mutableStateOf(targetRoute ?: Routes.Home.route) }
     var showAddSheet by remember { mutableStateOf(false) }
     var isCurrentFormDirty by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
@@ -68,6 +70,15 @@ fun MainScreen(
         } else {
             isCurrentFormDirty = false
             currentRoute = targetRoute
+        }
+    }
+
+    LaunchedEffect(targetRoute) {
+        if (targetRoute != null) {
+            if (targetRoute != currentRoute) {
+                navigateSafely(targetRoute)
+            }
+            onRouteConsumed()
         }
     }
 

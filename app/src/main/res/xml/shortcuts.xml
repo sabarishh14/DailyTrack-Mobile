@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="open_input_form"
+        android:enabled="true"
+        android:icon="@drawable/ic_add"
+        android:shortcutShortLabel="@string/shortcut_add_money_short"
+        android:shortcutLongLabel="@string/shortcut_add_money_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.dailytrack_mobile"
+            android:targetClass="com.example.dailytrack_mobile.MainActivity"
+            android:data="dailytrack://add_money" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>
