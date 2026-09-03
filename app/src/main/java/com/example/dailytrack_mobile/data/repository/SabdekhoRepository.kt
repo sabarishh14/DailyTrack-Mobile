@@ -20,16 +20,30 @@ class SabdekhoRepository @Inject constructor(
 ) {
     val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
 
+    private val cachedMediaLibrary = mutableMapOf<String, MediaLibraryResponseDto>()
+
+    fun clearCache() {
+        cachedMediaLibrary.clear()
+    }
+
     suspend fun getMediaLibrary(
         limit: Int = 60,
         offset: Int = 0,
         type: String = "all",
-        status: String = "WATCHING"
+        status: String = "WATCHING",
+        forceRefresh: Boolean = false
     ): Result<MediaLibraryResponseDto> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.getMediaLibrary(limit = limit, offset = offset, type = type, status = status)
         } else {
-            api.getMediaLibrary(limit = limit, offset = offset, type = type, status = status)
+            val key = "$limit-$offset-$type-$status"
+            if (!forceRefresh && cachedMediaLibrary.containsKey(key)) {
+                cachedMediaLibrary[key]!!
+            } else {
+                api.getMediaLibrary(limit = limit, offset = offset, type = type, status = status).also {
+                    cachedMediaLibrary[key] = it
+                }
+            }
         }
     }
 
@@ -105,6 +119,7 @@ class SabdekhoRepository @Inject constructor(
                     }
                 }
 
+                clearCache()
                 demoDataManager.notifyDataUpdated()
                 addResponse.show ?: MediaShowDto(
                     id = showId,
@@ -141,6 +156,7 @@ class SabdekhoRepository @Inject constructor(
                     }
                 }
 
+                clearCache()
                 demoDataManager.notifyDataUpdated()
                 addResponse.show ?: MediaShowDto(
                     id = showId,

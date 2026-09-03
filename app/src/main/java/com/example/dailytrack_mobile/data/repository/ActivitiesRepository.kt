@@ -15,11 +15,21 @@ class ActivitiesRepository @Inject constructor(
 ) {
     val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
 
-    suspend fun getPhysicalActivities(): Result<List<PhysicalActivityDto>> = runCatching {
+    private var cachedActivities: List<PhysicalActivityDto>? = null
+
+    fun clearCache() {
+        cachedActivities = null
+    }
+
+    suspend fun getPhysicalActivities(forceRefresh: Boolean = false): Result<List<PhysicalActivityDto>> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.getPhysicalActivities()
         } else {
-            api.getPhysicalActivities()
+            if (!forceRefresh && cachedActivities != null) {
+                cachedActivities!!
+            } else {
+                api.getPhysicalActivities().also { cachedActivities = it }
+            }
         }
     }
 
@@ -56,6 +66,7 @@ class ActivitiesRepository @Inject constructor(
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to log activity")
             }
+            clearCache()
             demoDataManager.notifyDataUpdated()
         }
     }

@@ -2,7 +2,9 @@ package com.example.dailytrack_mobile.di
 
 import android.content.Context
 import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
+import com.example.dailytrack_mobile.data.local.datastore.ThemeManager
 import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
+import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
 import com.example.dailytrack_mobile.data.repository.ActivitiesRepository
 import com.example.dailytrack_mobile.data.repository.InvestmentsRepository
@@ -18,6 +20,16 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    @Provides
+    @Singleton
+    fun provideThemeManager(@ApplicationContext context: Context): ThemeManager =
+        ThemeManager(context)
+
+    @Provides
+    @Singleton
+    fun provideAppLockManager(@ApplicationContext context: Context): AppLockManager =
+        AppLockManager(context)
 
     @Provides
     @Singleton

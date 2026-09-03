@@ -1,5 +1,7 @@
 package com.example.dailytrack_mobile.presentation.screens.settings
 
+import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -7,19 +9,58 @@ import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
 import com.example.dailytrack_mobile.data.local.datastore.ThemeManager
 import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
+import com.example.dailytrack_mobile.data.repository.ActivitiesRepository
+import com.example.dailytrack_mobile.data.repository.InvestmentsRepository
+import com.example.dailytrack_mobile.data.repository.MoneyRepository
+import com.example.dailytrack_mobile.data.repository.SabdekhoRepository
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import com.example.dailytrack_mobile.presentation.theme.ThemeMode
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import javax.inject.Inject
 
-class SettingsVM(
+@HiltViewModel
+class SettingsVM @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val themeManager: ThemeManager,
     private val appLockManager: AppLockManager,
     private val demoModeManager: DemoModeManager,
-    private val demoDataManager: DemoDataManager
+    private val demoDataManager: DemoDataManager,
+    private val moneyRepository: MoneyRepository? = null,
+    private val activitiesRepository: ActivitiesRepository? = null,
+    private val investmentsRepository: InvestmentsRepository? = null,
+    private val sabdekhoRepository: SabdekhoRepository? = null
 ) : ViewModel() {
+
+    constructor(
+        context: Context,
+        themeManager: ThemeManager,
+        appLockManager: AppLockManager,
+        demoModeManager: DemoModeManager,
+        demoDataManager: DemoDataManager
+    ) : this(
+        context = context,
+        themeManager = themeManager,
+        appLockManager = appLockManager,
+        demoModeManager = demoModeManager,
+        demoDataManager = demoDataManager,
+        moneyRepository = null,
+        activitiesRepository = null,
+        investmentsRepository = null,
+        sabdekhoRepository = null
+    )
 
     private val _state = MutableStateFlow(SettingsState())
     val state = _state.asStateFlow()
@@ -139,10 +180,122 @@ class SettingsVM(
                 }
             }
             is SettingsAction.OnForceSyncClicked -> {
-                // TODO: trigger sync logic
+                forceSyncAllPages()
             }
             is SettingsAction.OnServerStatusClicked -> {
                 // TODO: navigate to or show server status
+            }
+        }
+    }
+
+    private fun forceSyncAllPages() {
+        if (_state.value.isSyncing) return
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    isSyncing = true,
+                    syncStatusMessage = "Syncing all pages...",
+                    syncStepDescription = "Connecting to server..."
+                )
+            }
+
+            try {
+                withContext(Dispatchers.IO) {
+                    if (demoModeManager.isDemoModeEnabled()) {
+                        _state.update { it.copy(syncStepDescription = "Re-hydrating demo workspace...") }
+                        delay(600)
+                        demoDataManager.notifyDataUpdated()
+                    } else {
+                        _state.update { it.copy(syncStepDescription = "Fetching latest accounts, transactions, and portfolio...") }
+
+                        // Parallel re-hydration of all API endpoints across domains with forceRefresh = true
+                        coroutineScope {
+                            val moneyDeferred = async {
+                                runCatching {
+                                    moneyRepository?.getAccounts(forceRefresh = true)?.getOrThrow()
+                                    moneyRepository?.getTransactions(limit = 100, offset = 0, forceRefresh = true)?.getOrThrow()
+                                    moneyRepository?.getCategories(forceRefresh = true)?.getOrThrow()
+                                }
+                            }
+                            val activitiesDeferred = async {
+                                runCatching {
+                                    activitiesRepository?.getPhysicalActivities(forceRefresh = true)?.getOrThrow()
+                                }
+                            }
+                            val investmentsDeferred = async {
+                                runCatching {
+                                    investmentsRepository?.getFullPortfolio(forceRefresh = true)?.getOrThrow()
+                                }
+                            }
+                            val sabdekhoDeferred = async {
+                                runCatching {
+                                    sabdekhoRepository?.getMediaLibrary(
+                                        limit = 60,
+                                        offset = 0,
+                                        type = "all",
+                                        status = "WATCHING",
+                                        forceRefresh = true
+                                    )?.getOrThrow()
+                                }
+                            }
+
+                            val moneyRes = moneyDeferred.await()
+                            val activitiesRes = activitiesDeferred.await()
+                            val investmentsRes = investmentsDeferred.await()
+                            val sabdekhoRes = sabdekhoDeferred.await()
+
+                            val failures = listOfNotNull(
+                                moneyRes?.exceptionOrNull()?.let { "Money: ${it.message}" },
+                                activitiesRes?.exceptionOrNull()?.let { "Activities: ${it.message}" },
+                                investmentsRes?.exceptionOrNull()?.let { "Investments: ${it.message}" },
+                                sabdekhoRes?.exceptionOrNull()?.let { "Sabdekho: ${it.message}" }
+                            )
+
+                            if (failures.size == 4) {
+                                throw Exception("All services failed to respond: ${failures.first()}")
+                            }
+
+                            _state.update { it.copy(syncStepDescription = "Re-hydrating application pages...") }
+
+                            // Trigger data update flow so all active ViewModels re-hydrate with fresh cached data
+                            demoDataManager.notifyDataUpdated()
+                            delay(300)
+
+                            if (failures.isNotEmpty()) {
+                                throw Exception("Partial sync: ${failures.joinToString(", ")}")
+                            }
+                        }
+                    }
+                }
+
+                val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+                val timeStr = timeFormat.format(Date())
+                _state.update {
+                    it.copy(
+                        isSyncing = false,
+                        syncStatusMessage = "Synced at $timeStr",
+                        isLastSyncSuccess = true,
+                        syncStepDescription = null
+                    )
+                }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "All pages re-hydrated successfully", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                val isPartial = e.message?.startsWith("Partial sync") == true
+                val msg = if (isPartial) e.message ?: "Partial sync" else "Sync failed: ${e.localizedMessage ?: "Unknown error"}"
+                _state.update {
+                    it.copy(
+                        isSyncing = false,
+                        syncStatusMessage = msg,
+                        isLastSyncSuccess = isPartial,
+                        syncStepDescription = null
+                    )
+                }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -150,6 +303,7 @@ class SettingsVM(
 
 
 class SettingsVMFactory(
+    private val context: Context,
     private val themeManager: ThemeManager,
     private val appLockManager: AppLockManager,
     private val demoModeManager: DemoModeManager,
@@ -158,7 +312,7 @@ class SettingsVMFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsVM::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsVM(themeManager, appLockManager, demoModeManager, demoDataManager) as T
+            return SettingsVM(context, themeManager, appLockManager, demoModeManager, demoDataManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

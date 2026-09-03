@@ -33,9 +33,13 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.fragment.app.FragmentActivity
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.data.local.security.LockType
@@ -93,7 +97,7 @@ private fun previewColorsFor(theme: AppTheme): ThemePreviewColors = when (theme)
 // Main Settings Screen
 // ─────────────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     state: SettingsState,
@@ -119,6 +123,70 @@ fun SettingsScreen(
                 showPinVerifyForDemoMode = false
             }
         )
+    }
+
+    // Material 3 Loading Dialog during Force Sync
+    if (state.isSyncing) {
+        Dialog(
+            onDismissRequest = { /* Non-dismissible while in-flight */ },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        ) {
+            Card(
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Material 3 Expressive LoadingIndicator
+                    LoadingIndicator(
+                        modifier = Modifier.size(56.dp)
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    Text(
+                        text = "Syncing All Pages",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = state.syncStepDescription ?: "Re-hydrating accounts, transactions, investments, activities, and media...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // Material 3 Linear progress indicator for continuous visual rhythm
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                }
+            }
+        }
     }
 
     if (currentSubScreen == "AppLockSettings") {
@@ -158,7 +226,7 @@ fun SettingsScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.mediumTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
                 ),
@@ -367,9 +435,30 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                         )
                     }
+                    val syncSubtitle = when {
+                        state.isSyncing -> "Syncing all pages..."
+                        state.syncStatusMessage != null -> state.syncStatusMessage
+                        else -> "Re-hydrate all pages by calling APIs again"
+                    }
+                    val syncSubtitleColor = when {
+                        state.isSyncing -> MaterialTheme.colorScheme.primary
+                        state.isLastSyncSuccess == true -> Color(0xFF2ECC71)
+                        state.isLastSyncSuccess == false -> MaterialTheme.colorScheme.error
+                        else -> null
+                    }
                     SettingsClickItem(
                         icon = Icons.Default.Sync,
                         title = "Force Sync",
+                        subtitle = syncSubtitle,
+                        subtitleColor = syncSubtitleColor,
+                        enabled = !state.isSyncing,
+                        trailing = {
+                            if (state.isSyncing) {
+                                LoadingIndicator(
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        },
                         onClick = { onAction(SettingsAction.OnForceSyncClicked) }
                     )
                     HorizontalDivider(
@@ -556,20 +645,23 @@ private fun SettingsClickItem(
     icon: ImageVector,
     title: String,
     subtitle: String? = null,
+    subtitleColor: Color? = null,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val dims = Dimens.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingLarge - 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.size(dims.iconSizeMedium)
         )
         Spacer(Modifier.width(dims.itemSpacingLarge))
@@ -577,15 +669,19 @@ private fun SettingsClickItem(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = subtitleColor ?: MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(dims.itemSpacingSmall))
+            trailing()
         }
     }
 }

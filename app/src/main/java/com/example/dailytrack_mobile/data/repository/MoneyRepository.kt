@@ -17,31 +17,57 @@ class MoneyRepository @Inject constructor(
 ) {
     val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
 
-    suspend fun getAccounts(): Result<List<AccountDto>> = runCatching {
+    private var cachedAccounts: List<AccountDto>? = null
+    private val cachedTransactions = mutableMapOf<String, TransactionsResponseDto>()
+    private var cachedCategories: List<String>? = null
+
+    fun clearCache() {
+        cachedAccounts = null
+        cachedTransactions.clear()
+        cachedCategories = null
+    }
+
+    suspend fun getAccounts(forceRefresh: Boolean = false): Result<List<AccountDto>> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.getAccounts()
         } else {
-            api.getAccounts()
+            if (!forceRefresh && cachedAccounts != null) {
+                cachedAccounts!!
+            } else {
+                api.getAccounts().also { cachedAccounts = it }
+            }
         }
     }
 
     suspend fun getTransactions(
         limit: Int = 100,
         offset: Int = 0,
-        month: String? = null
+        month: String? = null,
+        forceRefresh: Boolean = false
     ): Result<TransactionsResponseDto> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.getTransactions(limit = limit, offset = offset, month = month)
         } else {
-            api.getTransactions(limit = limit, offset = offset, month = month)
+            val key = "$limit-$offset-$month"
+            if (!forceRefresh && cachedTransactions.containsKey(key)) {
+                cachedTransactions[key]!!
+            } else {
+                api.getTransactions(limit = limit, offset = offset, month = month).also {
+                    cachedTransactions[key] = it
+                }
+            }
         }
     }
 
-    suspend fun getCategories(): Result<List<String>> = runCatching {
+    suspend fun getCategories(forceRefresh: Boolean = false): Result<List<String>> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             demoDataManager.getCategories()
         } else {
-            api.getCategories().categories
+            if (!forceRefresh && cachedCategories != null) {
+                cachedCategories!!
+            } else {
+                api.getCategories().categories.also { cachedCategories = it }
+            }
         }
     }
 
@@ -78,6 +104,7 @@ class MoneyRepository @Inject constructor(
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to add transaction")
             }
+            clearCache()
             demoDataManager.notifyDataUpdated()
         }
     }
@@ -117,6 +144,7 @@ class MoneyRepository @Inject constructor(
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to update transaction")
             }
+            clearCache()
             demoDataManager.notifyDataUpdated()
         }
     }
@@ -129,6 +157,7 @@ class MoneyRepository @Inject constructor(
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to delete transaction")
             }
+            clearCache()
             demoDataManager.notifyDataUpdated()
         }
     }

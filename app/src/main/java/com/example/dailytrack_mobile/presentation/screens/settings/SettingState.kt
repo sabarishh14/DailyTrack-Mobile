@@ -14,5 +14,9 @@ data class SettingsState(
     val lockType: LockType = LockType.SYSTEM,
     val isBiometricWithPinEnabled: Boolean = true,
     val hasCustomPin: Boolean = false,
-    val isDemoModeEnabled: Boolean = false
+    val isDemoModeEnabled: Boolean = false,
+    val isSyncing: Boolean = false,
+    val syncStatusMessage: String? = null,
+    val isLastSyncSuccess: Boolean? = null,
+    val syncStepDescription: String? = null
 )

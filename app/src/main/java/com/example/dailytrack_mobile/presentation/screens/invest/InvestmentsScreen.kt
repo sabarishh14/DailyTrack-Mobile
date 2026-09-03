@@ -38,7 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ private fun formatPnl(amount: Double): String {
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun InvestmentsScreen(
-    viewModel: InvestVM = viewModel()
+    viewModel: InvestVM = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current

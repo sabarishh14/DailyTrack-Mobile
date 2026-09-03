@@ -13,37 +13,31 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.dailytrack_mobile.data.local.datastore.DemoModeManager
-import com.example.dailytrack_mobile.data.local.datastore.ThemeManager
-import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.presentation.screens.lock.AppLockScreen
 import com.example.dailytrack_mobile.presentation.screens.main.MainScreen
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsAction
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsScreen
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsVM
-import com.example.dailytrack_mobile.presentation.screens.settings.SettingsVMFactory
 import com.example.dailytrack_mobile.presentation.theme.DailyTrackTheme
 import com.example.dailytrack_mobile.presentation.util.ProvideAppDimensions
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
+
+    @Inject
+    lateinit var appLockManager: AppLockManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
-        // Initialize Managers manually
-        val themeManager = ThemeManager(applicationContext)
-        val appLockManager = AppLockManager(applicationContext)
-        val demoModeManager = DemoModeManager(applicationContext)
-        val demoDataManager = DemoDataManager(applicationContext, demoModeManager)
-        val viewModelFactory = SettingsVMFactory(themeManager, appLockManager, demoModeManager, demoDataManager)
 
         setContent {
-            // Provide SettingsVM
-            val settingsVM: SettingsVM = viewModel(factory = viewModelFactory)
+            // Provide SettingsVM via Hilt
+            val settingsVM: SettingsVM = hiltViewModel()
             
             // Collect the settings state to get the currently selected theme and app lock
             val state by settingsVM.state.collectAsState()

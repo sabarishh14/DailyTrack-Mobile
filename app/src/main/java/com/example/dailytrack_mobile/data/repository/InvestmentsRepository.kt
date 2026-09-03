@@ -27,10 +27,20 @@ class InvestmentsRepository @Inject constructor(
 ) {
     val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
 
-    suspend fun getFullPortfolio(): Result<FullPortfolioData> = coroutineScope {
+    private var cachedPortfolio: FullPortfolioData? = null
+
+    fun clearCache() {
+        cachedPortfolio = null
+    }
+
+    suspend fun getFullPortfolio(forceRefresh: Boolean = false): Result<FullPortfolioData> = coroutineScope {
         try {
             if (demoDataManager.isDemoModeEnabled()) {
                 return@coroutineScope Result.success(demoDataManager.getFullPortfolio())
+            }
+
+            if (!forceRefresh && cachedPortfolio != null) {
+                return@coroutineScope Result.success(cachedPortfolio!!)
             }
 
             // 1. Fetch snapshots to get historical data and the latest date
@@ -54,14 +64,14 @@ class InvestmentsRepository @Inject constructor(
             val mutualFundHoldings = mfDeferred.await()
             val manualAssets = manualAssetsDeferred.await()
             
-            Result.success(
-                FullPortfolioData(
-                    snapshots = snapshots,
-                    equityHoldings = equityHoldings,
-                    mutualFundHoldings = mutualFundHoldings,
-                    manualAssets = manualAssets
-                )
+            val fullData = FullPortfolioData(
+                snapshots = snapshots,
+                equityHoldings = equityHoldings,
+                mutualFundHoldings = mutualFundHoldings,
+                manualAssets = manualAssets
             )
+            cachedPortfolio = fullData
+            Result.success(fullData)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -135,6 +145,8 @@ class InvestmentsRepository @Inject constructor(
             )
             val response = api.addManualAsset(request)
             if (response.success) {
+                clearCache()
+                demoDataManager.notifyDataUpdated()
                 Result.success(Unit)
             } else {
                 Result.failure(Exception(response.message ?: "Failed to save asset"))
