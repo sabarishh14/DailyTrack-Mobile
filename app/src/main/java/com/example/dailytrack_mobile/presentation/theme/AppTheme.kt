@@ -5,6 +5,6 @@ enum class ThemeMode {
 }
 
 enum class AppTheme {
-    YELLOW, GREEN, TEAL, PURPLE, JUNE_OLED
+    YELLOW, GREEN, TEAL, PURPLE, JUNE_OLED, DT_OG
 }
 

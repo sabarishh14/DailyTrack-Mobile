@@ -34,6 +34,7 @@ fun DailyTrackTheme(
             AppTheme.TEAL -> TealThemeColors.darkScheme
             AppTheme.PURPLE -> PurpleThemeColors.darkScheme
             AppTheme.JUNE_OLED -> JuneOledThemeColors.darkScheme
+            AppTheme.DT_OG -> DtOgThemeColors.darkScheme
         }
         else -> when (appTheme) {
             AppTheme.YELLOW -> YellowThemeColors.lightScheme
@@ -41,6 +42,7 @@ fun DailyTrackTheme(
             AppTheme.TEAL -> TealThemeColors.lightScheme
             AppTheme.PURPLE -> PurpleThemeColors.lightScheme
             AppTheme.JUNE_OLED -> JuneOledThemeColors.lightScheme
+            AppTheme.DT_OG -> DtOgThemeColors.lightScheme
         }
     }
 

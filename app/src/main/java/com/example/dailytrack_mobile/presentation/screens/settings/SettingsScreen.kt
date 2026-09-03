@@ -45,6 +45,7 @@ import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.data.local.security.LockType
 import com.example.dailytrack_mobile.presentation.screens.lock.components.PinVerifyDialog
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
+import com.example.dailytrack_mobile.presentation.theme.DtOgThemeColors
 import com.example.dailytrack_mobile.presentation.theme.GreenThemeColors
 import com.example.dailytrack_mobile.presentation.theme.JuneOledThemeColors
 import com.example.dailytrack_mobile.presentation.theme.PurpleThemeColors
@@ -90,6 +91,11 @@ private fun previewColorsFor(theme: AppTheme): ThemePreviewColors = when (theme)
         top = JuneOledThemeColors.lightScheme.primaryContainer,
         bottomLeft = JuneOledThemeColors.lightScheme.secondaryContainer,
         bottomRight = JuneOledThemeColors.lightScheme.tertiaryContainer
+    )
+    AppTheme.DT_OG -> ThemePreviewColors(
+        top = Color(0xFF6366F1),
+        bottomLeft = Color(0xFF06B6D4),
+        bottomRight = Color(0xFF8B5CF6)
     )
 }
 
@@ -867,8 +873,11 @@ private fun ThemeSectionInCard(
     selectedTheme: AppTheme,
     onThemeSelected: (AppTheme) -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Wallpaper colors", "Basic colors")
+    val moreThemes = remember { listOf(AppTheme.DT_OG) }
+    var selectedTab by remember {
+        mutableIntStateOf(if (selectedTheme in moreThemes) 1 else 0)
+    }
+    val tabs = listOf("Wallpaper colors", "More themes")
     val dims = Dimens.current
 
     Column(
@@ -931,7 +940,7 @@ private fun ThemeSectionInCard(
         // Tab content
         when (selectedTab) {
             0 -> WallpaperColorsContent(selectedTheme, onThemeSelected)
-            1 -> BasicColorsContent()
+            1 -> MoreThemesContent(selectedTheme, onThemeSelected)
         }
     }
 }
@@ -946,6 +955,13 @@ private fun WallpaperColorsContent(
     onThemeSelected: (AppTheme) -> Unit
 ) {
     val dims = Dimens.current
+    val wallpaperThemes = listOf(
+        AppTheme.YELLOW,
+        AppTheme.GREEN,
+        AppTheme.TEAL,
+        AppTheme.PURPLE,
+        AppTheme.JUNE_OLED
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -953,7 +969,7 @@ private fun WallpaperColorsContent(
         horizontalArrangement = Arrangement.spacedBy(dims.themeCircleSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppTheme.entries.forEach { theme ->
+        wallpaperThemes.forEach { theme ->
             ThemeCircleOption(
                 theme = theme,
                 isSelected = selectedTheme == theme,
@@ -964,23 +980,44 @@ private fun WallpaperColorsContent(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Basic colors tab – empty placeholder
+// More themes tab – shows custom/additional themes like DT_OG
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun BasicColorsContent() {
+private fun MoreThemesContent(
+    selectedTheme: AppTheme,
+    onThemeSelected: (AppTheme) -> Unit
+) {
     val dims = Dimens.current
-    Box(
+    val moreThemes = listOf(AppTheme.DT_OG)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(dims.themeCircleSize),
-        contentAlignment = Alignment.Center
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(dims.themeCircleSpacing, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "Coming soon",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-        )
+        moreThemes.forEach { theme ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ThemeCircleOption(
+                    theme = theme,
+                    isSelected = selectedTheme == theme,
+                    onClick = { onThemeSelected(theme) }
+                )
+                Text(
+                    text = "DT_OG",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (selectedTheme == theme) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selectedTheme == theme)
+                        MaterialTheme.colorScheme.onSurface
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
