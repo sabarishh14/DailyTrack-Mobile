@@ -27,17 +27,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.screens.money.*
+import com.example.dailytrack_mobile.presentation.theme.AppTheme
+import com.example.dailytrack_mobile.presentation.theme.DtOgChartColors
+import com.example.dailytrack_mobile.presentation.theme.LocalAppTheme
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -460,18 +469,28 @@ private fun CashFlowBreakdownCard(
     val dims = Dimens.current
     val total = categories.sumOf { it.amount }
 
+    val currentTheme = LocalAppTheme.current
+    val isDtOg = currentTheme == AppTheme.DT_OG
     val primaryColor = MaterialTheme.colorScheme.primary
-    val processedCategories = remember(categories, primaryColor) {
-        val baseList = if (categories.size > 6) {
-            val top6 = categories.take(6)
-            val othersTotal = categories.drop(6).sumOf { it.amount }
-            top6 + SpendingCategory("Others", othersTotal, primaryColor)
+
+    val maxCategories = if (isDtOg) 10 else 6
+    val processedCategories = remember(categories, primaryColor, isDtOg) {
+        val baseList = if (categories.size > maxCategories) {
+            val topN = categories.take(maxCategories - 1)
+            val othersTotal = categories.drop(maxCategories - 1).sumOf { it.amount }
+            topN + SpendingCategory("Others", othersTotal, primaryColor)
         } else {
             categories
         }
         
-        baseList.mapIndexed { index, cat ->
-            cat.copy(color = primaryColor.copy(alpha = (1f - (index * 0.12f)).coerceAtLeast(0.3f)))
+        if (isDtOg) {
+            baseList.mapIndexed { index, cat ->
+                cat.copy(color = DtOgChartColors.PieColors[index % DtOgChartColors.PieColors.size])
+            }
+        } else {
+            baseList.mapIndexed { index, cat ->
+                cat.copy(color = primaryColor.copy(alpha = (1f - (index * 0.12f)).coerceAtLeast(0.3f)))
+            }
         }
     }
 
@@ -502,7 +521,7 @@ private fun CashFlowBreakdownCard(
 
             Spacer(modifier = Modifier.height(dims.sectionSpacing))
 
-            // Donut chart with center text (2D version)
+            // Donut chart with center text (3D for DT_OG, 2D for standard themes)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -513,9 +532,10 @@ private fun CashFlowBreakdownCard(
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                DonutChart2D(
+                DonutChart(
                     categories = processedCategories,
                     total = total,
+                    isDtOgStyle = isDtOg,
                     modifier = Modifier.size(dims.donutChartSize)
                 )
             }
@@ -525,6 +545,7 @@ private fun CashFlowBreakdownCard(
             // Legend grid — 2 columns, 3 rows
             LegendGrid(
                 categories = processedCategories,
+                isDtOg = isDtOg,
                 onCategoryClick = onCategoryClick
             )
         }
@@ -583,53 +604,86 @@ private fun EmptyFilterResultsCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2D Donut Chart (Canvas)
+// Donut Chart (Canvas: Segmented 2D for DT_OG, standard 2D for other themes)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun DonutChart2D(
+private fun DonutChart(
     categories: List<SpendingCategory>,
     total: Double,
+    isDtOgStyle: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val strokeWidth = 38f
-    val gapDegrees = 3f  // gap between arcs
+    val density = LocalDensity.current
+    val cornerRadiusPx = with(density) { 8.dp.toPx() }
 
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val diameter = size.minDimension - strokeWidth
-            val topLeft = Offset(
-                (size.width - diameter) / 2f,
-                (size.height - diameter) / 2f
-            )
-            val arcSize = Size(diameter, diameter)
+            if (isDtOgStyle) {
+                // Flat 2D Donut Chart (DT_OG Theme): Thick annular segments with clean gaps & rounded corners
+                val diameter = size.minDimension * 0.96f
+                val rOuter = diameter / 2f
+                val rInner = rOuter * 0.58f // ~42% thickness for chunky look matching reference
+                val gapDegrees = 5f // 5 degree visible gap between segments
+                val center = Offset(size.width / 2f, size.height / 2f)
 
-            // Draw top layer
-            var startAngle = -90f
-            categories.forEach { category ->
-                val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
-                if (sweep > 0f) {
-                    drawArc(
-                        color = category.color,
-                        startAngle = startAngle,
-                        sweepAngle = sweep,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = arcSize,
-                        style = Stroke(
-                            width = strokeWidth,
-                            cap = StrokeCap.Round
+                var startAngle = -90f
+                categories.forEach { category ->
+                    val rawSweep = if (total > 0) (((category.amount / total) * 360f).toFloat()) else 0f
+                    val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
+                    if (sweep > 0.5f) {
+                        val sliceStartAngle = startAngle + (gapDegrees / 2f)
+                        val slicePath = buildAnnularSectorPath(
+                            center = center,
+                            rInner = rInner,
+                            rOuter = rOuter,
+                            startAngleDeg = sliceStartAngle,
+                            sweepAngleDeg = sweep,
+                            cornerRadiusPx = cornerRadiusPx
                         )
-                    )
+                        drawPath(slicePath, category.color)
+                    }
+                    startAngle += rawSweep
                 }
-                startAngle += sweep + gapDegrees
+            } else {
+                // Standard 2D Donut Chart (for other themes)
+                val strokeWidth = 38f
+                val gapDegrees = 3f
+                val diameter = size.minDimension - strokeWidth
+                val topLeft = Offset(
+                    (size.width - diameter) / 2f,
+                    (size.height - diameter) / 2f
+                )
+                val arcSize = Size(diameter, diameter)
+
+                var startAngle = -90f
+                categories.forEach { category ->
+                    val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
+                    if (sweep > 0f) {
+                        drawArc(
+                            color = category.color,
+                            startAngle = startAngle,
+                            sweepAngle = sweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(
+                                width = strokeWidth,
+                                cap = StrokeCap.Round
+                            )
+                        )
+                    }
+                    startAngle += sweep + gapDegrees
+                }
             }
         }
 
         // Center text overlay
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 text = "TOTAL",
                 style = MaterialTheme.typography.labelSmall.copy(
@@ -649,6 +703,94 @@ private fun DonutChart2D(
     }
 }
 
+/**
+ * Builds an annular sector (donut segment) Path with rounded corners, matching d3.arc / Recharts.
+ */
+private fun buildAnnularSectorPath(
+    center: Offset,
+    rInner: Float,
+    rOuter: Float,
+    startAngleDeg: Float,
+    sweepAngleDeg: Float,
+    cornerRadiusPx: Float
+): Path {
+    val path = Path()
+    if (sweepAngleDeg <= 0.5f || rOuter <= rInner) return path
+
+    val degToRad = (Math.PI / 180.0).toFloat()
+    val endAngleDeg = startAngleDeg + sweepAngleDeg
+
+    val daOuter = (cornerRadiusPx / rOuter) * (180f / Math.PI.toFloat())
+    val daInner = (cornerRadiusPx / rInner) * (180f / Math.PI.toFloat())
+    val daOut = daOuter.coerceAtMost(sweepAngleDeg * 0.45f)
+    val daIn = daInner.coerceAtMost(sweepAngleDeg * 0.45f)
+    val rCorner = cornerRadiusPx.coerceAtMost((rOuter - rInner) * 0.45f)
+
+    val cosStart = cos(startAngleDeg * degToRad)
+    val sinStart = sin(startAngleDeg * degToRad)
+    val cosEnd = cos(endAngleDeg * degToRad)
+    val sinEnd = sin(endAngleDeg * degToRad)
+
+    // Points on start radial line
+    val pA = Offset(center.x + (rInner + rCorner) * cosStart, center.y + (rInner + rCorner) * sinStart)
+    val pB = Offset(center.x + (rOuter - rCorner) * cosStart, center.y + (rOuter - rCorner) * sinStart)
+    // Corner 1 vertex (Outer Start)
+    val v1 = Offset(center.x + rOuter * cosStart, center.y + rOuter * sinStart)
+    // Point on outer arc start
+    val aOutStartRad = (startAngleDeg + daOut) * degToRad
+    val pC = Offset(center.x + rOuter * cos(aOutStartRad), center.y + rOuter * sin(aOutStartRad))
+
+    // Corner 2 vertex (Outer End)
+    val v2 = Offset(center.x + rOuter * cosEnd, center.y + rOuter * sinEnd)
+    // Point on end radial line (Outer)
+    val pD = Offset(center.x + (rOuter - rCorner) * cosEnd, center.y + (rOuter - rCorner) * sinEnd)
+    // Point on end radial line (Inner)
+    val pE = Offset(center.x + (rInner + rCorner) * cosEnd, center.y + (rInner + rCorner) * sinEnd)
+
+    // Corner 3 vertex (Inner End)
+    val v3 = Offset(center.x + rInner * cosEnd, center.y + rInner * sinEnd)
+    // Point on inner arc end
+    val aInEndRad = (endAngleDeg - daIn) * degToRad
+    val pF = Offset(center.x + rInner * cos(aInEndRad), center.y + rInner * sin(aInEndRad))
+
+    // Corner 4 vertex (Inner Start)
+    val v4 = Offset(center.x + rInner * cosStart, center.y + rInner * sinStart)
+
+    // Build closed path
+    path.moveTo(pA.x, pA.y)
+    path.lineTo(pB.x, pB.y)
+    path.quadraticTo(v1.x, v1.y, pC.x, pC.y)
+
+    val outerSweep = sweepAngleDeg - 2 * daOut
+    if (outerSweep > 0.1f) {
+        path.arcTo(
+            rect = Rect(center.x - rOuter, center.y - rOuter, center.x + rOuter, center.y + rOuter),
+            startAngleDegrees = startAngleDeg + daOut,
+            sweepAngleDegrees = outerSweep,
+            forceMoveTo = false
+        )
+    }
+
+    path.quadraticTo(v2.x, v2.y, pD.x, pD.y)
+    path.lineTo(pE.x, pE.y)
+    path.quadraticTo(v3.x, v3.y, pF.x, pF.y)
+
+    val innerSweep = sweepAngleDeg - 2 * daIn
+    if (innerSweep > 0.1f) {
+        path.arcTo(
+            rect = Rect(center.x - rInner, center.y - rInner, center.x + rInner, center.y + rInner),
+            startAngleDegrees = endAngleDeg - daIn,
+            sweepAngleDegrees = -innerSweep,
+            forceMoveTo = false
+        )
+    }
+
+    path.quadraticTo(v4.x, v4.y, pA.x, pA.y)
+    path.close()
+
+    return path
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Legend Grid (2 columns)
@@ -656,6 +798,7 @@ private fun DonutChart2D(
 @Composable
 private fun LegendGrid(
     categories: List<SpendingCategory>,
+    isDtOg: Boolean = false,
     onCategoryClick: (String) -> Unit
 ) {
     val dims = Dimens.current
@@ -670,6 +813,7 @@ private fun LegendGrid(
                 row.forEach { category ->
                     LegendItem(
                         category = category,
+                        isDtOg = isDtOg,
                         onClick = {
                             if (category.name != "Others") {
                                 onCategoryClick(category.name)
@@ -690,10 +834,13 @@ private fun LegendGrid(
 @Composable
 private fun LegendItem(
     category: SpendingCategory,
+    isDtOg: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
+    val indicatorShape = if (isDtOg) RoundedCornerShape(3.dp) else CircleShape
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(dims.buttonCornerRadius - 4.dp))
@@ -702,11 +849,11 @@ private fun LegendItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
     ) {
-        // Color dot
+        // Color dot / square
         Box(
             modifier = Modifier
                 .size(10.dp)
-                .clip(CircleShape)
+                .clip(indicatorShape)
                 .background(category.color)
         )
         // Label

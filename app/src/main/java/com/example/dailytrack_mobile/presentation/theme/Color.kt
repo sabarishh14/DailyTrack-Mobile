@@ -469,3 +469,20 @@ object DtOgThemeColors {
     )
 }
 
+object DtOgChartColors {
+    val PieColors = listOf(
+        Color(0xFF6366F1), // Indigo (DailyTrack web accent)
+        Color(0xFF8B5CF6), // Purple
+        Color(0xFFD946EF), // Fuchsia
+        Color(0xFFEC4899), // Pink
+        Color(0xFFF43F5E), // Rose
+        Color(0xFFF97316), // Orange
+        Color(0xFFEAB308), // Yellow
+        Color(0xFF84CC16), // Lime
+        Color(0xFF22C55E), // Green
+        Color(0xFF10B981), // Emerald
+        Color(0xFF14B8A6), // Teal
+        Color(0xFF06B6D4)  // Cyan
+    )
+}
+
