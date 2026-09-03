@@ -6,6 +6,7 @@ import java.time.LocalDate
 
 data class HomeState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
     val accounts: List<AccountInfo> = emptyList(),
     val selectedMonth: Month = LocalDate.now().month,

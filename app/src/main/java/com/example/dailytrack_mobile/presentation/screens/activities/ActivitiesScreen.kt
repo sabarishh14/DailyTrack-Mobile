@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.time.Month
 import java.time.format.TextStyle
@@ -73,54 +74,60 @@ fun ActivitiesScreen(
         state.activityLog.count { entry -> entry.activities.contains(type) }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(
-            start = dims.screenHorizontalPadding,
-            end = dims.screenHorizontalPadding,
-            top = dims.screenTopPadding,
-            bottom = dims.screenBottomPadding
-        ),
-        verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
+    DailyTrackPullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { viewModel.onAction(ActivitiesAction.Refresh) },
+        modifier = Modifier.fillMaxSize()
     ) {
-        // ── 1. Stats row ───────────────────────────────────────────────────
-        item {
-            StatsRow(
-                activeDays    = activeDays,
-                totalSessions = totalSessions,
-                typeCounts    = typeCounts
-            )
-        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(
+                start = dims.screenHorizontalPadding,
+                end = dims.screenHorizontalPadding,
+                top = dims.screenTopPadding,
+                bottom = dims.screenBottomPadding
+            ),
+            verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
+        ) {
+            // ── 1. Stats row ───────────────────────────────────────────────────
+            item {
+                StatsRow(
+                    activeDays    = activeDays,
+                    totalSessions = totalSessions,
+                    typeCounts    = typeCounts
+                )
+            }
 
-        // ── 2. Month selector + summary pills ─────────────────────────────
-        item {
-            MonthSummarySection(
-                selectedMonth = state.selectedMonth,
-                selectedYear  = state.selectedYear,
-                typeCounts    = typeCounts,
-                onMonthChange = { month, year ->
-                    viewModel.onAction(ActivitiesAction.OnMonthChanged(month, year))
-                }
-            )
-        }
+            // ── 2. Month selector + summary pills ─────────────────────────────
+            item {
+                MonthSummarySection(
+                    selectedMonth = state.selectedMonth,
+                    selectedYear  = state.selectedYear,
+                    typeCounts    = typeCounts,
+                    onMonthChange = { month, year ->
+                        viewModel.onAction(ActivitiesAction.OnMonthChanged(month, year))
+                    }
+                )
+            }
 
-        // ── 3. Activity log header ─────────────────────────────────────────
-        item {
-            Text(
-                text       = "ACTIVITY LOG",
-                style      = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp
-                ),
-                color      = MaterialTheme.colorScheme.primary
-            )
-        }
+            // ── 3. Activity log header ─────────────────────────────────────────
+            item {
+                Text(
+                    text       = "ACTIVITY LOG",
+                    style      = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    ),
+                    color      = MaterialTheme.colorScheme.primary
+                )
+            }
 
-        // ── 4. Log entries ─────────────────────────────────────────────────
-        items(state.activityLog) { entry ->
-            ActivityLogRow(entry = entry)
+            // ── 4. Log entries ─────────────────────────────────────────────────
+            items(state.activityLog) { entry ->
+                ActivityLogRow(entry = entry)
+            }
         }
     }
 }

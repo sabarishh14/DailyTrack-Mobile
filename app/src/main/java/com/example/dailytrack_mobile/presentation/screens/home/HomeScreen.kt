@@ -54,6 +54,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared accent colours (theme-agnostic, same pattern as ActivitiesScreen)
@@ -137,63 +138,69 @@ fun HomeScreen(
     val apiAccounts = homeState.accounts
     val totalNetWorth = apiBankBalance + homeState.investmentTotalCurrent
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(
-            start  = dims.screenHorizontalPadding,
-            end    = dims.screenHorizontalPadding,
-            top    = dims.screenTopPadding,
-            bottom = dims.screenBottomPadding
-        ),
-        verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
+    DailyTrackPullToRefreshBox(
+        isRefreshing = homeState.isRefreshing,
+        onRefresh = { viewModel.onAction(HomeAction.Refresh(forceRefresh = true)) },
+        modifier = Modifier.fillMaxSize()
     ) {
-        item { GreetingHeader() }
-        item {
-            NetWorthSection(
-                totalBankBalance = apiBankBalance,
-                totalNetWorth = totalNetWorth,
-                accountCount = apiAccounts.size,
-                isLoading = homeState.isLoading
-            )
-        }
-        item {
-            BankAccountsSection(
-                accounts = apiAccounts,
-                totalBankBalance = apiBankBalance,
-                isLoading = homeState.isLoading
-            )
-        }
-        item { 
-            InvestmentPortfolioSection(
-                totalInvested = homeState.investmentTotalInvested,
-                totalCurrent = homeState.investmentTotalCurrent
-            ) 
-        }
-        item {
-            FlowSection(
-                title         = "INCOME BY ACCOUNT",
-                flows         = incomeFlows,
-                isIncome      = true,
-                selectedMonth = selectedMonth,
-                selectedYear  = selectedYear,
-                onDateChange  = { m, y ->
-                    viewModel.onAction(HomeAction.DateSelected(m, y))
-                }
-            )
-        }
-        item {
-            FlowSection(
-                title         = "EXPENSES BY ACCOUNT",
-                flows         = expenseFlows,
-                isIncome      = false,
-                selectedMonth = selectedMonth,
-                selectedYear  = selectedYear,
-                onDateChange  = { m, y ->
-                    viewModel.onAction(HomeAction.DateSelected(m, y))
-                }
-            )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(
+                start  = dims.screenHorizontalPadding,
+                end    = dims.screenHorizontalPadding,
+                top    = dims.screenTopPadding,
+                bottom = dims.screenBottomPadding
+            ),
+            verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
+        ) {
+            item { GreetingHeader() }
+            item {
+                NetWorthSection(
+                    totalBankBalance = apiBankBalance,
+                    totalNetWorth = totalNetWorth,
+                    accountCount = apiAccounts.size,
+                    isLoading = homeState.isLoading
+                )
+            }
+            item {
+                BankAccountsSection(
+                    accounts = apiAccounts,
+                    totalBankBalance = apiBankBalance,
+                    isLoading = homeState.isLoading
+                )
+            }
+            item { 
+                InvestmentPortfolioSection(
+                    totalInvested = homeState.investmentTotalInvested,
+                    totalCurrent = homeState.investmentTotalCurrent
+                ) 
+            }
+            item {
+                FlowSection(
+                    title         = "INCOME BY ACCOUNT",
+                    flows         = incomeFlows,
+                    isIncome      = true,
+                    selectedMonth = selectedMonth,
+                    selectedYear  = selectedYear,
+                    onDateChange  = { m, y ->
+                        viewModel.onAction(HomeAction.DateSelected(m, y))
+                    }
+                )
+            }
+            item {
+                FlowSection(
+                    title         = "EXPENSES BY ACCOUNT",
+                    flows         = expenseFlows,
+                    isIncome      = false,
+                    selectedMonth = selectedMonth,
+                    selectedYear  = selectedYear,
+                    onDateChange  = { m, y ->
+                        viewModel.onAction(HomeAction.DateSelected(m, y))
+                    }
+                )
+            }
         }
     }
 }

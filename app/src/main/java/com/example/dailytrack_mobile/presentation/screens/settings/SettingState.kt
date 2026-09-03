@@ -18,5 +18,6 @@ data class SettingsState(
     val isSyncing: Boolean = false,
     val syncStatusMessage: String? = null,
     val isLastSyncSuccess: Boolean? = null,
-    val syncStepDescription: String? = null
+    val syncStepDescription: String? = null,
+    val isRefreshingServerStatus: Boolean = false
 )

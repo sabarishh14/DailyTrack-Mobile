@@ -45,22 +45,27 @@ class MoneyVM @Inject constructor(
         }
     }
 
-    private fun loadInitialData() {
+    private fun loadInitialData(forceRefresh: Boolean = false) {
         loadJob?.cancel()
         progressiveFetchJob?.cancel()
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        if (forceRefresh) {
+            repository.clearCache()
+            _state.update { it.copy(isRefreshing = true, errorMessage = null) }
+        } else {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         loadJob = viewModelScope.launch {
             // Launch all three in parallel
-            val accountsDeferred = async { repository.getAccounts() }
-            val transactionsDeferred = async { repository.getTransactions(limit = PAGE_SIZE, offset = 0) }
-            val categoriesDeferred = async { repository.getCategories() }
+            val accountsDeferred = async { repository.getAccounts(forceRefresh = forceRefresh) }
+            val transactionsDeferred = async { repository.getTransactions(limit = PAGE_SIZE, offset = 0, forceRefresh = forceRefresh) }
+            val categoriesDeferred = async { repository.getCategories(forceRefresh = forceRefresh) }
 
             val accountsResult = accountsDeferred.await()
             val transactionsResult = transactionsDeferred.await()
             val categoriesResult = categoriesDeferred.await()
 
             _state.update { current ->
-                var updated = current.copy(isLoading = false)
+                var updated = current.copy(isLoading = false, isRefreshing = false)
 
                 // Process accounts
                 accountsResult.onSuccess { accounts ->
@@ -99,19 +104,19 @@ class MoneyVM @Inject constructor(
             // Fire off a background task to progressively fetch the REST of the transactions
             // for the spending analyser, exactly like the Web app does.
             if (_state.value.hasMore) {
-                fetchAllTransactionsProgressively()
+                fetchAllTransactionsProgressively(forceRefresh = forceRefresh)
             }
         }
     }
 
-    private fun fetchAllTransactionsProgressively() {
+    private fun fetchAllTransactionsProgressively(forceRefresh: Boolean = false) {
         progressiveFetchJob?.cancel()
         progressiveFetchJob = viewModelScope.launch {
             var hasMore = _state.value.hasMore
             var offset = _state.value.currentOffset
 
             while (hasMore) {
-                val result = repository.getTransactions(limit = 500, offset = offset).getOrNull()
+                val result = repository.getTransactions(limit = 500, offset = offset, forceRefresh = forceRefresh).getOrNull()
                 if (result == null || result.transactions.isEmpty()) break
 
                 _state.update { current ->
@@ -143,7 +148,7 @@ class MoneyVM @Inject constructor(
             is MoneyAction.UpdateSearchQuery -> _state.update { it.copy(searchQuery = action.query) }
             is MoneyAction.SelectCategory -> _state.update { it.copy(selectedCategory = action.category) }
 
-            is MoneyAction.Refresh -> loadInitialData()
+            is MoneyAction.Refresh -> loadInitialData(forceRefresh = true)
             is MoneyAction.LoadMore -> loadMoreTransactions()
 
             is MoneyAction.SetFilterSheetVisible -> _state.update {

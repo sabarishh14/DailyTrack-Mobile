@@ -51,6 +51,7 @@ import com.example.dailytrack_mobile.presentation.theme.PurpleThemeColors
 import com.example.dailytrack_mobile.presentation.theme.TealThemeColors
 import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 import com.example.dailytrack_mobile.presentation.theme.YellowThemeColors
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.util.BiometricHelper
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
@@ -235,14 +236,20 @@ fun SettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        LazyColumn(
+        DailyTrackPullToRefreshBox(
+            isRefreshing = state.isRefreshingServerStatus,
+            onRefresh = { onAction(SettingsAction.OnServerStatusClicked) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = dims.screenHorizontalPadding),
-            verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing),
-            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = dims.screenHorizontalPadding),
+                verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing),
+                contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+            ) {
 
             // ── Search Bar ──────────────────────────────────────────────────
             item {
@@ -474,6 +481,7 @@ fun SettingsScreen(
             }
         }
     }
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

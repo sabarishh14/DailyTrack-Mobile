@@ -57,7 +57,7 @@ class SabdekhoVM @Inject constructor(
                 loadShows(_state.value.activeFilter, action.mediaType)
             }
             is SabdekhoAction.Refresh -> {
-                loadShows(_state.value.activeFilter, _state.value.mediaTypeFilter)
+                loadShows(_state.value.activeFilter, _state.value.mediaTypeFilter, forceRefresh = true)
             }
         }
     }
@@ -82,14 +82,20 @@ class SabdekhoVM @Inject constructor(
         }
     }
 
-    private fun loadShows(status: String, type: String = "all") {
+    private fun loadShows(status: String, type: String = "all", forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            repository.getMediaLibrary(limit = 100, offset = 0, type = type, status = status)
+            if (forceRefresh) {
+                repository.clearCache()
+                _state.update { it.copy(isRefreshing = true, error = null) }
+            } else {
+                _state.update { it.copy(isLoading = true, error = null) }
+            }
+            repository.getMediaLibrary(limit = 100, offset = 0, type = type, status = status, forceRefresh = forceRefresh)
                 .onSuccess { response ->
                     _state.update {
                         it.copy(
                             isLoading = false,
+                            isRefreshing = false,
                             shows = response.shows ?: emptyList(),
                             totalCount = response.totalCount ?: (response.shows?.size ?: 0)
                         )
@@ -99,6 +105,7 @@ class SabdekhoVM @Inject constructor(
                     _state.update {
                         it.copy(
                             isLoading = false,
+                            isRefreshing = false,
                             error = e.message ?: "Failed to load shows"
                         )
                     }

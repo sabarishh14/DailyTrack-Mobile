@@ -5,6 +5,7 @@ import com.example.dailytrack_mobile.data.remote.dto.MediaShowDto
 
 data class SabdekhoState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val shows: List<MediaShowDto> = emptyList(),
     val error: String? = null,
     val searchQuery: String = "",

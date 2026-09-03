@@ -187,6 +187,7 @@ object CategoryEmojis {
 
 data class MoneyState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
     val selectedTab: Int = 0,               // 0 = Analysis, 1 = List
     val searchQuery: String = "",

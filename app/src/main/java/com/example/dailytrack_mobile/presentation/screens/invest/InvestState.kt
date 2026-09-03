@@ -75,6 +75,7 @@ data class ChartPoint(
 
 data class InvestState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val selectedTab: InvestTab = InvestTab.OVERVIEW,
     val holdings: List<InvestmentHolding> = emptyList(),
     val historicalSnapshots: List<com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto> = emptyList(),

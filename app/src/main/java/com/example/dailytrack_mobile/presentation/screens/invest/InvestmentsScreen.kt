@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,74 +86,80 @@ fun InvestmentsScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+    DailyTrackPullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { viewModel.onAction(InvestAction.Refresh) },
+        modifier = Modifier.fillMaxSize()
     ) {
-        // ── Portfolio header ────────────────────────────────────────────
-        item {
-            PortfolioHeader(
-                state = state,
-                onExpandClicked = { showExpandedChart = true }
-            )
-        }
-
-        // ── Advanced chart ─────────────────────────────────────────────
-        item {
-            AdvancedChart(
-                points = state.chartPoints,
-                isValueMode = true,
-                isGain = state.isFilteredGain,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(dims.sparklineHeight)
-                    .padding(horizontal = dims.screenHorizontalPadding)
-            )
-        }
-
-        // ── Summary row (Invested / Current / P&L) ─────────────────────
-        item {
-            SummaryRow(state = state)
-        }
-
-        // ── Filter pill tabs ────────────────────────────────────────────
-        item {
-            FilterPills(
-                selectedTab = state.selectedTab,
-                onTabSelected = { viewModel.onAction(InvestAction.SelectTab(it)) }
-            )
-        }
-
-        // ── Content based on selected tab ───────────────────────────────
-        when (state.selectedTab) {
-            InvestTab.OVERVIEW -> {
-                // Show category summary cards
-                items(state.categorySummaries) { summary ->
-                    CategorySummaryCard(summary = summary)
-                }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            // ── Portfolio header ────────────────────────────────────────────
+            item {
+                PortfolioHeader(
+                    state = state,
+                    onExpandClicked = { showExpandedChart = true }
+                )
             }
-            else -> {
-                // Show individual holdings
-                val filtered = state.filteredHoldings
-                val catInvested = filtered.sumOf { it.invested }
-                val catCurrent = filtered.sumOf { it.current }
-                val catPnl = catCurrent - catInvested
-                val catPnlPercent = if (catInvested == 0.0) 0.0 else (catPnl / catInvested) * 100.0
 
-                item {
-                    TabSummaryHeader(
-                        label = state.selectedTab.label,
-                        invested = catInvested,
-                        current = catCurrent,
-                        pnl = catPnl,
-                        pnlPercent = catPnlPercent
-                    )
+            // ── Advanced chart ─────────────────────────────────────────────
+            item {
+                AdvancedChart(
+                    points = state.chartPoints,
+                    isValueMode = true,
+                    isGain = state.isFilteredGain,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(dims.sparklineHeight)
+                        .padding(horizontal = dims.screenHorizontalPadding)
+                )
+            }
+
+            // ── Summary row (Invested / Current / P&L) ─────────────────────
+            item {
+                SummaryRow(state = state)
+            }
+
+            // ── Filter pill tabs ────────────────────────────────────────────
+            item {
+                FilterPills(
+                    selectedTab = state.selectedTab,
+                    onTabSelected = { viewModel.onAction(InvestAction.SelectTab(it)) }
+                )
+            }
+
+            // ── Content based on selected tab ───────────────────────────────
+            when (state.selectedTab) {
+                InvestTab.OVERVIEW -> {
+                    // Show category summary cards
+                    items(state.categorySummaries) { summary ->
+                        CategorySummaryCard(summary = summary)
+                    }
                 }
+                else -> {
+                    // Show individual holdings
+                    val filtered = state.filteredHoldings
+                    val catInvested = filtered.sumOf { it.invested }
+                    val catCurrent = filtered.sumOf { it.current }
+                    val catPnl = catCurrent - catInvested
+                    val catPnlPercent = if (catInvested == 0.0) 0.0 else (catPnl / catInvested) * 100.0
 
-                items(filtered) { holding ->
-                    HoldingItem(holding = holding)
+                    item {
+                        TabSummaryHeader(
+                            label = state.selectedTab.label,
+                            invested = catInvested,
+                            current = catCurrent,
+                            pnl = catPnl,
+                            pnlPercent = catPnlPercent
+                        )
+                    }
+
+                    items(filtered) { holding ->
+                        HoldingItem(holding = holding)
+                    }
                 }
             }
         }

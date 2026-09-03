@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.screens.money.components.AnalysisTab
 import com.example.dailytrack_mobile.presentation.screens.money.components.DeleteConfirmationDialog
 import com.example.dailytrack_mobile.presentation.screens.money.components.EditTransactionDialog
@@ -44,6 +45,11 @@ fun MoneyScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+    ) {
+    DailyTrackPullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { viewModel.onAction(MoneyAction.Refresh) },
+        modifier = Modifier.fillMaxSize()
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -85,6 +91,7 @@ fun MoneyScreen(
                 }
             }
         }
+    }
 
         SnackbarHost(
             hostState = snackbarHostState,

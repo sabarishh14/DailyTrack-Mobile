@@ -42,13 +42,21 @@ class ActivitiesVM @Inject constructor(
                 _state.update { it.copy(selectedMonth = action.month, selectedYear = action.year) }
                 filterActivities()
             }
+            is ActivitiesAction.Refresh -> {
+                loadActivities(forceRefresh = true)
+            }
         }
     }
 
-    private fun loadActivities() {
+    private fun loadActivities(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            repository.getPhysicalActivities().onSuccess { dtoList ->
+            if (forceRefresh) {
+                repository.clearCache()
+                _state.update { it.copy(isRefreshing = true) }
+            } else {
+                _state.update { it.copy(isLoading = true) }
+            }
+            repository.getPhysicalActivities(forceRefresh = forceRefresh).onSuccess { dtoList ->
                 val entries = dtoList.map { dto ->
                     val date = LocalDate.parse(dto.date)
                     val acts = mutableListOf<ActivityType>()
@@ -67,10 +75,10 @@ class ActivitiesVM @Inject constructor(
                     )
                 }
                 
-                _state.update { it.copy(allActivities = entries, isLoading = false) }
+                _state.update { it.copy(allActivities = entries, isLoading = false, isRefreshing = false) }
                 filterActivities()
             }.onFailure {
-                _state.update { it.copy(isLoading = false, allActivities = emptyList(), activityLog = emptyList()) }
+                _state.update { it.copy(isLoading = false, isRefreshing = false, allActivities = emptyList(), activityLog = emptyList()) }
             }
         }
     }

@@ -183,8 +183,17 @@ class SettingsVM @Inject constructor(
                 forceSyncAllPages()
             }
             is SettingsAction.OnServerStatusClicked -> {
-                // TODO: navigate to or show server status
+                checkServerStatus()
             }
+        }
+    }
+
+    private fun checkServerStatus() {
+        if (_state.value.isRefreshingServerStatus) return
+        viewModelScope.launch {
+            _state.update { it.copy(isRefreshingServerStatus = true) }
+            delay(600)
+            _state.update { it.copy(isRefreshingServerStatus = false) }
         }
     }
 

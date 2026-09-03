@@ -37,13 +37,17 @@ class HomeVM @Inject constructor(
         }
     }
 
-    private fun loadAccountsAndTransactions() {
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
+    private fun loadAccountsAndTransactions(forceRefresh: Boolean = false) {
+        if (forceRefresh) {
+            _state.update { it.copy(isRefreshing = true, errorMessage = null) }
+        } else {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         viewModelScope.launch {
-            val accountsResult = repository.getAccounts()
+            val accountsResult = repository.getAccounts(forceRefresh = forceRefresh)
             val monthStr = String.format("%04d-%02d", _state.value.selectedYear, _state.value.selectedMonth.value)
-            val transactionsResult = repository.getTransactions(limit = 1000, month = monthStr)
-            val investmentsResult = investmentsRepository.getFullPortfolio()
+            val transactionsResult = repository.getTransactions(limit = 1000, month = monthStr, forceRefresh = forceRefresh)
+            val investmentsResult = investmentsRepository.getFullPortfolio(forceRefresh = forceRefresh)
 
             if (accountsResult.isSuccess && transactionsResult.isSuccess) {
                 val accounts = accountsResult.getOrThrow().map { dto ->
@@ -78,6 +82,7 @@ class HomeVM @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         accounts = accounts,
                         incomeByCategory = income,
                         expenseByCategory = expense,
@@ -92,6 +97,7 @@ class HomeVM @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         errorMessage = errorMessage
                     )
                 }
@@ -101,7 +107,7 @@ class HomeVM @Inject constructor(
 
     fun onAction(action: HomeAction) {
         when (action) {
-            is HomeAction.Refresh -> loadAccountsAndTransactions()
+            is HomeAction.Refresh -> loadAccountsAndTransactions(forceRefresh = action.forceRefresh)
             is HomeAction.DateSelected -> {
                 _state.update { it.copy(selectedMonth = action.month, selectedYear = action.year) }
                 loadAccountsAndTransactions()

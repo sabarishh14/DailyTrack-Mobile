@@ -48,13 +48,19 @@ class InvestVM @Inject constructor(
                     chartPoints = getFilteredPoints(it.historicalSnapshots, action.range, it.selectedTab)
                 )
             }
+            is InvestAction.Refresh -> loadInvestments(forceRefresh = true)
         }
     }
 
-    private fun loadInvestments() {
+    private fun loadInvestments(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val result = repository.getFullPortfolio()
+            if (forceRefresh) {
+                repository.clearCache()
+                _state.update { it.copy(isRefreshing = true) }
+            } else {
+                _state.update { it.copy(isLoading = true) }
+            }
+            val result = repository.getFullPortfolio(forceRefresh = forceRefresh)
             if (result.isSuccess) {
                 val data = result.getOrNull()
                 if (data != null) {
@@ -108,13 +114,14 @@ class InvestVM @Inject constructor(
                         val nextState = it.copy(
                             holdings = allHoldings,
                             historicalSnapshots = data.snapshots,
-                            isLoading = false
+                            isLoading = false,
+                            isRefreshing = false
                         )
                         nextState.copy(chartPoints = getFilteredPoints(nextState.historicalSnapshots, nextState.selectedTimeRange, nextState.selectedTab))
                     }
                 }
             } else {
-                _state.update { it.copy(isLoading = false) }
+                _state.update { it.copy(isLoading = false, isRefreshing = false) }
             }
         }
     }

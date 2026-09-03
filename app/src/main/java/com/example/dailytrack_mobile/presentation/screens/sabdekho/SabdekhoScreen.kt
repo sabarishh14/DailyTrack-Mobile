@@ -37,8 +37,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto
@@ -60,12 +62,17 @@ fun SabdekhoScreen(
         else state.shows.filter { it.name?.contains(state.searchQuery, ignoreCase = true) == true }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = dims.screenHorizontalPadding)
+    DailyTrackPullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { viewModel.onAction(SabdekhoAction.Refresh) },
+        modifier = Modifier.fillMaxSize()
     ) {
-        Spacer(modifier = Modifier.height(dims.screenTopPadding))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = dims.screenHorizontalPadding)
+        ) {
+            Spacer(modifier = Modifier.height(dims.screenTopPadding))
 
         // ── Search and Grid Toggle Row ──────────────────────────────
         Row(
@@ -360,7 +367,7 @@ fun SabdekhoScreen(
                 }
             } else {
                 // Search query is empty and library has 0 items for current filter
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -408,6 +415,7 @@ fun SabdekhoScreen(
                     MediaCard(item = item, gridSpan = gridSpan)
                 }
             }
+        }
         }
     }
 }
