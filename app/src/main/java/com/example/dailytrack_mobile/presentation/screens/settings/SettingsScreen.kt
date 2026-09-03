@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,7 +51,6 @@ import com.example.dailytrack_mobile.presentation.theme.PurpleThemeColors
 import com.example.dailytrack_mobile.presentation.theme.TealThemeColors
 import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 import com.example.dailytrack_mobile.presentation.theme.YellowThemeColors
-import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.util.BiometricHelper
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
@@ -100,8 +98,16 @@ private fun previewColorsFor(theme: AppTheme): ThemePreviewColors = when (theme)
 }
 
 
+private data class SettingsCategoryItem(
+    val id: String,
+    val icon: ImageVector,
+    val title: String,
+    val subtitle: String,
+    val keywords: List<String>
+)
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Main Settings Screen
+// Main Settings Screen – Root with sub-screen routing
 // ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -114,25 +120,69 @@ fun SettingsScreen(
     val context = LocalContext.current
     val effectiveLockManager = appLockManager ?: remember { AppLockManager(context) }
     var currentSubScreen by remember { mutableStateOf<String?>(null) }
-    var showPinVerifyForDemoMode by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
-    if (showPinVerifyForDemoMode) {
-        PinVerifyDialog(
-            appLockManager = effectiveLockManager,
-            title = "Disable Demo Mode",
-            subtitle = "Enter your 4-digit PIN to switch to live data",
-            showBiometricOption = state.isBiometricWithPinEnabled,
-            onSuccess = {
-                showPinVerifyForDemoMode = false
-                onAction(SettingsAction.OnDemoModeToggled(false))
-            },
-            onDismiss = {
-                showPinVerifyForDemoMode = false
-            }
+    val categories = remember(state.isAppLockEnabled, state.appVersion) {
+        listOf(
+            SettingsCategoryItem(
+                id = "General",
+                icon = Icons.Default.Tune,
+                title = "General",
+                subtitle = "Demo mode, general preferences",
+                keywords = listOf("demo", "sample", "test", "data", "reset", "general")
+            ),
+            SettingsCategoryItem(
+                id = "Appearance",
+                icon = Icons.Default.Palette,
+                title = "Appearance",
+                subtitle = "Theme, dark mode, colors",
+                keywords = listOf("theme", "dark", "light", "amoled", "oled", "true black", "color", "wallpaper", "appearance", "palette")
+            ),
+            SettingsCategoryItem(
+                id = "PrivacySecurity",
+                icon = Icons.Default.Lock,
+                title = "Privacy & Security",
+                subtitle = if (state.isAppLockEnabled) "App lock enabled" else "App lock disabled",
+                keywords = listOf("lock", "pin", "fingerprint", "biometric", "security", "privacy", "password", "passcode")
+            ),
+            SettingsCategoryItem(
+                id = "Scheduler",
+                icon = Icons.Default.Schedule,
+                title = "Scheduler",
+                subtitle = "Schedule notifications at given frequency & time",
+                keywords = listOf("schedule", "scheduler", "notification", "reminder", "remind", "alarm", "time", "frequency", "daily", "alert")
+            ),
+            SettingsCategoryItem(
+                id = "Sync",
+                icon = Icons.Default.Sync,
+                title = "Sync",
+                subtitle = "Force sync, server status",
+                keywords = listOf("sync", "server", "cloud", "api", "refresh", "status", "hydrate")
+            ),
+            SettingsCategoryItem(
+                id = "About",
+                icon = Icons.Default.Info,
+                title = "About",
+                subtitle = state.appVersion,
+                keywords = listOf("about", "version", "developer", "info", "app")
+            )
         )
     }
 
-    // Material 3 Loading Dialog during Force Sync
+    val filteredCategories = remember(searchQuery, categories) {
+        if (searchQuery.isBlank()) {
+            categories
+        } else {
+            val q = searchQuery.trim()
+            categories.filter { cat ->
+                cat.title.contains(q, ignoreCase = true) ||
+                cat.subtitle.contains(q, ignoreCase = true) ||
+                cat.keywords.any { it.contains(q, ignoreCase = true) }
+            }
+        }
+    }
+
+    // Material 3 Loading Dialog during Force Sync (global overlay)
     if (state.isSyncing) {
         Dialog(
             onDismissRequest = { /* Non-dismissible while in-flight */ },
@@ -196,20 +246,70 @@ fun SettingsScreen(
         }
     }
 
-    if (currentSubScreen == "AppLockSettings") {
-        AppLockSettingsScreen(
-            state = state,
-            onAction = onAction,
-            onNavigateBack = { currentSubScreen = null }
-        )
-        return
+    // ── Sub-screen routing ───────────────────────────────────────────────────
+    when (currentSubScreen) {
+        "AppLockSettings" -> {
+            AppLockSettingsScreen(
+                state = state,
+                onAction = onAction,
+                onNavigateBack = { currentSubScreen = "PrivacySecurity" }
+            )
+            return
+        }
+        "General" -> {
+            GeneralSettingsSubScreen(
+                state = state,
+                appLockManager = effectiveLockManager,
+                onAction = onAction,
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "Appearance" -> {
+            AppearanceSettingsSubScreen(
+                state = state,
+                onAction = onAction,
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "PrivacySecurity" -> {
+            PrivacySecuritySettingsSubScreen(
+                state = state,
+                onAction = onAction,
+                onNavigateToAppLock = { currentSubScreen = "AppLockSettings" },
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "Scheduler" -> {
+            SchedulerSettingsSubScreen(
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "Sync" -> {
+            SyncSettingsSubScreen(
+                state = state,
+                onAction = onAction,
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "About" -> {
+            AboutSettingsSubScreen(
+                state = state,
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
     }
 
+    // ── Root settings screen ─────────────────────────────────────────────────
     BackHandler {
         onAction(SettingsAction.OnBackClicked)
     }
 
-    var searchQuery by remember { mutableStateOf("") }
     val dims = Dimens.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -242,21 +342,14 @@ fun SettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        DailyTrackPullToRefreshBox(
-            isRefreshing = state.isRefreshingServerStatus,
-            onRefresh = { onAction(SettingsAction.OnServerStatusClicked) },
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = dims.screenHorizontalPadding),
-                verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing),
-                contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
-            ) {
-
             // ── Search Bar ──────────────────────────────────────────────────
             item {
                 OutlinedTextField(
@@ -277,11 +370,23 @@ fun SettingsScreen(
                             modifier = Modifier.size(dims.iconSizeMedium)
                         )
                     },
+                    trailingIcon = if (searchQuery.isNotEmpty()) {
+                        {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(dims.iconSizeSmall + 4.dp)
+                                )
+                            }
+                        }
+                    } else null,
                     singleLine = true,
-                    shape = RoundedCornerShape(50),
+                    shape = RoundedCornerShape(dims.cardCornerRadius),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                        unfocusedBorderColor = Color.Transparent,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     ),
@@ -291,40 +396,250 @@ fun SettingsScreen(
                 )
             }
 
-            // ── About / App Header ──────────────────────────────────────────
-            item {
-                AboutHeader(
-                    appVersion = state.appVersion,
-                    developerName = state.developerName
-                )
+            // ── App Header (shown when not searching) ───────────────────────
+            if (searchQuery.isBlank()) {
+                item {
+                    AboutHeader(
+                        appVersion = state.appVersion,
+                        developerName = state.developerName
+                    )
+                }
             }
 
-            // ── Group 1: Appearance ─────────────────────────────────────────
+            // ── Settings Categories ─────────────────────────────────────────
             item {
-                val isDarkTheme = when (state.themeMode) {
-                    ThemeMode.DARK -> true
-                    ThemeMode.LIGHT -> false
-                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                if (filteredCategories.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No settings match \"$searchQuery\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        filteredCategories.forEach { category ->
+                            SettingsCard {
+                                SettingsNavItem(
+                                    icon = category.icon,
+                                    title = category.title,
+                                    subtitle = category.subtitle,
+                                    onClick = { currentSubScreen = category.id }
+                                )
+                            }
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
 
-                SettingsSectionLabel(title = "Appearance")
-                Spacer(Modifier.height(dims.itemSpacingMedium))
-                SettingsCard {
-                    ThemeModeSelector(
-                        currentMode = state.themeMode,
-                        onModeSelected = { onAction(SettingsAction.OnThemeModeChanged(it)) }
+// ─────────────────────────────────────────────────────────────────────────────
+// General Settings Sub-Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GeneralSettingsSubScreen(
+    state: SettingsState,
+    appLockManager: AppLockManager,
+    onAction: (SettingsAction) -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    val context = LocalContext.current
+    var showPinVerifyForDemoMode by remember { mutableStateOf(false) }
+
+    if (showPinVerifyForDemoMode) {
+        PinVerifyDialog(
+            appLockManager = appLockManager,
+            title = "Disable Demo Mode",
+            subtitle = "Enter your 4-digit PIN to switch to live data",
+            showBiometricOption = state.isBiometricWithPinEnabled,
+            onSuccess = {
+                showPinVerifyForDemoMode = false
+                onAction(SettingsAction.OnDemoModeToggled(false))
+            },
+            onDismiss = { showPinVerifyForDemoMode = false }
+        )
+    }
+
+    BackHandler { onNavigateBack() }
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "General",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsCard {
+                        SettingsToggleItem(
+                            icon = Icons.Default.Science,
+                            title = "Demo Mode",
+                            subtitle = "Hydrates screens with realistic sample data stored locally",
+                            checked = state.isDemoModeEnabled,
+                            onCheckedChange = { requestedState ->
+                                if (!requestedState) {
+                                    // Turning Demo Mode OFF → verify PIN / Biometric if App Lock is enabled
+                                    if (state.isAppLockEnabled) {
+                                        if (state.lockType == LockType.SYSTEM) {
+                                            val activity = context as? FragmentActivity
+                                            if (activity != null) {
+                                                BiometricHelper.showBiometricPrompt(
+                                                    activity = activity,
+                                                    title = "Disable Demo Mode",
+                                                    subtitle = "Verify your identity to switch to live data",
+                                                    allowDeviceCredential = true,
+                                                    onSuccess = {
+                                                        onAction(SettingsAction.OnDemoModeToggled(false))
+                                                    }
+                                                )
+                                            } else {
+                                                onAction(SettingsAction.OnDemoModeToggled(false))
+                                            }
+                                        } else {
+                                            // LockType.PIN → Show PIN verification dialog (with biometric fallback if enabled)
+                                            showPinVerifyForDemoMode = true
+                                        }
+                                    } else {
+                                        // App Lock not enabled → directly turn off
+                                        onAction(SettingsAction.OnDemoModeToggled(false))
+                                    }
+                                } else {
+                                    // Turning Demo Mode ON → directly turn on
+                                    onAction(SettingsAction.OnDemoModeToggled(true))
+                                }
+                            }
+                        )
+                    }
+                    if (state.isDemoModeEnabled) {
+                        SettingsCard {
+                            SettingsClickItem(
+                                icon = Icons.Default.RestartAlt,
+                                title = "Reset Demo Data",
+                                subtitle = "Restore default sample transactions & portfolio",
+                                onClick = { onAction(SettingsAction.OnResetDemoDataClicked) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Appearance Settings Sub-Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppearanceSettingsSubScreen(
+    state: SettingsState,
+    onAction: (SettingsAction) -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    BackHandler { onNavigateBack() }
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val isDarkTheme = when (state.themeMode) {
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "Appearance",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsCard {
+                        ThemeModeSelector(
+                            currentMode = state.themeMode,
+                            onModeSelected = { onAction(SettingsAction.OnThemeModeChanged(it)) }
+                        )
+                    }
 
                     AnimatedVisibility(
                         visible = isDarkTheme,
                         enter = expandVertically(),
                         exit = shrinkVertically()
                     ) {
-                        Column {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 56.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                            )
+                        SettingsCard {
                             SettingsToggleItem(
                                 icon = Icons.Default.DarkMode,
                                 title = "True black (OLED)",
@@ -335,119 +650,312 @@ fun SettingsScreen(
                         }
                     }
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = dims.cardInnerPadding - 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                    )
-
-                    ThemeSectionInCard(
-                        selectedTheme = state.selectedTheme,
-                        onThemeSelected = { onAction(SettingsAction.OnThemeChanged(it)) }
-                    )
-                }
-            }
-
-            // ── Group 2: Privacy & Security ─────────────────────────────────
-            item {
-                SettingsSectionLabel(title = "Privacy & Security")
-                Spacer(Modifier.height(dims.itemSpacingMedium))
-                SettingsCard {
-                    SettingsToggleItem(
-                        icon = Icons.Default.Lock,
-                        title = "App Lock",
-                        subtitle = if (state.isAppLockEnabled) {
-                            if (state.lockType == com.example.dailytrack_mobile.data.local.security.LockType.SYSTEM)
-                                "Same as screen lock"
-                            else
-                                "Custom PIN"
-                        } else {
-                            "Disabled"
-                        },
-                        checked = state.isAppLockEnabled,
-                        onCheckedChange = { enabled ->
-                            onAction(SettingsAction.OnAppLockToggled(enabled))
-                            if (enabled) {
-                                currentSubScreen = "AppLockSettings"
-                            }
-                        },
-                        onClickRow = {
-                            currentSubScreen = "AppLockSettings"
-                        }
-                    )
-                    if (state.isAppLockEnabled) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
-                        SettingsNavItem(
-                            icon = Icons.Default.Security,
-                            title = "Lock options",
-                            subtitle = "Change lock method or PIN",
-                            onClick = { currentSubScreen = "AppLockSettings" }
+                    SettingsCard {
+                        ThemeSectionInCard(
+                            selectedTheme = state.selectedTheme,
+                            onThemeSelected = { onAction(SettingsAction.OnThemeChanged(it)) }
                         )
                     }
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Privacy & Security Settings Sub-Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PrivacySecuritySettingsSubScreen(
+    state: SettingsState,
+    onAction: (SettingsAction) -> Unit,
+    onNavigateToAppLock: () -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    BackHandler { onNavigateBack() }
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "Privacy & Security",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
                     )
-                    SettingsToggleItem(
-                        icon = Icons.Default.Science,
-                        title = "Demo Mode",
-                        subtitle = "Hydrates screens with realistic sample data stored locally",
-                        checked = state.isDemoModeEnabled,
-                        onCheckedChange = { requestedState ->
-                            if (!requestedState) {
-                                // Turning Demo Mode OFF -> verify PIN / Biometric if App Lock is enabled
-                                if (state.isAppLockEnabled) {
-                                    if (state.lockType == LockType.SYSTEM) {
-                                        val activity = context as? FragmentActivity
-                                        if (activity != null) {
-                                            BiometricHelper.showBiometricPrompt(
-                                                activity = activity,
-                                                title = "Disable Demo Mode",
-                                                subtitle = "Verify your identity to switch to live data",
-                                                allowDeviceCredential = true,
-                                                onSuccess = {
-                                                    onAction(SettingsAction.OnDemoModeToggled(false))
-                                                }
-                                            )
-                                        } else {
-                                            onAction(SettingsAction.OnDemoModeToggled(false))
-                                        }
-                                    } else {
-                                        // LockType.PIN -> Show PIN verification dialog (with biometric fallback if enabled)
-                                        showPinVerifyForDemoMode = true
-                                    }
-                                } else {
-                                    // App Lock not enabled -> directly turn off
-                                    onAction(SettingsAction.OnDemoModeToggled(false))
-                                }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsCard {
+                        SettingsToggleItem(
+                            icon = Icons.Default.Lock,
+                            title = "App Lock",
+                            subtitle = if (state.isAppLockEnabled) {
+                                if (state.lockType == LockType.SYSTEM)
+                                    "Same as screen lock"
+                                else
+                                    "Custom PIN"
                             } else {
-                                // Turning Demo Mode ON -> directly turn on
-                                onAction(SettingsAction.OnDemoModeToggled(true))
+                                "Disabled"
+                            },
+                            checked = state.isAppLockEnabled,
+                            onCheckedChange = { enabled ->
+                                onAction(SettingsAction.OnAppLockToggled(enabled))
+                                if (enabled) {
+                                    onNavigateToAppLock()
+                                }
+                            },
+                            onClickRow = {
+                                onNavigateToAppLock()
+                            }
+                        )
+                    }
+                    if (state.isAppLockEnabled) {
+                        SettingsCard {
+                            SettingsNavItem(
+                                icon = Icons.Default.Security,
+                                title = "Lock options",
+                                subtitle = "Change lock method or PIN",
+                                onClick = { onNavigateToAppLock() }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scheduler Settings Sub-Screen (Placeholder)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SchedulerSettingsSubScreen(
+    onNavigateBack: () -> Unit
+) {
+    BackHandler { onNavigateBack() }
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "Scheduler",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            // Overview Banner Card
+            item {
+                Card(
+                    shape = RoundedCornerShape(dims.cardCornerRadius),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(dims.cardCornerRadius))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(22.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
                             }
                         }
-                    )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = "Notification Scheduler",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Set up scheduled notifications at your preferred frequency and time to keep your expenses, transactions, and activities on track.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "Feature In Development",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            // ── Group 3: Data & Sync ────────────────────────────────────────
+            // Planned Schedule Options (Placeholders)
             item {
-                SettingsSectionLabel(title = "Data & Sync")
-                Spacer(Modifier.height(dims.itemSpacingMedium))
-                SettingsCard {
-                    if (state.isDemoModeEnabled) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsCard {
                         SettingsClickItem(
-                            icon = Icons.Default.RestartAlt,
-                            title = "Reset Demo Data",
-                            subtitle = "Restore default sample transactions & portfolio",
-                            onClick = { onAction(SettingsAction.OnResetDemoDataClicked) }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 56.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            icon = Icons.Default.Alarm,
+                            title = "Daily Reminder",
+                            subtitle = "Notify daily at 09:00 PM to log expenses",
+                            onClick = {}
                         )
                     }
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.DateRange,
+                            title = "Weekly Review",
+                            subtitle = "Financial digest every Sunday at 10:00 AM",
+                            onClick = {}
+                        )
+                    }
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Tune,
+                            title = "Custom Schedule Frequency",
+                            subtitle = "Choose specific days, intervals & custom reminder times",
+                            onClick = {}
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sync Settings Sub-Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SyncSettingsSubScreen(
+    state: SettingsState,
+    onAction: (SettingsAction) -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    BackHandler { onNavigateBack() }
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "Sync",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val syncSubtitle = when {
                         state.isSyncing -> "Syncing all pages..."
                         state.syncStatusMessage != null -> state.syncStatusMessage
@@ -459,35 +967,116 @@ fun SettingsScreen(
                         state.isLastSyncSuccess == false -> MaterialTheme.colorScheme.error
                         else -> null
                     }
-                    SettingsClickItem(
-                        icon = Icons.Default.Sync,
-                        title = "Force Sync",
-                        subtitle = syncSubtitle,
-                        subtitleColor = syncSubtitleColor,
-                        enabled = !state.isSyncing,
-                        trailing = {
-                            if (state.isSyncing) {
-                                LoadingIndicator(
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        },
-                        onClick = { onAction(SettingsAction.OnForceSyncClicked) }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                    )
-                    SettingsClickItem(
-                        icon = Icons.Default.Cloud,
-                        title = "Server Status",
-                        onClick = { onAction(SettingsAction.OnServerStatusClicked) }
-                    )
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Sync,
+                            title = "Force Sync",
+                            subtitle = syncSubtitle,
+                            subtitleColor = syncSubtitleColor,
+                            enabled = !state.isSyncing,
+                            trailing = {
+                                if (state.isSyncing) {
+                                    LoadingIndicator(
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            },
+                            onClick = { onAction(SettingsAction.OnForceSyncClicked) }
+                        )
+                    }
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Cloud,
+                            title = "Server Status",
+                            onClick = { onAction(SettingsAction.OnServerStatusClicked) }
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// About Settings Sub-Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AboutSettingsSubScreen(
+    state: SettingsState,
+    onNavigateBack: () -> Unit
+) {
+    BackHandler { onNavigateBack() }
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "About",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            item {
+                AboutHeader(
+                    appVersion = state.appVersion,
+                    developerName = state.developerName
+                )
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Code,
+                            title = "Version",
+                            subtitle = state.appVersion,
+                            onClick = {}
+                        )
+                    }
+                    SettingsCard {
+                        SettingsClickItem(
+                            icon = Icons.Default.Person,
+                            title = "Developer",
+                            subtitle = state.developerName,
+                            onClick = {}
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -506,44 +1095,49 @@ private fun AboutHeader(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(dims.cardCornerRadius))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = dims.cardInnerPadding, vertical = dims.itemSpacingLarge),
+                .padding(horizontal = 20.dp, vertical = 22.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // App icon
             Surface(
-                shape = RoundedCornerShape(dims.buttonCornerRadius),
+                shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shadowElevation = 0.dp,
-                modifier = Modifier.size(dims.avatarSizeLarge - 4.dp)
+                modifier = Modifier.size(56.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.DateRange,
                         contentDescription = "App Icon",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(dims.iconSizeLarge)
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
 
-            Spacer(Modifier.width(dims.itemSpacingLarge))
+            Spacer(Modifier.width(18.dp))
 
             // App name + version
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "DailyTrack",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp
+                    ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = appVersion,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -552,14 +1146,14 @@ private fun AboutHeader(
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.size(dims.avatarSizeSmall + 4.dp)
+                modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Developer: $developerName",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(dims.iconSizeMedium)
+                        modifier = Modifier.size(dims.iconSizeMedium + 2.dp)
                     )
                 }
             }
@@ -587,7 +1181,10 @@ private fun SettingsSectionLabel(title: String) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+private fun SettingsCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
     val dims = Dimens.current
     Card(
         shape = RoundedCornerShape(dims.cardCornerRadius),
@@ -595,7 +1192,9 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(dims.cardCornerRadius))
     ) {
         Column(content = content)
     }
@@ -616,27 +1215,40 @@ fun SettingsNavItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 82.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingLarge - 2.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(dims.iconSizeMedium)
-        )
-        Spacer(Modifier.width(dims.itemSpacingLarge))
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            modifier = Modifier.size(48.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(18.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -645,7 +1257,7 @@ fun SettingsNavItem(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(dims.iconSizeSmall + 2.dp)
+            modifier = Modifier.size(24.dp)
         )
     }
 }
@@ -668,27 +1280,40 @@ private fun SettingsClickItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 82.dp)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingLarge - 2.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(dims.iconSizeMedium)
-        )
-        Spacer(Modifier.width(dims.itemSpacingLarge))
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 0.12f else 0.05f),
+            modifier = Modifier.size(48.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(18.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                ),
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
             if (subtitle != null) {
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
                     color = subtitleColor ?: MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -713,6 +1338,7 @@ private fun SettingsToggleItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 82.dp)
             .clickable {
                 if (onClickRow != null) {
                     onClickRow()
@@ -720,30 +1346,43 @@ private fun SettingsToggleItem(
                     onCheckedChange(!checked)
                 }
             }
-            .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingMedium + 2.dp),
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(dims.iconSizeMedium)
-        )
-        Spacer(Modifier.width(dims.itemSpacingLarge))
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            modifier = Modifier.size(48.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(18.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
+        Spacer(Modifier.width(12.dp))
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange
@@ -770,32 +1409,44 @@ private fun ThemeModeSelector(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingMedium)
+            .padding(20.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = dims.itemSpacingMedium)
+            modifier = Modifier.padding(bottom = 16.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Palette,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(dims.iconSizeMedium)
-            )
-            Spacer(Modifier.width(dims.itemSpacingLarge))
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Palette,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(18.dp))
             Column {
                 Text(
                     text = "App Theme",
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 17.sp
+                    ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = when (currentMode) {
                         ThemeMode.SYSTEM -> "Follow system settings"
                         ThemeMode.LIGHT -> "Always light"
                         ThemeMode.DARK -> "Always dark"
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -881,7 +1532,7 @@ private fun ThemeSectionInCard(
     val dims = Dimens.current
 
     Column(
-        modifier = Modifier.padding(dims.cardInnerPadding - 4.dp),
+        modifier = Modifier.padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
     ) {
         // Tab row
@@ -923,7 +1574,7 @@ private fun ThemeSectionInCard(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) { selectedTab = index }
-                            .padding(vertical = dims.itemSpacingLarge - 2.dp),
+                            .padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
