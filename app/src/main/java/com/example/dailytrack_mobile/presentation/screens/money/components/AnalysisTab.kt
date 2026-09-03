@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.core.graphics.ColorUtils
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.ui.text.font.FontWeight
@@ -488,8 +489,9 @@ private fun CashFlowBreakdownCard(
                 cat.copy(color = DtOgChartColors.PieColors[index % DtOgChartColors.PieColors.size])
             }
         } else {
+            val palette = generateThemeChartPalette(primaryColor, baseList.size)
             baseList.mapIndexed { index, cat ->
-                cat.copy(color = primaryColor.copy(alpha = (1f - (index * 0.12f)).coerceAtLeast(0.3f)))
+                cat.copy(color = palette[index])
             }
         }
     }
@@ -648,34 +650,31 @@ private fun DonutChart(
                     startAngle += rawSweep
                 }
             } else {
-                // Standard 2D Donut Chart (for other themes)
-                val strokeWidth = 38f
-                val gapDegrees = 3f
-                val diameter = size.minDimension - strokeWidth
-                val topLeft = Offset(
-                    (size.width - diameter) / 2f,
-                    (size.height - diameter) / 2f
-                )
-                val arcSize = Size(diameter, diameter)
+                // Standard 2D Donut Chart (for other themes): Annular segments with softer proportions
+                val diameter = size.minDimension * 0.92f
+                val rOuter = diameter / 2f
+                val rInner = rOuter * 0.64f  // Slightly thinner ring than DT_OG for elegance
+                val gapDegrees = 3.5f        // Slightly tighter gaps
+                val softCornerPx = cornerRadiusPx * 0.75f  // Softer corners
+                val center = Offset(size.width / 2f, size.height / 2f)
 
                 var startAngle = -90f
                 categories.forEach { category ->
-                    val sweep = if (total > 0) (((category.amount / total) * 360f).toFloat() - gapDegrees) else 0f
-                    if (sweep > 0f) {
-                        drawArc(
-                            color = category.color,
-                            startAngle = startAngle,
-                            sweepAngle = sweep,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(
-                                width = strokeWidth,
-                                cap = StrokeCap.Round
-                            )
+                    val rawSweep = if (total > 0) (((category.amount / total) * 360f).toFloat()) else 0f
+                    val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
+                    if (sweep > 0.5f) {
+                        val sliceStartAngle = startAngle + (gapDegrees / 2f)
+                        val slicePath = buildAnnularSectorPath(
+                            center = center,
+                            rInner = rInner,
+                            rOuter = rOuter,
+                            startAngleDeg = sliceStartAngle,
+                            sweepAngleDeg = sweep,
+                            cornerRadiusPx = softCornerPx
                         )
+                        drawPath(slicePath, category.color)
                     }
-                    startAngle += sweep + gapDegrees
+                    startAngle += rawSweep
                 }
             }
         }
@@ -789,6 +788,58 @@ private fun buildAnnularSectorPath(
     path.close()
 
     return path
+}
+
+/**
+ * Generates a harmonious chart palette from the theme's primary color.
+ * Uses HSL hue rotation to produce visually distinct yet cohesive colors.
+ * The first color is always the primary itself, with subsequent colors
+ * spreading across a controlled hue arc while preserving saturation/lightness family.
+ */
+private fun generateThemeChartPalette(primary: Color, count: Int): List<Color> {
+    if (count <= 0) return emptyList()
+
+    // Convert primary to HSL
+    val argb = (primary.alpha * 255).toInt() shl 24 or
+            ((primary.red * 255).toInt() shl 16) or
+            ((primary.green * 255).toInt() shl 8) or
+            (primary.blue * 255).toInt()
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(argb, hsl)
+    val baseHue = hsl[0]      // 0-360
+    val baseSat = hsl[1]      // 0-1
+    val baseLit = hsl[2]      // 0-1
+
+    // Spread hues across a 180° arc centered on the primary hue, with
+    // alternating saturation/lightness tweaks for extra distinction.
+    val hueSpread = when {
+        count <= 2 -> 60f
+        count <= 4 -> 120f
+        else -> 180f
+    }
+    val step = if (count > 1) hueSpread / (count - 1) else 0f
+    val startHue = baseHue - hueSpread / 2f
+
+    return List(count) { i ->
+        val hue = ((startHue + step * i) % 360f + 360f) % 360f
+        // Alternate saturation and lightness slightly for more distinction
+        val satOffset = if (i % 2 == 0) 0f else -0.08f
+        val litOffset = when (i % 3) {
+            0 -> 0f
+            1 -> 0.04f
+            else -> -0.04f
+        }
+        val sat = (baseSat + satOffset).coerceIn(0.25f, 1f)
+        val lit = (baseLit + litOffset).coerceIn(0.30f, 0.70f)
+        val outHsl = floatArrayOf(hue, sat, lit)
+        val resultArgb = ColorUtils.HSLToColor(outHsl)
+        Color(
+            red = (resultArgb shr 16 and 0xFF) / 255f,
+            green = (resultArgb shr 8 and 0xFF) / 255f,
+            blue = (resultArgb and 0xFF) / 255f,
+            alpha = 1f
+        )
+    }
 }
 
 
