@@ -77,8 +77,12 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
-            // Pass the state's selected theme into the DailyTrackTheme
-            DailyTrackTheme(appTheme = state.selectedTheme) {
+            // Pass the state's theme configurations into DailyTrackTheme
+            DailyTrackTheme(
+                themeMode = state.themeMode,
+                appTheme = state.selectedTheme,
+                withAmoled = state.withAmoled
+            ) {
                 ProvideAppDimensions {
                     Surface(
                         modifier = Modifier.fillMaxSize(),

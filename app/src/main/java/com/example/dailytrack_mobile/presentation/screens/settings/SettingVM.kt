@@ -8,6 +8,7 @@ import com.example.dailytrack_mobile.data.local.datastore.ThemeManager
 import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
+import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -32,6 +33,24 @@ class SettingsVM(
                 } catch (e: Exception) {
                     _state.update { it.copy(selectedTheme = AppTheme.YELLOW) }
                 }
+            }
+        }
+
+        // Listen for theme mode changes (SYSTEM, LIGHT, DARK)
+        viewModelScope.launch {
+            themeManager.themeModeFlow.collect { savedModeName ->
+                try {
+                    _state.update { it.copy(themeMode = ThemeMode.valueOf(savedModeName)) }
+                } catch (e: Exception) {
+                    _state.update { it.copy(themeMode = ThemeMode.SYSTEM) }
+                }
+            }
+        }
+
+        // Listen for Amoled / True black changes
+        viewModelScope.launch {
+            themeManager.amoledFlow.collect { isAmoled ->
+                _state.update { it.copy(withAmoled = isAmoled) }
             }
         }
 
@@ -73,6 +92,16 @@ class SettingsVM(
             is SettingsAction.OnThemeChanged -> {
                 viewModelScope.launch {
                     themeManager.saveTheme(action.newTheme.name)
+                }
+            }
+            is SettingsAction.OnThemeModeChanged -> {
+                viewModelScope.launch {
+                    themeManager.saveThemeMode(action.newMode.name)
+                }
+            }
+            is SettingsAction.OnAmoledToggled -> {
+                viewModelScope.launch {
+                    themeManager.saveAmoled(action.enabled)
                 }
             }
             is SettingsAction.OnBackClicked -> {
@@ -118,6 +147,7 @@ class SettingsVM(
         }
     }
 }
+
 
 class SettingsVMFactory(
     private val themeManager: ThemeManager,

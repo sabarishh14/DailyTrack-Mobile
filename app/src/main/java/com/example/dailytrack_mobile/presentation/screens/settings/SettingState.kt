@@ -2,9 +2,12 @@ package com.example.dailytrack_mobile.presentation.screens.settings
 
 import com.example.dailytrack_mobile.data.local.security.LockType
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
+import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 
 data class SettingsState(
     val selectedTheme: AppTheme = AppTheme.YELLOW,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val withAmoled: Boolean = false,
     val appVersion: String = "v1.0.0",
     val developerName: String = "Your Name",
     val isAppLockEnabled: Boolean = false,

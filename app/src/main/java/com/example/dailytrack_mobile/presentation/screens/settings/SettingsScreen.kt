@@ -1,14 +1,20 @@
 package com.example.dailytrack_mobile.presentation.screens.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,8 +42,10 @@ import com.example.dailytrack_mobile.data.local.security.LockType
 import com.example.dailytrack_mobile.presentation.screens.lock.components.PinVerifyDialog
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import com.example.dailytrack_mobile.presentation.theme.GreenThemeColors
+import com.example.dailytrack_mobile.presentation.theme.JuneOledThemeColors
 import com.example.dailytrack_mobile.presentation.theme.PurpleThemeColors
 import com.example.dailytrack_mobile.presentation.theme.TealThemeColors
+import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 import com.example.dailytrack_mobile.presentation.theme.YellowThemeColors
 import com.example.dailytrack_mobile.presentation.util.BiometricHelper
 import com.example.dailytrack_mobile.presentation.util.Dimens
@@ -73,7 +81,13 @@ private fun previewColorsFor(theme: AppTheme): ThemePreviewColors = when (theme)
         bottomLeft = PurpleThemeColors.lightScheme.secondaryContainer,
         bottomRight = PurpleThemeColors.lightScheme.tertiaryContainer
     )
+    AppTheme.JUNE_OLED -> ThemePreviewColors(
+        top = JuneOledThemeColors.lightScheme.primaryContainer,
+        bottomLeft = JuneOledThemeColors.lightScheme.secondaryContainer,
+        bottomRight = JuneOledThemeColors.lightScheme.tertiaryContainer
+    )
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Settings Screen
@@ -206,9 +220,45 @@ fun SettingsScreen(
 
             // ── Group 1: Appearance ─────────────────────────────────────────
             item {
+                val isDarkTheme = when (state.themeMode) {
+                    ThemeMode.DARK -> true
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                }
+
                 SettingsSectionLabel(title = "Appearance")
                 Spacer(Modifier.height(dims.itemSpacingMedium))
                 SettingsCard {
+                    ThemeModeSelector(
+                        currentMode = state.themeMode,
+                        onModeSelected = { onAction(SettingsAction.OnThemeModeChanged(it)) }
+                    )
+
+                    AnimatedVisibility(
+                        visible = isDarkTheme,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Column {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                            SettingsToggleItem(
+                                icon = Icons.Default.DarkMode,
+                                title = "True black (OLED)",
+                                subtitle = "Pure black background for dark theme",
+                                checked = state.withAmoled,
+                                onCheckedChange = { onAction(SettingsAction.OnAmoledToggled(it)) }
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = dims.cardInnerPadding - 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+
                     ThemeSectionInCard(
                         selectedTheme = state.selectedTheme,
                         onThemeSelected = { onAction(SettingsAction.OnThemeChanged(it)) }
@@ -592,6 +642,119 @@ private fun SettingsToggleItem(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Theme Mode Selector – System / Light / Dark segmented controls
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ThemeModeSelector(
+    currentMode: ThemeMode,
+    onModeSelected: (ThemeMode) -> Unit
+) {
+    val dims = Dimens.current
+    val modes = listOf(
+        Triple(ThemeMode.SYSTEM, "System", Icons.Default.PhoneAndroid),
+        Triple(ThemeMode.LIGHT, "Light", Icons.Default.LightMode),
+        Triple(ThemeMode.DARK, "Dark", Icons.Default.DarkMode)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = dims.cardInnerPadding - 4.dp, vertical = dims.itemSpacingMedium)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = dims.itemSpacingMedium)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Palette,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(dims.iconSizeMedium)
+            )
+            Spacer(Modifier.width(dims.itemSpacingLarge))
+            Column {
+                Text(
+                    text = "App Theme",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = when (currentMode) {
+                        ThemeMode.SYSTEM -> "Follow system settings"
+                        ThemeMode.LIGHT -> "Always light"
+                        ThemeMode.DARK -> "Always dark"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(dims.buttonCornerRadius),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                modes.forEach { (mode, title, icon) ->
+                    val isSelected = currentMode == mode
+                    val bgColor by animateColorAsState(
+                        targetValue = if (isSelected)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            Color.Transparent,
+                        animationSpec = tween(250),
+                        label = "modeBg"
+                    )
+                    val contentColor by animateColorAsState(
+                        targetValue = if (isSelected)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(250),
+                        label = "modeContent"
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
+                            .background(bgColor)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onModeSelected(mode) }
+                            .padding(vertical = dims.itemSpacingMedium + 2.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = title,
+                            tint = contentColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = contentColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Theme Section – tabs + theme circles (inline inside card)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -670,7 +833,7 @@ private fun ThemeSectionInCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Wallpaper colors tab – shows the 4 theme circles with responsive spacing & sizes
+// Wallpaper colors tab – shows the theme circles with responsive spacing & sizes
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -680,7 +843,9 @@ private fun WallpaperColorsContent(
 ) {
     val dims = Dimens.current
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(dims.themeCircleSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -688,8 +853,7 @@ private fun WallpaperColorsContent(
             ThemeCircleOption(
                 theme = theme,
                 isSelected = selectedTheme == theme,
-                onClick = { onThemeSelected(theme) },
-                modifier = Modifier.weight(1f, fill = false)
+                onClick = { onThemeSelected(theme) }
             )
         }
     }
