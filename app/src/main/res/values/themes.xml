@@ -6,8 +6,8 @@
     <style name="Theme.DailyTrackMobile.Starting" parent="Theme.SplashScreen">
         <!-- Background color of the splash screen -->
         <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <!-- Center icon displayed during launch -->
-        <item name="windowSplashScreenAnimatedIcon">@drawable/app_logo</item>
+        <!-- Center icon displayed during launch with safe margins to prevent circular clipping -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
         <!-- Theme to switch to after the splash screen finishes -->
         <item name="postSplashScreenTheme">@style/Theme.DailyTrackMobile</item>
     </style>
