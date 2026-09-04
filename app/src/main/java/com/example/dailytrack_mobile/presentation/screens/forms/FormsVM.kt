@@ -24,6 +24,8 @@ data class AddMoneyFormState(
     val categories: List<String> = emptyList(),
     val mostUsedExpenseCategories: List<String> = emptyList(),
     val mostUsedIncomeCategories: List<String> = emptyList(),
+    val recentDescriptions: List<String> = emptyList(),
+    val descriptionsByCategory: Map<String, List<String>> = emptyMap(),
     val errorMessage: String? = null
 )
 
@@ -89,13 +91,21 @@ class FormsVM @Inject constructor(
                 .sortedByDescending { it.value.size }
                 .map { it.key }
 
+            val nonBlankTxs = txs.filter { !it.description.isNullOrBlank() }
+            val recentDescriptions = nonBlankTxs.map { it.description!!.trim() }.distinct()
+            val descriptionsByCategory = nonBlankTxs
+                .groupBy { it.heading }
+                .mapValues { (_, list) -> list.map { it.description!!.trim() }.distinct() }
+
             _addMoneyState.update { state ->
                 state.copy(
                     isLoadingData = false,
                     accounts = accountsRes.getOrNull()?.map { it.account } ?: state.accounts,
                     categories = categoriesRes.getOrNull() ?: state.categories,
                     mostUsedExpenseCategories = usedExpenses,
-                    mostUsedIncomeCategories = usedIncome
+                    mostUsedIncomeCategories = usedIncome,
+                    recentDescriptions = recentDescriptions,
+                    descriptionsByCategory = descriptionsByCategory
                 )
             }
         }
@@ -170,7 +180,20 @@ class FormsVM @Inject constructor(
             )
 
             result.onSuccess {
-                _addMoneyState.update { it.copy(isSaving = false) }
+                _addMoneyState.update { state ->
+                    val updatedRecent = if (!note.isNullOrBlank()) {
+                        (listOf(note.trim()) + state.recentDescriptions).distinct()
+                    } else state.recentDescriptions
+                    val updatedByCat = if (!note.isNullOrBlank()) {
+                        val existing = state.descriptionsByCategory[category].orEmpty()
+                        state.descriptionsByCategory + (category to (listOf(note.trim()) + existing).distinct())
+                    } else state.descriptionsByCategory
+                    state.copy(
+                        isSaving = false,
+                        recentDescriptions = updatedRecent,
+                        descriptionsByCategory = updatedByCat
+                    )
+                }
                 onSuccess()
             }.onFailure { error ->
                 _addMoneyState.update {

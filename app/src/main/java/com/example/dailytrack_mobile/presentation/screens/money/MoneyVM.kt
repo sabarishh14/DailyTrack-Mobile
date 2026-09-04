@@ -223,6 +223,8 @@ class MoneyVM @Inject constructor(
                                 analysisFilterState = filters.copy(
                                     customDateRange = Pair(startOfMonth, now),
                                     financialYear = null,
+                                    selectedMonth = null,
+                                    selectedYear = null,
                                     activeDatePreset = QuickFilterPreset.THIS_MONTH
                                 )
                             )
@@ -233,6 +235,8 @@ class MoneyVM @Inject constructor(
                             current.copy(
                                 analysisFilterState = filters.copy(
                                     customDateRange = null,
+                                    selectedMonth = null,
+                                    selectedYear = null,
                                     activeDatePreset = null
                                 )
                             )
@@ -260,6 +264,8 @@ class MoneyVM @Inject constructor(
                                 analysisFilterState = filters.copy(
                                     customDateRange = Pair(startOfLastMonth, endOfLastMonth),
                                     financialYear = null,
+                                    selectedMonth = null,
+                                    selectedYear = null,
                                     activeDatePreset = QuickFilterPreset.LAST_MONTH
                                 )
                             )
@@ -290,10 +296,25 @@ class MoneyVM @Inject constructor(
                 )
             }
 
-            is MoneyAction.ClearDateRangeFilter -> _state.update { current ->
+            is MoneyAction.ClearDateRangeFilter, is MoneyAction.ClearMonthYearFilter -> _state.update { current ->
                 current.copy(
                     analysisFilterState = current.analysisFilterState.copy(
                         customDateRange = null,
+                        selectedMonth = null,
+                        selectedYear = null,
+                        activeDatePreset = null
+                    )
+                )
+            }
+
+            is MoneyAction.SelectMonthYearFilter -> _state.update { current ->
+                val (start, end) = getMonthRangeMillis(action.month, action.year)
+                current.copy(
+                    analysisFilterState = current.analysisFilterState.copy(
+                        customDateRange = Pair(start, end),
+                        selectedMonth = action.month,
+                        selectedYear = action.year,
+                        financialYear = null,
                         activeDatePreset = null
                     )
                 )

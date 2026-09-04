@@ -19,6 +19,8 @@ sealed class MoneyAction {
     data class ToggleQuickPreset(val preset: QuickFilterPreset) : MoneyAction()
     object ClearFinancialYearFilter : MoneyAction()
     object ClearDateRangeFilter : MoneyAction()
+    data class SelectMonthYearFilter(val month: java.time.Month, val year: Int) : MoneyAction()
+    object ClearMonthYearFilter : MoneyAction()
     data class UpdateAnalysisFilterState(val filterState: AnalysisFilterState) : MoneyAction()
     data class ViewCategoryTransactions(
         val category: String,

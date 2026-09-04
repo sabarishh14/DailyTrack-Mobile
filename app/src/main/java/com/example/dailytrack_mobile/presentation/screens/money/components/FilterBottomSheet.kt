@@ -1,6 +1,7 @@
 package com.example.dailytrack_mobile.presentation.screens.money.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.*
@@ -21,8 +23,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dailytrack_mobile.presentation.components.MonthYearPickerDialog
 import com.example.dailytrack_mobile.presentation.screens.money.*
 import com.example.dailytrack_mobile.presentation.util.Dimens
+import java.time.LocalDate
+import java.time.Month
+import java.time.format.TextStyle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +45,7 @@ fun FilterBottomSheet(
 
     // Local draft state for filters
     var draftFilters by remember(filterState) { mutableStateOf(filterState) }
+    var showMonthYearPicker by remember { mutableStateOf(false) }
     var showDateRangePicker by remember { mutableStateOf(false) }
 
     val financialYears = listOf("All Time", "FY 2025-26", "FY 2024-25", "FY 2023-24", "FY 2022-23")
@@ -137,13 +145,30 @@ fun FilterBottomSheet(
                     selectedYear = draftFilters.financialYear ?: "All Time",
                     onYearSelected = {
                         draftFilters = draftFilters.copy(
-                            financialYear = if (it == "All Time") null else it
+                            financialYear = if (it == "All Time") null else it,
+                            selectedMonth = null,
+                            selectedYear = null,
+                            customDateRange = null
                         )
                     },
+                    selectedMonth = draftFilters.selectedMonth,
+                    selectedDateYear = draftFilters.selectedYear,
                     formattedDateRange = draftFilters.formattedDateRange(),
+                    onOpenMonthYearPicker = { showMonthYearPicker = true },
+                    onClearMonthYear = {
+                        draftFilters = draftFilters.copy(
+                            selectedMonth = null,
+                            selectedYear = null,
+                            customDateRange = null
+                        )
+                    },
                     onOpenDateRangePicker = { showDateRangePicker = true },
                     onClearDateRange = {
-                        draftFilters = draftFilters.copy(customDateRange = null)
+                        draftFilters = draftFilters.copy(
+                            customDateRange = null,
+                            selectedMonth = null,
+                            selectedYear = null
+                        )
                     },
                     fyDropdownExpanded = fyDropdownExpanded,
                     onDropdownExpandedChange = { fyDropdownExpanded = it }
@@ -259,6 +284,28 @@ fun FilterBottomSheet(
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Month Year Picker Dialog
+    // ─────────────────────────────────────────────────────────────────────────
+    if (showMonthYearPicker) {
+        MonthYearPickerDialog(
+            selectedMonth = draftFilters.selectedMonth ?: LocalDate.now().month,
+            selectedYear = draftFilters.selectedYear ?: LocalDate.now().year,
+            onSelected = { month, year ->
+                val (start, end) = getMonthRangeMillis(month, year)
+                draftFilters = draftFilters.copy(
+                    selectedMonth = month,
+                    selectedYear = year,
+                    customDateRange = Pair(start, end),
+                    financialYear = null,
+                    activeDatePreset = null
+                )
+                showMonthYearPicker = false
+            },
+            onDismiss = { showMonthYearPicker = false }
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Date Range Picker Dialog
     // ─────────────────────────────────────────────────────────────────────────
     if (showDateRangePicker) {
@@ -266,7 +313,13 @@ fun FilterBottomSheet(
             initialStartMillis = draftFilters.customDateRange?.first,
             initialEndMillis = draftFilters.customDateRange?.second,
             onConfirm = { start, end ->
-                draftFilters = draftFilters.copy(customDateRange = Pair(start, end))
+                draftFilters = draftFilters.copy(
+                    customDateRange = Pair(start, end),
+                    selectedMonth = null,
+                    selectedYear = null,
+                    financialYear = null,
+                    activeDatePreset = null
+                )
                 showDateRangePicker = false
             },
             onDismiss = { showDateRangePicker = false }
@@ -283,13 +336,19 @@ private fun DateTimeFilterSection(
     financialYears: List<String>,
     selectedYear: String,
     onYearSelected: (String) -> Unit,
+    selectedMonth: Month?,
+    selectedDateYear: Int?,
     formattedDateRange: String?,
+    onOpenMonthYearPicker: () -> Unit,
+    onClearMonthYear: () -> Unit,
     onOpenDateRangePicker: () -> Unit,
     onClearDateRange: () -> Unit,
     fyDropdownExpanded: Boolean,
     onDropdownExpandedChange: (Boolean) -> Unit
 ) {
     val dims = Dimens.current
+    val hasMonthYear = selectedMonth != null && selectedDateYear != null
+    val hasCustomRange = formattedDateRange != null && !hasMonthYear
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -304,7 +363,177 @@ private fun DateTimeFilterSection(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        // Financial Year Dropdown
+        // Option 1: Month & Year Picker Card (One-tap full month)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(dims.cardCornerRadius - 6.dp))
+                .clickable { onOpenMonthYearPicker() },
+            color = if (hasMonthYear) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(
+                width = if (hasMonthYear) 1.dp else 0.5.dp,
+                color = if (hasMonthYear) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            ),
+            shape = RoundedCornerShape(dims.cardCornerRadius - 6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = dims.screenHorizontalPadding, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (hasMonthYear) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarMonth,
+                            contentDescription = "Month & Year",
+                            tint = if (hasMonthYear) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Month & Year",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (hasMonthYear) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (hasMonthYear) "${selectedMonth.getDisplayName(TextStyle.FULL, Locale.getDefault())} $selectedDateYear"
+                            else "Tap to select month (e.g. June 2026)",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (hasMonthYear) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            color = if (hasMonthYear) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                if (hasMonthYear) {
+                    IconButton(
+                        onClick = onClearMonthYear,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear month & year",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select Month & Year",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+
+        // Option 2: Custom Date Range Card Button (Custom start & end dates)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(dims.cardCornerRadius - 6.dp))
+                .clickable { onOpenDateRangePicker() },
+            color = if (hasCustomRange) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(
+                width = if (hasCustomRange) 1.dp else 0.5.dp,
+                color = if (hasCustomRange) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            ),
+            shape = RoundedCornerShape(dims.cardCornerRadius - 6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = dims.screenHorizontalPadding, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (hasCustomRange) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceContainerHighest
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.DateRange,
+                            contentDescription = "Custom Date Range",
+                            tint = if (hasCustomRange) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Custom Date Range",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (hasCustomRange) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (hasCustomRange) (formattedDateRange ?: "")
+                            else "Pick custom start & end dates",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (hasCustomRange) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            color = if (hasCustomRange) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                if (hasCustomRange) {
+                    IconButton(
+                        onClick = onClearDateRange,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear date range",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Pick Range",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+
+        // Option 3: Financial Year Dropdown
         ExposedDropdownMenuBox(
             expanded = fyDropdownExpanded,
             onExpandedChange = onDropdownExpandedChange,
@@ -317,9 +546,10 @@ private fun DateTimeFilterSection(
                 label = { Text("Financial Year") },
                 leadingIcon = {
                     Icon(
-                        imageVector = Icons.Outlined.CalendarMonth,
+                        imageVector = Icons.Outlined.AccountBalance,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (selectedYear != "All Time") MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
                 trailingIcon = {
@@ -366,73 +596,6 @@ private fun DateTimeFilterSection(
                                 )
                             }
                         } else null
-                    )
-                }
-            }
-        }
-
-        // Custom Date Range Card Button
-        val hasCustomRange = formattedDateRange != null
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(dims.cardCornerRadius - 6.dp))
-                .clickable { onOpenDateRangePicker() },
-            color = if (hasCustomRange) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-            else MaterialTheme.colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(dims.cardCornerRadius - 6.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = dims.screenHorizontalPadding, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.DateRange,
-                        contentDescription = "Custom Date Range",
-                        tint = if (hasCustomRange) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Column {
-                        Text(
-                            text = if (hasCustomRange) "Custom Range" else "Custom Date Range",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formattedDateRange ?: "Tap to pick date range",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = if (hasCustomRange) FontWeight.SemiBold else FontWeight.Normal
-                            ),
-                            color = if (hasCustomRange) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-
-                if (hasCustomRange) {
-                    IconButton(
-                        onClick = onClearDateRange,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear date range",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Pick Range",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 }
             }

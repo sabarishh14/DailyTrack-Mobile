@@ -389,6 +389,27 @@ private fun ActiveFiltersChipRow(
             }
         }
 
+        // Active Categories (Moved to FRONT right after Clear All!)
+        filterState.categoryFilters.forEach { (cat, status) ->
+            when (status) {
+                ItemFilterStatus.INCLUDED -> {
+                    ActiveFilterChipItem(
+                        text = "+ $cat",
+                        isIncluded = true,
+                        onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
+                    )
+                }
+                ItemFilterStatus.EXCLUDED -> {
+                    ActiveFilterChipItem(
+                        text = "- $cat",
+                        isExcluded = true,
+                        onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
+                    )
+                }
+                ItemFilterStatus.NEUTRAL -> Unit
+            }
+        }
+
         // Active Quick Date Preset
         if (filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH) {
             ActiveFilterChipItem(
@@ -428,27 +449,6 @@ private fun ActiveFiltersChipRow(
                     text = type.displayName,
                     onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
                 )
-            }
-        }
-
-        // Active Categories
-        filterState.categoryFilters.forEach { (cat, status) ->
-            when (status) {
-                ItemFilterStatus.INCLUDED -> {
-                    ActiveFilterChipItem(
-                        text = "+ $cat",
-                        isIncluded = true,
-                        onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
-                    )
-                }
-                ItemFilterStatus.EXCLUDED -> {
-                    ActiveFilterChipItem(
-                        text = "- $cat",
-                        isExcluded = true,
-                        onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
-                    )
-                }
-                ItemFilterStatus.NEUTRAL -> Unit
             }
         }
 

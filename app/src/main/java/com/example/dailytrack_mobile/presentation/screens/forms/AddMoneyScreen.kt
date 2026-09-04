@@ -1,11 +1,20 @@
 package com.example.dailytrack_mobile.presentation.screens.forms
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +34,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
@@ -89,15 +100,37 @@ fun AddMoneyScreen(
     var categorySearchQuery by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var isDescriptionFocused by remember { mutableStateOf(false) }
+    var showSuggestions by remember { mutableStateOf(false) }
+
+    val focusManager = LocalFocusManager.current
+    val dims = Dimens.current
+    val amountFocusRequester = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+
+    // Smoothly scroll and manage suggestions when description focus changes
+    LaunchedEffect(isDescriptionFocused) {
+        if (isDescriptionFocused) {
+            showSuggestions = true
+            // Allow keyboard opening animation to start, then smoothly scroll Description into comfortable view
+            kotlinx.coroutines.delay(120)
+            scrollState.animateScrollTo(scrollState.maxValue)
+        } else {
+            kotlinx.coroutines.delay(200)
+            showSuggestions = false
+        }
+    }
+
+    // Intercept back gesture while Description is focused to dismiss keyboard cleanly
+    BackHandler(enabled = isDescriptionFocused) {
+        focusManager.clearFocus()
+    }
+
     var selectedAccount by remember { mutableStateOf<String?>(null) }
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var excludeAnalytics by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showAccountSheet by remember { mutableStateOf(false) }
-
-    val amountFocusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    val dims = Dimens.current
 
     val accountsList = remember(formState.accounts) {
         val list = if (formState.accounts.isNotEmpty()) formState.accounts else defaultAccounts
@@ -159,6 +192,32 @@ fun AddMoneyScreen(
             top6 + categoryInput
         } else {
             top6
+        }
+    }
+
+    // Contextual Description Suggestions:
+    // Prioritize past descriptions under the currently selected category,
+    // followed by other recent descriptions across categories.
+    val descriptionSuggestions = remember(
+        categoryInput,
+        note,
+        formState.descriptionsByCategory,
+        formState.recentDescriptions
+    ) {
+        val categoryList = if (categoryInput.isNotBlank()) {
+            formState.descriptionsByCategory[categoryInput.trim()].orEmpty()
+        } else {
+            emptyList()
+        }
+        val combined = (categoryList + formState.recentDescriptions).distinct()
+        val query = note.trim()
+        if (query.isBlank()) {
+            combined.take(6)
+        } else {
+            val (startsWith, contains) = combined
+                .filter { !it.equals(query, ignoreCase = true) }
+                .partition { it.startsWith(query, ignoreCase = true) }
+            (startsWith + contains.filter { it.contains(query, ignoreCase = true) }).take(6)
         }
     }
 
@@ -359,13 +418,19 @@ fun AddMoneyScreen(
 
     val activeAmountColor = if (selectedType == TransactionType.EXPENSE) expenseAccentColor else incomeAccentColor
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = dims.screenHorizontalPadding, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .imePadding()
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = dims.screenHorizontalPadding, vertical = 12.dp)
+                .padding(bottom = if (showSuggestions && descriptionSuggestions.isNotEmpty()) 76.dp else 0.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // ── Error Banner if any ──────────────────────────────────────
         formState.errorMessage?.let { errorMsg ->
             Card(
@@ -750,14 +815,33 @@ fun AddMoneyScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
-                Text(
-                    text = "DESCRIPTION",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.2.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "DESCRIPTION",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.2.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                    if (note.isNotBlank()) {
+                        Text(
+                            text = "Clear",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { note = "" }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -771,12 +855,14 @@ fun AddMoneyScreen(
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     minLines = 2,
                     maxLines = 3,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isDescriptionFocused = it.isFocused },
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.TopStart) {
                             if (note.isEmpty()) {
                                 Text(
-                                    text = "Optional note...",
+                                    text = "Optional note (suggestions appear above keyboard)...",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
@@ -891,6 +977,105 @@ fun AddMoneyScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+
+    // ── Docked Keyboard Suggestion Accessory Bar ─────────────────────
+    // Floats directly attached above the soft keyboard keys
+    AnimatedVisibility(
+        visible = showSuggestions && descriptionSuggestions.isNotEmpty(),
+        enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { it },
+        exit = fadeOut(tween(150)) + slideOutVertically(tween(150)) { it },
+        modifier = Modifier.align(Alignment.BottomCenter)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp,
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (categoryInput.isNotBlank()) "SUGGESTIONS FOR ${categoryInput.uppercase()}" else "RECENT DESCRIPTIONS",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.5.sp
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "1-tap to fill",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    descriptionSuggestions.forEach { suggestion ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            ),
+                            onClick = {
+                                note = suggestion
+                                focusManager.clearFocus()
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = suggestion,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
     if (showAccountSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

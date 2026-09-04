@@ -254,15 +254,17 @@ fun MainScreen(
             }
         },
         bottomBar = {
-            BottomNavBar(
-                currentRoute = currentRoute,
-                onNavigate = { targetRoute ->
-                    if (targetRoute == Routes.Money.route && currentRoute != Routes.Money.route) {
-                        moneyInitialTab = null
+            if (!isFormScreen) {
+                BottomNavBar(
+                    currentRoute = currentRoute,
+                    onNavigate = { targetRoute ->
+                        if (targetRoute == Routes.Money.route && currentRoute != Routes.Money.route) {
+                            moneyInitialTab = null
+                        }
+                        navigateSafely(targetRoute)
                     }
-                    navigateSafely(targetRoute)
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
             if (!isFormScreen) {
@@ -293,6 +295,7 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
         ) {
             when (currentRoute) {
                 Routes.Home.route -> HomeScreen()

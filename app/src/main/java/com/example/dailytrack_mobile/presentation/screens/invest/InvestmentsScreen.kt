@@ -91,12 +91,34 @@ fun InvestmentsScreen(
         onRefresh = { viewModel.onAction(InvestAction.Refresh) },
         modifier = Modifier.fillMaxSize()
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
-        ) {
+        if (state.isLoading && state.holdings.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Text(
+                        text = "Loading portfolio...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+            ) {
             // ── Portfolio header ────────────────────────────────────────────
             item {
                 PortfolioHeader(
@@ -164,6 +186,7 @@ fun InvestmentsScreen(
             }
         }
     }
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

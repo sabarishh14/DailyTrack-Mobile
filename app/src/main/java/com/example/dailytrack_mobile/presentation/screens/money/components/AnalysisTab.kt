@@ -8,8 +8,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +35,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawBehind
+import com.example.dailytrack_mobile.presentation.components.MonthYearPickerDialog
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -234,6 +240,19 @@ private fun AnalysisFilterRow(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val clearButtonWidthPx = remember { with(density) { 88.dp.toPx().toInt() } }
     val scrollState = rememberScrollState(initial = if (filterState.hasActiveFilters) clearButtonWidthPx else 0)
+    var showMonthYearPicker by remember { mutableStateOf(false) }
+
+    if (showMonthYearPicker) {
+        MonthYearPickerDialog(
+            selectedMonth = filterState.selectedMonth ?: LocalDate.now().month,
+            selectedYear = filterState.selectedYear ?: LocalDate.now().year,
+            onSelected = { month, year ->
+                onAction(MoneyAction.SelectMonthYearFilter(month, year))
+                showMonthYearPicker = false
+            },
+            onDismiss = { showMonthYearPicker = false }
+        )
+    }
 
     LaunchedEffect(filterState.hasActiveFilters) {
         if (filterState.hasActiveFilters && scrollState.value < clearButtonWidthPx) {
@@ -305,8 +324,49 @@ private fun AnalysisFilterRow(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
+            // 1. Active Category Filters (Included / Excluded) - Placed FIRST so selected categories appear prominently!
+            filterState.categoryFilters.forEach { (cat, status) ->
+                when (status) {
+                    ItemFilterStatus.INCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "+ $cat",
+                            isIncluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
+                        )
+                    }
+                    ItemFilterStatus.EXCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "- $cat",
+                            isExcluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
+                        )
+                    }
+                    ItemFilterStatus.NEUTRAL -> Unit
+                }
+            }
 
-            // 2. "This Month" Quick Preset Pill
+            // 2. Active Account Filters (Included / Excluded)
+            filterState.accountFilters.forEach { (acc, status) ->
+                when (status) {
+                    ItemFilterStatus.INCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "+ $acc",
+                            isIncluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveAccountFilter(acc)) }
+                        )
+                    }
+                    ItemFilterStatus.EXCLUDED -> {
+                        ActiveFilterRemovableChip(
+                            text = "- $acc",
+                            isExcluded = true,
+                            onRemove = { onAction(MoneyAction.RemoveAccountFilter(acc)) }
+                        )
+                    }
+                    ItemFilterStatus.NEUTRAL -> Unit
+                }
+            }
+
+            // 3. "This Month" Quick Preset Pill
             val isThisMonth = filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH
             QuickPresetChip(
                 text = "This Month",
@@ -314,7 +374,7 @@ private fun AnalysisFilterRow(
                 onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.THIS_MONTH)) }
             )
 
-            // 3. "Expenses Only" Quick Preset Pill
+            // 4. "Expenses Only" Quick Preset Pill
             val isExpensesOnly = filterState.selectedTypes == setOf(TransactionType.DEBIT)
             QuickPresetChip(
                 text = "Expenses Only",
@@ -322,7 +382,7 @@ private fun AnalysisFilterRow(
                 onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
             )
 
-            // 4. "Last Month" Quick Preset Pill (After Expenses Only in UI)
+            // 5. "Last Month" Quick Preset Pill (After Expenses Only in UI)
             val isLastMonth = filterState.activeDatePreset == QuickFilterPreset.LAST_MONTH
             QuickPresetChip(
                 text = "Last Month",
@@ -330,7 +390,20 @@ private fun AnalysisFilterRow(
                 onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_MONTH)) }
             )
 
-            // 5. "Income Only" Quick Preset Pill
+            // 6. "Month / Year" Quick Action Pill
+            val isMonthYearActive = filterState.selectedMonth != null && filterState.selectedYear != null
+            val monthYearText = if (isMonthYearActive) {
+                "${filterState.selectedMonth!!.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${filterState.selectedYear}"
+            } else {
+                "Month / Year"
+            }
+            QuickPresetChip(
+                text = monthYearText,
+                isSelected = isMonthYearActive,
+                onClick = { showMonthYearPicker = true }
+            )
+
+            // 7. "Income Only" Quick Preset Pill
             val isIncomeOnly = filterState.selectedTypes == setOf(TransactionType.CREDIT)
             QuickPresetChip(
                 text = "Income Only",
@@ -363,48 +436,6 @@ private fun AnalysisFilterRow(
                         text = type.displayName,
                         onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
                     )
-                }
-            }
-
-            // Active Category Filters (Included / Excluded)
-            filterState.categoryFilters.forEach { (cat, status) ->
-                when (status) {
-                    ItemFilterStatus.INCLUDED -> {
-                        ActiveFilterRemovableChip(
-                            text = "+ $cat",
-                            isIncluded = true,
-                            onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
-                        )
-                    }
-                    ItemFilterStatus.EXCLUDED -> {
-                        ActiveFilterRemovableChip(
-                            text = "- $cat",
-                            isExcluded = true,
-                            onRemove = { onAction(MoneyAction.RemoveCategoryFilter(cat)) }
-                        )
-                    }
-                    ItemFilterStatus.NEUTRAL -> Unit
-                }
-            }
-
-            // Active Account Filters (Included / Excluded)
-            filterState.accountFilters.forEach { (acc, status) ->
-                when (status) {
-                    ItemFilterStatus.INCLUDED -> {
-                        ActiveFilterRemovableChip(
-                            text = "+ $acc",
-                            isIncluded = true,
-                            onRemove = { onAction(MoneyAction.RemoveAccountFilter(acc)) }
-                        )
-                    }
-                    ItemFilterStatus.EXCLUDED -> {
-                        ActiveFilterRemovableChip(
-                            text = "- $acc",
-                            isExcluded = true,
-                            onRemove = { onAction(MoneyAction.RemoveAccountFilter(acc)) }
-                        )
-                    }
-                    ItemFilterStatus.NEUTRAL -> Unit
                 }
             }
         }
@@ -598,7 +629,12 @@ private fun CashFlowBreakdownCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(dims.cardInnerPadding),
+                .padding(
+                    start = dims.cardInnerPadding,
+                    end = dims.cardInnerPadding,
+                    top = dims.cardInnerPadding,
+                    bottom = (dims.cardInnerPadding - 6.dp).coerceAtLeast(8.dp)
+                ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Section label
@@ -657,7 +693,34 @@ private fun CashFlowBreakdownCard(
             }
 
             if (!isLoading) {
-                Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
+
+                // Section header row: CATEGORIES label + "Tap to show" hint
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CATEGORIES",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Tap to show ›",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Swipeable Legend Pages if multiple, or simple compact grid if single page
                 if (pages.size > 1) {
@@ -1015,17 +1078,16 @@ private fun LegendGrid(
     isDtOg: Boolean = false,
     onCategoryClick: (String) -> Unit
 ) {
-    val dims = Dimens.current
     // Chunk into rows of 2
     val rows = categories.chunked(2)
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         rows.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 row.forEach { category ->
                     LegendItem(
@@ -1051,37 +1113,50 @@ private fun LegendItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dims = Dimens.current
-    val indicatorShape = if (isDtOg) RoundedCornerShape(3.dp) else CircleShape
+    val indicatorShape = if (isDtOg) RoundedCornerShape(2.dp) else CircleShape
 
-    Row(
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(dims.buttonCornerRadius - 4.dp))
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 4.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+            .padding(horizontal = 9.dp, vertical = 6.dp)
     ) {
-        // Color dot / square
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(indicatorShape)
-                .background(category.color)
-        )
-        // Label
-        Text(
-            text = category.name,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f, fill = false)
-        )
-        // Amount
-        Text(
-            text = formatCompact(category.amount),
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                // Color dot / square
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(indicatorShape)
+                        .background(category.color)
+                )
+                // Label
+                Text(
+                    text = category.name,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            // Amount
+            Text(
+                text = "₹${formatCompact(category.amount)}",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 

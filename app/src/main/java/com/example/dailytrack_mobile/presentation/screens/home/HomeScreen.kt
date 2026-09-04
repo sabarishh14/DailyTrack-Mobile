@@ -2,6 +2,11 @@ package com.example.dailytrack_mobile.presentation.screens.home
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,13 +33,17 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Money
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -53,6 +62,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
+import com.example.dailytrack_mobile.presentation.components.MonthYearPickerDialog
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared accent colours (theme-agnostic, same pattern as ActivitiesScreen)
@@ -125,9 +135,11 @@ fun HomeScreen(
         }.sortedByDescending { it.amount }
     }
 
-    // Compute bank balance from API accounts
+    // Compute bank balance from API accounts (only balance_tracked accounts on main page)
     val apiBankBalance = homeState.totalBankBalance
-    val apiAccounts = homeState.accounts
+    val apiAccounts = remember(homeState.accounts) {
+        homeState.accounts.filter { it.balanceTracked }
+    }
     val totalNetWorth = apiBankBalance + homeState.investmentTotalCurrent
 
     DailyTrackPullToRefreshBox(
@@ -165,7 +177,8 @@ fun HomeScreen(
             item { 
                 InvestmentPortfolioSection(
                     totalInvested = homeState.investmentTotalInvested,
-                    totalCurrent = homeState.investmentTotalCurrent
+                    totalCurrent  = homeState.investmentTotalCurrent,
+                    isLoading     = homeState.isLoading
                 ) 
             }
             item {
@@ -208,8 +221,11 @@ private fun NetWorthSection(
 ) {
     val dims = Dimens.current
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
+    var isBalanceVisible by rememberSaveable { mutableStateOf(false) }
 
-    SectionCard {
+    SectionCard(
+        onClick = { isBalanceVisible = !isBalanceVisible }
+    ) {
         HorizontalPager(
             state    = pagerState,
             modifier = Modifier.fillMaxWidth()
@@ -222,7 +238,20 @@ private fun NetWorthSection(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (page == 0) {
-                    SectionLabel(text = "TOTAL BANK BALANCE")
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.size(20.dp))
+                        SectionLabel(text = "TOTAL BANK BALANCE")
+                        Icon(
+                            imageVector        = if (isBalanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (isBalanceVisible) "Hide balance" else "Show balance",
+                            tint               = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier           = Modifier.size(18.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -231,23 +260,52 @@ private fun NetWorthSection(
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else {
-                        Text(
-                            text  = formatCurrencyFull(totalBankBalance),
-                            style = MaterialTheme.typography.displaySmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize   = dims.fontSizeDisplayLarge
-                            ),
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        AnimatedContent(
+                            targetState = isBalanceVisible,
+                            label       = "BankBalanceVisibility"
+                        ) { visible ->
+                            Text(
+                                text  = if (visible) formatCurrencyFull(totalBankBalance) else "₹XXXX",
+                                style = MaterialTheme.typography.displaySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize   = dims.fontSizeDisplayLarge,
+                                    letterSpacing = if (visible) 0.sp else 2.sp
+                                ),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text  = "$accountCount Linked Bank Accounts",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text  = "$accountCount Linked Bank Accounts",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text  = if (isBalanceVisible) "· Tap to hide" else "· Tap to show",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                        )
+                    }
                 } else {
-                    SectionLabel(text = "NET WORTH")
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.size(20.dp))
+                        SectionLabel(text = "NET WORTH")
+                        Icon(
+                            imageVector        = if (isBalanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (isBalanceVisible) "Hide balance" else "Show balance",
+                            tint               = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier           = Modifier.size(18.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -256,21 +314,37 @@ private fun NetWorthSection(
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else {
-                        Text(
-                            text  = formatCurrencyFull(totalNetWorth),
-                            style = MaterialTheme.typography.displaySmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize   = dims.fontSizeDisplayLarge
-                            ),
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        AnimatedContent(
+                            targetState = isBalanceVisible,
+                            label       = "NetWorthVisibility"
+                        ) { visible ->
+                            Text(
+                                text  = if (visible) formatCurrencyFull(totalNetWorth) else "₹XXXX",
+                                style = MaterialTheme.typography.displaySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize   = dims.fontSizeDisplayLarge,
+                                    letterSpacing = if (visible) 0.sp else 2.sp
+                                ),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text  = "Banks · Cash · Investments",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text  = "Banks · Cash · Investments",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text  = if (isBalanceVisible) "· Tap to hide" else "· Tap to show",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                        )
+                    }
                 }
             }
         }
@@ -287,7 +361,7 @@ private fun BankAccountsSection(
     isLoading: Boolean
 ) {
     val dims = Dimens.current
-    var isExpanded by rememberSaveable { mutableStateOf(true) }
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
     var isGridView by rememberSaveable { mutableStateOf(true) }
 
     SectionCard {
@@ -299,8 +373,9 @@ private fun BankAccountsSection(
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 SectionLabel(
-                    text    = "BANK BALANCES",
-                    onClick = { isExpanded = !isExpanded }
+                    text       = "BANK BALANCES",
+                    isExpanded = isExpanded,
+                    onClick    = { isExpanded = !isExpanded }
                 )
 
                 Row(
@@ -368,8 +443,16 @@ private fun BankAccountsSection(
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter   = expandVertically() + fadeIn(),
-                exit    = shrinkVertically() + fadeOut()
+                enter   = fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
+                          expandVertically(
+                              expandFrom = Alignment.Top,
+                              animationSpec = tween(280, easing = FastOutSlowInEasing)
+                          ),
+                exit    = fadeOut(animationSpec = tween(150, easing = FastOutLinearInEasing)) +
+                          shrinkVertically(
+                              shrinkTowards = Alignment.Top,
+                              animationSpec = tween(240, easing = FastOutSlowInEasing)
+                          )
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
                     if (isLoading && accounts.isEmpty()) {
@@ -483,20 +566,11 @@ private fun BankAccountRow(account: AccountInfo) {
                     modifier           = Modifier.size(dims.iconSizeSmall + 2.dp)
                 )
             }
-            Column {
-                Text(
-                    text  = account.account,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (account.realBalance != null) {
-                    Text(
-                        text  = "Verified ✓",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = GainGreen
-                    )
-                }
-            }
+            Text(
+                text  = account.account,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
         Text(
             text  = formatCurrencyFull(account.balance),
@@ -528,32 +602,19 @@ private fun BankAccountCard(
                 .padding(dims.itemSpacingLarge),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+            Box(
+                modifier         = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier         = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector        = if (isCreditCard) Icons.Default.CreditCard else Icons.Default.AccountBalance,
-                        contentDescription = null,
-                        tint               = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier           = Modifier.size(16.dp)
-                    )
-                }
-                if (account.realBalance != null) {
-                    Text(
-                        text  = "Verified ✓",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = GainGreen
-                    )
-                }
+                Icon(
+                    imageVector        = if (isCreditCard) Icons.Default.CreditCard else Icons.Default.AccountBalance,
+                    contentDescription = null,
+                    tint               = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier           = Modifier.size(16.dp)
+                )
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -582,14 +643,15 @@ private fun BankAccountCard(
 @Composable
 private fun InvestmentPortfolioSection(
     totalInvested: Double,
-    totalCurrent: Double
+    totalCurrent: Double,
+    isLoading: Boolean = false
 ) {
     val dims = Dimens.current
     val totalReturns = totalCurrent - totalInvested
     val isOverallGain   = totalReturns >= 0
     val overallColor    = if (isOverallGain) GainGreen else LossRed
     val totalReturnsPct = if (totalInvested == 0.0) 0.0 else (totalReturns / totalInvested) * 100.0
-    var isExpanded by rememberSaveable { mutableStateOf(true) }
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
@@ -599,18 +661,41 @@ private fun InvestmentPortfolioSection(
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 SectionLabel(
-                    text    = "INVESTMENT PORTFOLIO",
-                    onClick = { isExpanded = !isExpanded }
+                    text       = "INVESTMENT PORTFOLIO",
+                    isExpanded = isExpanded,
+                    onClick    = { isExpanded = !isExpanded }
                 )
             }
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter   = expandVertically() + fadeIn(),
-                exit    = shrinkVertically() + fadeOut()
+                enter   = fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
+                          expandVertically(
+                              expandFrom = Alignment.Top,
+                              animationSpec = tween(280, easing = FastOutSlowInEasing)
+                          ),
+                exit    = fadeOut(animationSpec = tween(150, easing = FastOutLinearInEasing)) +
+                          shrinkVertically(
+                              shrinkTowards = Alignment.Top,
+                              animationSpec = tween(240, easing = FastOutSlowInEasing)
+                          )
             ) {
-                // 2x2 Grid of metric cards
-                Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
+                if (isLoading && totalInvested == 0.0 && totalCurrent == 0.0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = dims.itemSpacingLarge),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    // 2x2 Grid of metric cards
+                    Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)) {
                     // Row 1: Invested & Current
                     Row(
                         modifier              = Modifier.fillMaxWidth(),
@@ -651,6 +736,7 @@ private fun InvestmentPortfolioSection(
             }
         }
     }
+}
 }
 
 @Composable
@@ -722,7 +808,7 @@ private fun FlowSection(
     val accentColor = if (isIncome) GainGreen else LossRed
     val total       = flows.sumOf { it.amount }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
-    var isExpanded by rememberSaveable { mutableStateOf(true) }
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
 
     SectionCard {
         Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
@@ -733,8 +819,9 @@ private fun FlowSection(
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 SectionLabel(
-                    text    = title,
-                    onClick = { isExpanded = !isExpanded }
+                    text       = title,
+                    isExpanded = isExpanded,
+                    onClick    = { isExpanded = !isExpanded }
                 )
 
                 Surface(
@@ -771,8 +858,16 @@ private fun FlowSection(
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter   = expandVertically() + fadeIn(),
-                exit    = shrinkVertically() + fadeOut()
+                enter   = fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
+                          expandVertically(
+                              expandFrom = Alignment.Top,
+                              animationSpec = tween(280, easing = FastOutSlowInEasing)
+                          ),
+                exit    = fadeOut(animationSpec = tween(150, easing = FastOutLinearInEasing)) +
+                          shrinkVertically(
+                              shrinkTowards = Alignment.Top,
+                              animationSpec = tween(240, easing = FastOutSlowInEasing)
+                          )
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
                     // Total row
@@ -870,148 +965,50 @@ private fun FlowRow(flow: FlowBreakdown, accentColor: Color) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Month/Year picker dialog
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun MonthYearPickerDialog(
-    selectedMonth: Month,
-    selectedYear: Int,
-    onDismiss: () -> Unit,
-    onSelected: (Month, Int) -> Unit
-) {
-    var displayYear by remember { mutableIntStateOf(selectedYear) }
-    val dims = Dimens.current
-    val screenWidth = LocalConfiguration.current.screenWidthDp
-    val dialogFraction = when {
-        screenWidth < 360  -> 0.92f
-        screenWidth <= 410 -> 0.88f
-        else               -> 0.82f
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties       = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            shape     = RoundedCornerShape(dims.cardCornerRadius + 4.dp),
-            colors    = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            modifier  = Modifier
-                .fillMaxWidth(dialogFraction)
-                .wrapContentHeight()
-        ) {
-            Column(
-                modifier            = Modifier.padding(dims.cardInnerPadding),
-                verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
-            ) {
-                // Dialog title
-                Text(
-                    text  = "Select Month & Year",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                // Year navigation
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { displayYear-- }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "Previous year",
-                            tint               = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text(
-                        text  = displayYear.toString(),
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    IconButton(onClick = { displayYear++ }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "Next year",
-                            tint               = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                )
-
-                // Month grid (3 columns × 4 rows)
-                val months  = Month.entries
-                val chunked = months.chunked(3)
-                chunked.forEach { row ->
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
-                    ) {
-                        row.forEach { month ->
-                            val isSelected = month == selectedMonth && displayYear == selectedYear
-                            val bgColor = if (isSelected)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                Color.Transparent
-                            val textColor = if (isSelected)
-                                MaterialTheme.colorScheme.onPrimary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(bgColor)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication        = null
-                                    ) { onSelected(month, displayYear) }
-                                    .padding(vertical = dims.itemSpacingLarge),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text  = month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = textColor
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reusable building blocks
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+private fun SectionCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
     val dims = Dimens.current
-    Card(
-        modifier  = Modifier.fillMaxWidth(),
-        shape     = RoundedCornerShape(dims.cardCornerRadius),
-        colors    = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(dims.cardInnerPadding),
-            content  = content
-        )
+    if (onClick != null) {
+        Card(
+            onClick   = onClick,
+            modifier  = Modifier.fillMaxWidth().then(modifier),
+            shape     = RoundedCornerShape(dims.cardCornerRadius),
+            colors    = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(dims.cardInnerPadding),
+                content  = content
+            )
+        }
+    } else {
+        Card(
+            modifier  = Modifier.fillMaxWidth().then(modifier),
+            shape     = RoundedCornerShape(dims.cardCornerRadius),
+            colors    = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(dims.cardInnerPadding),
+                content  = content
+            )
+        }
     }
 }
 
@@ -1019,22 +1016,44 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
 private fun SectionLabel(
     text: String,
     modifier: Modifier = Modifier,
+    isExpanded: Boolean? = null,
     onClick: (() -> Unit)? = null
 ) {
-    Text(
-        text     = text,
-        style    = MaterialTheme.typography.labelLarge.copy(
-            fontWeight    = FontWeight.Bold,
-            letterSpacing = 1.5.sp
-        ),
-        color    = MaterialTheme.colorScheme.primary,
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded == true) 0f else -90f,
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "sectionChevronRotation"
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = if (onClick != null) {
             modifier
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(6.dp))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication        = null
                 ) { onClick() }
         } else modifier
-    )
+    ) {
+        Text(
+            text     = text,
+            style    = MaterialTheme.typography.labelLarge.copy(
+                fontWeight    = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            ),
+            color    = MaterialTheme.colorScheme.primary
+        )
+        if (isExpanded != null) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .size(16.dp)
+                    .rotate(chevronRotation)
+            )
+        }
+    }
 }

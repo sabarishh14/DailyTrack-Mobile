@@ -2,6 +2,8 @@ package com.example.dailytrack_mobile.presentation.screens.money
 
 import androidx.compose.ui.graphics.Color
 import java.text.SimpleDateFormat
+import java.time.Month
+import java.time.format.TextStyle
 import java.util.Date
 import java.util.Locale
 
@@ -110,6 +112,8 @@ data class AnalysisFilterState(
     // Date & Time
     val financialYear: String? = null, // e.g. "FY 2025-26"
     val customDateRange: Pair<Long?, Long?>? = null, // Pair of Start & End epoch millis
+    val selectedMonth: Month? = null,
+    val selectedYear: Int? = null,
     val activeDatePreset: QuickFilterPreset? = null
 ) {
     val activeFilterCount: Int
@@ -127,6 +131,10 @@ data class AnalysisFilterState(
         get() = activeFilterCount > 0
 
     fun formattedDateRange(): String? {
+        if (selectedMonth != null && selectedYear != null) {
+            val monthName = selectedMonth.getDisplayName(TextStyle.FULL, Locale.getDefault())
+            return "$monthName $selectedYear"
+        }
         val range = customDateRange ?: return null
         val start = range.first
         val end = range.second
@@ -138,6 +146,25 @@ data class AnalysisFilterState(
             else -> null
         }
     }
+}
+
+/**
+ * Calculates epoch millis for the exact start (00:00:00.000) and end (23:59:59.999) of a given [month] and [year].
+ */
+fun getMonthRangeMillis(month: Month, year: Int): Pair<Long, Long> {
+    val zone = java.time.ZoneId.systemDefault()
+    val startOfMonth = java.time.LocalDate.of(year, month, 1)
+        .atStartOfDay(zone)
+        .toInstant()
+        .toEpochMilli()
+
+    val endOfMonth = java.time.LocalDate.of(year, month, month.length(java.time.Year.isLeap(year.toLong())))
+        .atTime(java.time.LocalTime.MAX)
+        .atZone(zone)
+        .toInstant()
+        .toEpochMilli()
+
+    return Pair(startOfMonth, endOfMonth)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

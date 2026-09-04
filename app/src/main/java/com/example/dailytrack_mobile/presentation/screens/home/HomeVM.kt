@@ -50,14 +50,16 @@ class HomeVM @Inject constructor(
             val investmentsResult = investmentsRepository.getFullPortfolio(forceRefresh = forceRefresh)
 
             if (accountsResult.isSuccess && transactionsResult.isSuccess) {
-                val accounts = accountsResult.getOrThrow().map { dto ->
-                    AccountInfo(
-                        account = dto.account,
-                        balance = dto.balance,
-                        realBalance = dto.realBalance,
-                        balanceTracked = dto.balanceTracked
-                    )
-                }.sortedByDescending { it.realBalance != null }
+                val accounts = accountsResult.getOrThrow()
+                    .filter { it.balanceTracked }
+                    .map { dto ->
+                        AccountInfo(
+                            account = dto.account,
+                            balance = dto.balance,
+                            realBalance = dto.realBalance,
+                            balanceTracked = dto.balanceTracked
+                        )
+                    }
                 
                 val transactions = transactionsResult.getOrThrow().transactions
                 
