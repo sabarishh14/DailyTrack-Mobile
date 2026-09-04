@@ -85,7 +85,7 @@ fun TransactionDetailBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.88f)
+                .fillMaxHeight(0.79f)
         ) {
             // ── Top Bar Header ───────────────────────────────────────────
             Row(
@@ -163,15 +163,36 @@ fun TransactionDetailBottomSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val (badgeBg, badgeFg, badgeText) = when {
+                                transaction.type == TransactionType.CREDIT -> Triple(
+                                    ChartColors.IncomeGreen.copy(alpha = 0.15f),
+                                    ChartColors.IncomeGreen,
+                                    "Income / Credit"
+                                )
+                                transaction.isSavings -> Triple(
+                                    ChartColors.Savings.copy(alpha = 0.15f),
+                                    ChartColors.Savings,
+                                    "Savings"
+                                )
+                                transaction.isInvestment -> Triple(
+                                    ChartColors.Investment.copy(alpha = 0.15f),
+                                    ChartColors.Investment,
+                                    "Investment"
+                                )
+                                else -> Triple(
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                                    MaterialTheme.colorScheme.error,
+                                    "Expense / Debit"
+                                )
+                            }
                             Surface(
-                                color = if (isCredit) ChartColors.IncomeGreen.copy(alpha = 0.15f)
-                                        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                                color = badgeBg,
                                 shape = RoundedCornerShape(dims.buttonCornerRadius)
                             ) {
                                 Text(
-                                    text = if (isCredit) "Income / Credit" else "Expense / Debit",
+                                    text = badgeText,
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (isCredit) ChartColors.IncomeGreen else MaterialTheme.colorScheme.error,
+                                    color = badgeFg,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }

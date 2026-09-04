@@ -9,7 +9,12 @@ import java.util.Locale
 // Data models
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum class TransactionType { CREDIT, DEBIT }
+enum class TransactionType(val displayName: String) {
+    DEBIT("Debit"),
+    CREDIT("Credit"),
+    SAVINGS("Savings"),
+    INVESTMENT("Investment")
+}
 
 enum class ItemFilterStatus {
     NEUTRAL,
@@ -70,10 +75,18 @@ data class Transaction(
     val split: SplitInfo? = null
 ) {
     val isSavings: Boolean
-        get() = rawType.equals("Savings", ignoreCase = true) ||
+        get() = type == TransactionType.SAVINGS ||
+                rawType.equals("Savings", ignoreCase = true) ||
                 rawType.equals("Saving", ignoreCase = true) ||
                 category.equals("Savings", ignoreCase = true) ||
                 category.equals("Saving", ignoreCase = true)
+
+    val isInvestment: Boolean
+        get() = type == TransactionType.INVESTMENT ||
+                rawType.equals("Investment", ignoreCase = true) ||
+                rawType.equals("Investments", ignoreCase = true) ||
+                category.equals("Investment", ignoreCase = true) ||
+                category.equals("Investments", ignoreCase = true)
 }
 
 data class SpendingCategory(
@@ -264,6 +277,14 @@ data class MoneyState(
     val allAvailableCategories: List<String>
         get() = if (apiCategories.isNotEmpty()) apiCategories
                 else transactions.map { it.category }.distinct().sorted()
+
+    val mostUsedCategories: List<String>
+        get() {
+            val freqMap = transactions.groupBy { it.category }.mapValues { it.value.size }
+            val baseList = if (apiCategories.isNotEmpty()) apiCategories
+                           else transactions.map { it.category }.distinct()
+            return baseList.sortedByDescending { freqMap[it] ?: 0 }
+        }
 
     val allAvailableAccounts: List<String>
         get() = if (accounts.isNotEmpty()) accounts.map { it.account }

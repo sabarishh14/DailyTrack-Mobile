@@ -360,7 +360,7 @@ private fun AnalysisFilterRow(
             if (filterState.selectedTypes != setOf(TransactionType.DEBIT) && filterState.selectedTypes != setOf(TransactionType.CREDIT)) {
                 filterState.selectedTypes.forEach { type ->
                     ActiveFilterRemovableChip(
-                        text = if (type == TransactionType.DEBIT) "Debit" else "Credit",
+                        text = type.displayName,
                         onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
                     )
                 }
@@ -581,7 +581,7 @@ private fun CashFlowBreakdownCard(
         }
     }
 
-    val itemsPerPage = if (isDtOg) 10 else 6
+    val itemsPerPage = 10
     val pages = remember(processedCategories, itemsPerPage) {
         processedCategories.chunked(itemsPerPage)
     }
@@ -646,8 +646,9 @@ private fun CashFlowBreakdownCard(
                         )
                     }
                 } else {
+                    val donutCategories = remember(processedCategories) { processedCategories.take(10) }
                     DonutChart(
-                        categories = processedCategories,
+                        categories = donutCategories,
                         total = total,
                         isDtOgStyle = isDtOg,
                         modifier = Modifier.size(dims.donutChartSize)
@@ -778,6 +779,7 @@ private fun DonutChart(
 ) {
     val density = LocalDensity.current
     val cornerRadiusPx = with(density) { 8.dp.toPx() }
+    val sliceTotal = remember(categories) { categories.sumOf { it.amount } }
 
     Box(
         modifier = modifier,
@@ -789,12 +791,12 @@ private fun DonutChart(
                 val diameter = size.minDimension * 0.96f
                 val rOuter = diameter / 2f
                 val rInner = rOuter * 0.58f // ~42% thickness for chunky look matching reference
-                val gapDegrees = 5f // 5 degree visible gap between segments
+                val gapDegrees = if (categories.size > 1) 5f else 0f // 5 degree visible gap between segments
                 val center = Offset(size.width / 2f, size.height / 2f)
 
                 var startAngle = -90f
                 categories.forEach { category ->
-                    val rawSweep = if (total > 0) (((category.amount / total) * 360f).toFloat()) else 0f
+                    val rawSweep = if (sliceTotal > 0) (((category.amount / sliceTotal) * 360f).toFloat()) else 0f
                     val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
                     if (sweep > 0.5f) {
                         val sliceStartAngle = startAngle + (gapDegrees / 2f)
@@ -815,13 +817,13 @@ private fun DonutChart(
                 val diameter = size.minDimension * 0.92f
                 val rOuter = diameter / 2f
                 val rInner = rOuter * 0.64f  // Slightly thinner ring than DT_OG for elegance
-                val gapDegrees = 3.5f        // Slightly tighter gaps
+                val gapDegrees = if (categories.size > 1) 3.5f else 0f // Slightly tighter gaps
                 val softCornerPx = cornerRadiusPx * 0.75f  // Softer corners
                 val center = Offset(size.width / 2f, size.height / 2f)
 
                 var startAngle = -90f
                 categories.forEach { category ->
-                    val rawSweep = if (total > 0) (((category.amount / total) * 360f).toFloat()) else 0f
+                    val rawSweep = if (sliceTotal > 0) (((category.amount / sliceTotal) * 360f).toFloat()) else 0f
                     val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
                     if (sweep > 0.5f) {
                         val sliceStartAngle = startAngle + (gapDegrees / 2f)

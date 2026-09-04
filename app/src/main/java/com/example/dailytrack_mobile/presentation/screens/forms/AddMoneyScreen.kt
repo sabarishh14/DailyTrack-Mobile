@@ -44,6 +44,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dailytrack_mobile.presentation.theme.AppTheme
+import com.example.dailytrack_mobile.presentation.theme.LocalAppTheme
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -124,38 +126,39 @@ fun AddMoneyScreen(
         onDirtyStateChanged(isDirty)
     }
 
-    // Category lists based on type and DB
+    // Category lists based on type, most-used transactions, and DB
     val allCategories = remember(formState.categories) {
         if (formState.categories.isNotEmpty()) formState.categories else (defaultExpenseCategories + defaultIncomeCategories).distinct()
     }
 
-    val currentCategoryList = remember(selectedType, allCategories) {
-        if (selectedType == TransactionType.EXPENSE) {
-            val base = defaultExpenseCategories
-            val custom = allCategories.filter { c ->
-                !c.equals("Salary", ignoreCase = true) &&
-                !c.equals("Freelance", ignoreCase = true) &&
-                !base.any { it.equals(c, ignoreCase = true) }
-            }
-            (base + custom).distinct()
+    val currentCategoryList = remember(selectedType, allCategories, formState.mostUsedExpenseCategories, formState.mostUsedIncomeCategories) {
+        val mostUsed = if (selectedType == TransactionType.EXPENSE) {
+            formState.mostUsedExpenseCategories
         } else {
-            val base = defaultIncomeCategories
-            val custom = allCategories.filter { c ->
-                (c.equals("Salary", ignoreCase = true) || c.equals("Freelance", ignoreCase = true) ||
-                 c.equals("Investment", ignoreCase = true) || c.equals("Gift", ignoreCase = true) ||
-                 c.equals("Other", ignoreCase = true)) && !base.any { it.equals(c, ignoreCase = true) }
+            formState.mostUsedIncomeCategories
+        }
+        val defaultBase = if (selectedType == TransactionType.EXPENSE) defaultExpenseCategories else defaultIncomeCategories
+        val combined = (mostUsed + defaultBase + allCategories).distinct()
+        if (selectedType == TransactionType.EXPENSE) {
+            combined.filter { c ->
+                !c.equals("Salary", ignoreCase = true) && !c.equals("Freelance", ignoreCase = true)
             }
-            (base + custom).distinct()
+        } else {
+            combined.filter { c ->
+                c.equals("Salary", ignoreCase = true) || c.equals("Freelance", ignoreCase = true) ||
+                c.equals("Investment", ignoreCase = true) || c.equals("Gift", ignoreCase = true) ||
+                c.equals("Other", ignoreCase = true) || mostUsed.contains(c)
+            }
         }
     }
 
-    // Display 4 pills: top 4 default categories, plus selected category if outside the top 4
+    // Display top 6 pills: top 6 most-used/relevant categories, plus selected category if outside the top 6
     val visibleCategoryPills = remember(selectedType, currentCategoryList, categoryInput) {
-        val top4 = currentCategoryList.take(4)
-        if (categoryInput.isNotBlank() && !top4.any { it.equals(categoryInput, ignoreCase = true) }) {
-            top4 + categoryInput
+        val top6 = currentCategoryList.take(6)
+        if (categoryInput.isNotBlank() && !top6.any { it.equals(categoryInput, ignoreCase = true) }) {
+            top6 + categoryInput
         } else {
-            top4
+            top6
         }
     }
 
@@ -343,13 +346,16 @@ fun AddMoneyScreen(
     val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
     // Theme-harmonious colors for expense and income
+    val currentTheme = LocalAppTheme.current
+    val isDtOg = currentTheme == AppTheme.DT_OG
+
     val expenseBgColor = MaterialTheme.colorScheme.errorContainer
     val expenseTextColor = MaterialTheme.colorScheme.onErrorContainer
     val expenseAccentColor = MaterialTheme.colorScheme.error
 
-    val incomeBgColor = MaterialTheme.colorScheme.tertiaryContainer
-    val incomeTextColor = MaterialTheme.colorScheme.onTertiaryContainer
-    val incomeAccentColor = MaterialTheme.colorScheme.tertiary
+    val incomeBgColor = if (isDtOg) Color(0xFF10B981).copy(alpha = 0.18f) else MaterialTheme.colorScheme.tertiaryContainer
+    val incomeTextColor = if (isDtOg) Color(0xFF10B981) else MaterialTheme.colorScheme.onTertiaryContainer
+    val incomeAccentColor = if (isDtOg) Color(0xFF10B981) else MaterialTheme.colorScheme.tertiary
 
     val activeAmountColor = if (selectedType == TransactionType.EXPENSE) expenseAccentColor else incomeAccentColor
 

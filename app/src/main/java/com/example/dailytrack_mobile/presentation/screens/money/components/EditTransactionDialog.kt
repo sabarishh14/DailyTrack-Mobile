@@ -32,7 +32,9 @@ import java.util.Locale
 
 private enum class EditTxType(val label: String, val dbValue: String) {
     EXPENSE("Expense", "Debit"),
-    INCOME("Income", "Credit")
+    INCOME("Income", "Credit"),
+    SAVINGS("Savings", "Savings"),
+    INVESTMENT("Invest", "Investment")
 }
 
 private val defaultCategories = listOf(
@@ -90,10 +92,11 @@ fun EditTransactionDialog(
 
     // Initialize state from transaction
     val initialType = remember(transaction) {
-        if (transaction.type == TransactionType.CREDIT || transaction.rawType.equals("Credit", ignoreCase = true)) {
-            EditTxType.INCOME
-        } else {
-            EditTxType.EXPENSE
+        when {
+            transaction.type == TransactionType.CREDIT || transaction.rawType.equals("Credit", ignoreCase = true) -> EditTxType.INCOME
+            transaction.type == TransactionType.SAVINGS || transaction.isSavings -> EditTxType.SAVINGS
+            transaction.type == TransactionType.INVESTMENT || transaction.isInvestment -> EditTxType.INVESTMENT
+            else -> EditTxType.EXPENSE
         }
     }
 
@@ -243,7 +246,7 @@ fun EditTransactionDialog(
                                     count = EditTxType.entries.size
                                 )
                             ) {
-                                Text(type.label, style = MaterialTheme.typography.bodyMedium)
+                                Text(type.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                             }
                         }
                     }

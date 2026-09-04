@@ -172,7 +172,7 @@ fun MoneyScreen(
     if (state.isFilterSheetVisible) {
         FilterBottomSheet(
             filterState = state.analysisFilterState,
-            allCategories = state.allAvailableCategories,
+            allCategories = state.mostUsedCategories,
             allAccounts = state.allAvailableAccounts,
             onApply = { updatedFilters ->
                 viewModel.onAction(MoneyAction.ApplyAnalysisFilters(updatedFilters))

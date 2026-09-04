@@ -22,6 +22,8 @@ data class AddMoneyFormState(
     val isSaving: Boolean = false,
     val accounts: List<String> = emptyList(),
     val categories: List<String> = emptyList(),
+    val mostUsedExpenseCategories: List<String> = emptyList(),
+    val mostUsedIncomeCategories: List<String> = emptyList(),
     val errorMessage: String? = null
 )
 
@@ -73,12 +75,27 @@ class FormsVM @Inject constructor(
             _addMoneyState.update { it.copy(isLoadingData = true) }
             val accountsRes = moneyRepository.getAccounts()
             val categoriesRes = moneyRepository.getCategories()
+            val txsRes = moneyRepository.getTransactions(limit = 100)
+
+            val txs = txsRes.getOrNull()?.transactions ?: emptyList()
+            val usedExpenses = txs.filter { !it.type.equals("Credit", ignoreCase = true) }
+                .groupBy { it.heading }
+                .entries
+                .sortedByDescending { it.value.size }
+                .map { it.key }
+            val usedIncome = txs.filter { it.type.equals("Credit", ignoreCase = true) }
+                .groupBy { it.heading }
+                .entries
+                .sortedByDescending { it.value.size }
+                .map { it.key }
 
             _addMoneyState.update { state ->
                 state.copy(
                     isLoadingData = false,
                     accounts = accountsRes.getOrNull()?.map { it.account } ?: state.accounts,
-                    categories = categoriesRes.getOrNull() ?: state.categories
+                    categories = categoriesRes.getOrNull() ?: state.categories,
+                    mostUsedExpenseCategories = usedExpenses,
+                    mostUsedIncomeCategories = usedIncome
                 )
             }
         }

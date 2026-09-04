@@ -455,9 +455,10 @@ private fun com.example.dailytrack_mobile.data.remote.dto.TransactionDto.toDomai
     val displayDate = parsedDate?.let { displayDateFormat.format(it) } ?: dateOnly
     val timestampMs = parsedDate?.time ?: System.currentTimeMillis()
 
-    val normalizedType = if (type.equals("Credit", ignoreCase = true) || type.equals("Income", ignoreCase = true)) "Credit" else "Debit"
-    val txType = when (normalizedType) {
-        "Credit" -> TransactionType.CREDIT
+    val txType = when {
+        type.equals("Credit", ignoreCase = true) || type.equals("Income", ignoreCase = true) -> TransactionType.CREDIT
+        type.equals("Savings", ignoreCase = true) || type.equals("Saving", ignoreCase = true) -> TransactionType.SAVINGS
+        type.equals("Investment", ignoreCase = true) || type.equals("Investments", ignoreCase = true) -> TransactionType.INVESTMENT
         else -> TransactionType.DEBIT
     }
 

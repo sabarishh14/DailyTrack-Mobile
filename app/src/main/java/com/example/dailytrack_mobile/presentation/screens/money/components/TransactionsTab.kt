@@ -425,7 +425,7 @@ private fun ActiveFiltersChipRow(
         if (filterState.selectedTypes.isNotEmpty()) {
             filterState.selectedTypes.forEach { type ->
                 ActiveFilterChipItem(
-                    text = if (type == TransactionType.DEBIT) "Debit" else "Credit",
+                    text = type.displayName,
                     onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
                 )
             }
