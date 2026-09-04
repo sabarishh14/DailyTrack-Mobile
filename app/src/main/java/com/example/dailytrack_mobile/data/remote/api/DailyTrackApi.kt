@@ -19,6 +19,8 @@ import com.example.dailytrack_mobile.data.remote.dto.MutualFundHoldingDto
 import com.example.dailytrack_mobile.data.remote.dto.PhysicalActivityDto
 import com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -115,4 +117,10 @@ interface DailyTrackApi {
     suspend fun addTvDiary(
         @Body request: AddTvDiaryRequestDto
     ): ApiResponseDto
+
+    @GET("/")
+    suspend fun checkHealth(): Response<ResponseBody>
+
+    @GET("/test-db")
+    suspend fun testDb(): Response<ResponseBody>
 }

@@ -161,4 +161,33 @@ class MoneyRepository @Inject constructor(
             demoDataManager.notifyDataUpdated()
         }
     }
+
+    suspend fun checkHealth(): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            return@runCatching true
+        }
+        try {
+            val response = api.checkHealth()
+            if (response.isSuccessful) {
+                response.body()?.close()
+                return@runCatching true
+            }
+        } catch (_: Exception) {
+            // If / check threw, proceed to try /test-db
+        }
+
+        try {
+            val dbResponse = api.testDb()
+            if (dbResponse.isSuccessful) {
+                dbResponse.body()?.close()
+                return@runCatching true
+            }
+        } catch (_: Exception) {
+            // Proceed to fallback
+        }
+
+        // Final fallback: if screen hydration works, getAccounts() will confirm the server is reachable
+        api.getAccounts()
+        true
+    }
 }

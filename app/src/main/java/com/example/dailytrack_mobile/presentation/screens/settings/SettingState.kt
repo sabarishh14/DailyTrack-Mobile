@@ -22,6 +22,7 @@ data class SettingsState(
     val isLastSyncSuccess: Boolean? = null,
     val syncStepDescription: String? = null,
     val isRefreshingServerStatus: Boolean = false,
+    val serverStatusResult: Boolean? = null,
     val isReminderEnabled: Boolean = false,
     val reminderTime: String = "21:00",
     val reminderDays: Set<DayOfWeek> = DayOfWeek.values().toSet()

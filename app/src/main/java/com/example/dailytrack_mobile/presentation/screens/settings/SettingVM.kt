@@ -257,9 +257,9 @@ class SettingsVM @Inject constructor(
     private fun checkServerStatus() {
         if (_state.value.isRefreshingServerStatus) return
         viewModelScope.launch {
-            _state.update { it.copy(isRefreshingServerStatus = true) }
-            delay(600)
-            _state.update { it.copy(isRefreshingServerStatus = false) }
+            _state.update { it.copy(isRefreshingServerStatus = true, serverStatusResult = null) }
+            val result = moneyRepository?.checkHealth()?.getOrNull() ?: false
+            _state.update { it.copy(isRefreshingServerStatus = false, serverStatusResult = result) }
         }
     }
 

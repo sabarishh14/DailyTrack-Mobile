@@ -838,10 +838,32 @@ private fun SyncSettingsSubScreen(
                             onClick = { onAction(SettingsAction.OnForceSyncClicked) }
                         )
                     }
+                    val serverStatusSubtitle = when {
+                        state.isRefreshingServerStatus -> "Checking..."
+                        state.serverStatusResult == true -> "Online (Reachable)"
+                        state.serverStatusResult == false -> "Offline (Unreachable)"
+                        else -> "Check if backend is reachable"
+                    }
+                    val serverStatusSubtitleColor = when {
+                        state.isRefreshingServerStatus -> MaterialTheme.colorScheme.primary
+                        state.serverStatusResult == true -> Color(0xFF2ECC71)
+                        state.serverStatusResult == false -> MaterialTheme.colorScheme.error
+                        else -> null
+                    }
                     SettingsCard {
                         SettingsClickItem(
                             icon = Icons.Default.Cloud,
                             title = "Server Status",
+                            subtitle = serverStatusSubtitle,
+                            subtitleColor = serverStatusSubtitleColor,
+                            enabled = !state.isRefreshingServerStatus,
+                            trailing = {
+                                if (state.isRefreshingServerStatus) {
+                                    LoadingIndicator(
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            },
                             onClick = { onAction(SettingsAction.OnServerStatusClicked) }
                         )
                     }
