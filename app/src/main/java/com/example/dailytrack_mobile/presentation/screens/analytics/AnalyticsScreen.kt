@@ -26,8 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyVM
+import com.example.dailytrack_mobile.presentation.screens.money.TransactionType
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.text.NumberFormat
+import java.util.Calendar
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,8 +53,87 @@ fun AnalyticsScreen(
     var showCalendarDropdown by remember { mutableStateOf(false) }
     var selectedCalendarOption by remember { mutableStateOf("Month") }
     
-    // Calculate spent this month
-    val spentThisMonth = state.totalExpenses
+    // Calculate start and end for selected calendar option
+    val calendar = Calendar.getInstance()
+    val now = calendar.timeInMillis
+    var startMillis = 0L
+    var endMillis = Long.MAX_VALUE
+    var timeLeftText = ""
+    var periodLabel = ""
+    var projectedLabel = ""
+
+    when (selectedCalendarOption) {
+        "Day" -> {
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            startMillis = calendar.timeInMillis
+            calendar.add(Calendar.DAY_OF_MONTH, 1)
+            calendar.add(Calendar.MILLISECOND, -1)
+            endMillis = calendar.timeInMillis
+            
+            val diff = endMillis - now
+            val hours = diff / (1000 * 60 * 60)
+            timeLeftText = "$hours hours left"
+            periodLabel = "Spent today"
+            projectedLabel = "Projected today"
+        }
+        "Week" -> {
+            calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            startMillis = calendar.timeInMillis
+            calendar.add(Calendar.WEEK_OF_YEAR, 1)
+            calendar.add(Calendar.MILLISECOND, -1)
+            endMillis = calendar.timeInMillis
+            
+            val diff = endMillis - now
+            val days = diff / (1000 * 60 * 60 * 24)
+            timeLeftText = "$days days left"
+            periodLabel = "Spent this week"
+            projectedLabel = "Projected week"
+        }
+        "Month" -> {
+            calendar.set(Calendar.DAY_OF_MONTH, 1)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            startMillis = calendar.timeInMillis
+            calendar.add(Calendar.MONTH, 1)
+            calendar.add(Calendar.MILLISECOND, -1)
+            endMillis = calendar.timeInMillis
+            
+            val diff = endMillis - now
+            val days = diff / (1000 * 60 * 60 * 24)
+            timeLeftText = "$days days left"
+            periodLabel = "Spent this month"
+            projectedLabel = "Projected month"
+        }
+    }
+
+    // Filter transactions for the selected period
+    val periodTransactions = state.transactions.filter {
+        it.timestampMillis in startMillis..endMillis && !it.isExcluded
+    }
+    
+    val periodExpenses = periodTransactions.filter { it.type == TransactionType.DEBIT }
+    val spentThisPeriod = periodExpenses.sumOf { it.amount }
+
+    // Find most expensive category
+    val categoryTotals = periodExpenses.groupBy { it.category }
+        .mapValues { entry -> entry.value.sumOf { it.amount } }
+    
+    val mostExpensiveCategory = categoryTotals.maxByOrNull { it.value }
+    val shoppingInfoText = if (mostExpensiveCategory != null && spentThisPeriod > 0) {
+        val percentage = ((mostExpensiveCategory.value / spentThisPeriod) * 100).toInt()
+        "${mostExpensiveCategory.key} is driving $percentage% of spending this ${selectedCalendarOption.lowercase()}."
+    } else {
+        "No spending this ${selectedCalendarOption.lowercase()}."
+    }
 
     Scaffold(
         topBar = {
@@ -81,7 +162,7 @@ fun AnalyticsScreen(
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(
-                            text = "27 days left",
+                            text = timeLeftText,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -167,7 +248,7 @@ fun AnalyticsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Spent this month",
+                            text = periodLabel,
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -224,7 +305,7 @@ fun AnalyticsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = formatCurrency(spentThisMonth),
+                        text = formatCurrency(spentThisPeriod),
                         style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold, fontSize = 32.sp),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -254,12 +335,12 @@ fun AnalyticsScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
-                                text = "Projected month",
+                                text = projectedLabel,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = formatCurrency(spentThisMonth * 1.5), // Dummy projection logic
+                                text = formatCurrency(spentThisPeriod * 1.5), // Dummy projection logic
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -294,7 +375,7 @@ fun AnalyticsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "27 days left",
+                                text = timeLeftText,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -325,7 +406,7 @@ fun AnalyticsScreen(
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "Shopping is driving 100% of spending this month.",
+                            text = shoppingInfoText,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
