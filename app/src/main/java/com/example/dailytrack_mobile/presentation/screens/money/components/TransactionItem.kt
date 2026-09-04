@@ -1,15 +1,25 @@
 package com.example.dailytrack_mobile.presentation.screens.money.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -71,8 +81,11 @@ fun SwipeableTransactionItem(
     isSwiped: Boolean,
     onSwipeStateChanged: (Boolean) -> Unit,
     onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
@@ -89,9 +102,9 @@ fun SwipeableTransactionItem(
     val scope = rememberCoroutineScope()
     val offsetX = remember(transaction.id) { Animatable(0f) }
 
-    // Respond to external swipe state (auto-close when another item is swiped)
-    LaunchedEffect(isSwiped) {
-        if (!isSwiped && offsetX.value != 0f) {
+    // Respond to external swipe state (auto-close when another item is swiped or in selection mode)
+    LaunchedEffect(isSwiped, isSelectionMode) {
+        if ((!isSwiped || isSelectionMode) && offsetX.value != 0f) {
             offsetX.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
@@ -107,103 +120,25 @@ fun SwipeableTransactionItem(
             .fillMaxWidth()
             .clipToBounds()
     ) {
-        // ── Revealed Action Buttons (Delete + Edit Circles) ───────────────────
-        Row(
-            modifier = Modifier
-                .matchParentSize()
-                .graphicsLayer {
-                    val progress = (-offsetX.value / maxRevealPx).coerceIn(0f, 1f)
-                    alpha = progress
-                },
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Delete button circle (Light red background, red icon)
-            Box(
+        // ── Revealed Action Buttons (Delete + Edit Circles) - disabled during selection mode ──
+        if (!isSelectionMode) {
+            Row(
                 modifier = Modifier
-                    .size(circleSize)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-                    .clickable {
-                        scope.launch {
-                            offsetX.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            )
-                            onSwipeStateChanged(false)
-                        }
-                        onDelete()
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val progress = (-offsetX.value / maxRevealPx).coerceIn(0f, 1f)
+                        alpha = progress
                     },
-                contentAlignment = Alignment.Center
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = "Delete Transaction",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(dims.iconSizeMedium)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(buttonSpacing))
-
-            // Edit button circle (Theme color background, theme color icon)
-            Box(
-                modifier = Modifier
-                    .size(circleSize)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
-                    .clickable {
-                        scope.launch {
-                            offsetX.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            )
-                            onSwipeStateChanged(false)
-                        }
-                        onEdit()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Transaction",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(dims.iconSizeMedium - 2.dp)
-                )
-            }
-        }
-
-        // ── Foreground Transaction Card ──────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(transaction.id) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            onSwipeStateChanged(true)
-                        },
-                        onDragEnd = {
-                            scope.launch {
-                                val shouldOpen = offsetX.value < -maxRevealPx * 0.35f
-                                val target = if (shouldOpen) -maxRevealPx else 0f
-                                offsetX.animateTo(
-                                    targetValue = target,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioNoBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
-                                )
-                                onSwipeStateChanged(shouldOpen)
-                            }
-                        },
-                        onDragCancel = {
+                // Delete button circle (Light red background, red icon)
+                Box(
+                    modifier = Modifier
+                        .size(circleSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
+                        .clickable {
                             scope.launch {
                                 offsetX.animateTo(
                                     targetValue = 0f,
@@ -214,18 +149,73 @@ fun SwipeableTransactionItem(
                                 )
                                 onSwipeStateChanged(false)
                             }
+                            onDelete()
                         },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            scope.launch {
-                                val newOffset = (offsetX.value + dragAmount).coerceIn(-maxRevealPx, 0f)
-                                offsetX.snapTo(newOffset)
-                            }
-                        }
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "Delete Transaction",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(dims.iconSizeMedium)
                     )
                 }
-                .clickable {
-                    if (offsetX.value < -10f) {
+
+                Spacer(modifier = Modifier.width(buttonSpacing))
+
+                // Edit button circle (Theme color background, theme color icon)
+                Box(
+                    modifier = Modifier
+                        .size(circleSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+                        .clickable {
+                            scope.launch {
+                                offsetX.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                                onSwipeStateChanged(false)
+                            }
+                            onEdit()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Transaction",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(dims.iconSizeMedium - 2.dp)
+                    )
+                }
+            }
+        }
+
+        // ── Foreground Transaction Card ──────────────────────────────────────
+        val dragModifier = if (!isSelectionMode) {
+            Modifier.pointerInput(transaction.id) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        onSwipeStateChanged(true)
+                    },
+                    onDragEnd = {
+                        scope.launch {
+                            val shouldOpen = offsetX.value < -maxRevealPx * 0.35f
+                            val target = if (shouldOpen) -maxRevealPx else 0f
+                            offsetX.animateTo(
+                                targetValue = target,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                            onSwipeStateChanged(shouldOpen)
+                        }
+                    },
+                    onDragCancel = {
                         scope.launch {
                             offsetX.animateTo(
                                 targetValue = 0f,
@@ -236,12 +226,52 @@ fun SwipeableTransactionItem(
                             )
                             onSwipeStateChanged(false)
                         }
-                    } else {
-                        onClick()
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            val newOffset = (offsetX.value + dragAmount).coerceIn(-maxRevealPx, 0f)
+                            offsetX.snapTo(newOffset)
+                        }
                     }
+                )
+            }
+        } else Modifier
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .then(dragModifier)
+                .pointerInput(transaction.id, isSelectionMode) {
+                    detectTapGestures(
+                        onLongPress = {
+                            onLongClick()
+                        },
+                        onTap = {
+                            if (!isSelectionMode && offsetX.value < -10f) {
+                                scope.launch {
+                                    offsetX.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    )
+                                    onSwipeStateChanged(false)
+                                }
+                            } else {
+                                onClick()
+                            }
+                        }
+                    )
                 }
         ) {
-            TransactionCardSurface(transaction = transaction)
+            TransactionCardSurface(
+                transaction = transaction,
+                isSelected = isSelected,
+                isSelectionMode = isSelectionMode
+            )
         }
     }
 }
@@ -252,18 +282,33 @@ fun SwipeableTransactionItem(
 @Composable
 fun TransactionCardSurface(
     transaction: Transaction,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
     val emojiBgColor = categoryEmojiColors[transaction.category]
         ?: MaterialTheme.colorScheme.surfaceContainerHighest
 
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        label = "tx_card_container"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary
+        else if (isSelectionMode) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        else Color.Transparent,
+        label = "tx_card_border"
+    )
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(dims.cardCornerRadius - 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = containerColor
         ),
+        border = BorderStroke(if (isSelected) 1.5.dp else 0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -273,6 +318,39 @@ fun TransactionCardSurface(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
         ) {
+            // Selection Checkbox Circle (animated into view during selection mode)
+            AnimatedVisibility(
+                visible = isSelectionMode,
+                enter = fadeIn() + expandHorizontally(),
+                exit = fadeOut() + shrinkHorizontally()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primary
+                            else Color.Transparent
+                        )
+                        .border(
+                            width = 2.dp,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            }
+
             // Emoji icon in a coloured circle
             Box(
                 modifier = Modifier

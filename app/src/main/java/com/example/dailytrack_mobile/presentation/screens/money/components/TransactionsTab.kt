@@ -3,6 +3,8 @@ package com.example.dailytrack_mobile.presentation.screens.money.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +17,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.FilterAlt
@@ -121,183 +125,341 @@ fun TransactionsTab(
         }
 
         // Content: Loading, Error, Empty, or Transaction list
-        when {
-            state.isLoading && state.transactions.isEmpty() -> {
-                // Initial loading state
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            when {
+                state.isLoading && state.transactions.isEmpty() -> {
+                    // Initial loading state
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Text(
-                            text = "Loading transactions...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            state.errorMessage != null && state.transactions.isEmpty() -> {
-                // Error state
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-                        modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding)
-                    ) {
-                        Text(
-                            text = "😕",
-                            style = MaterialTheme.typography.displayMedium
-                        )
-                        Text(
-                            text = "Couldn't load transactions",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = state.errorMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(onClick = { onAction(MoneyAction.Refresh) }) {
-                            Text("Retry", style = MaterialTheme.typography.labelLarge)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+                        ) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Text(
+                                text = "Loading transactions...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
-            }
 
-            state.filteredTransactions.isEmpty() && !state.isLoading -> {
-                // Filtered or Empty state
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
-                        modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding)
+                state.errorMessage != null && state.transactions.isEmpty() -> {
+                    // Error state
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.FilterAlt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All")
-                                "No Matching Transactions"
-                            else "No transactions found",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All")
-                                "No transactions match your current search or active filters."
-                            else "No transactions are available in your account.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All") {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    onAction(MoneyAction.ResetAnalysisFilters)
-                                    onAction(MoneyAction.UpdateSearchQuery(""))
-                                    onAction(MoneyAction.SelectCategory("All"))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
+                            modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding)
+                        ) {
+                            Text(
+                                text = "😕",
+                                style = MaterialTheme.typography.displayMedium
+                            )
+                            Text(
+                                text = "Couldn't load transactions",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = state.errorMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedButton(onClick = { onAction(MoneyAction.Refresh) }) {
+                                Text("Retry", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+
+                state.filteredTransactions.isEmpty() && !state.isLoading -> {
+                    // Filtered or Empty state
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
+                            modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.FilterAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                text = if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All")
+                                    "No Matching Transactions"
+                                else "No transactions found",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All")
+                                    "No transactions match your current search or active filters."
+                                else "No transactions are available in your account.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All") {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        onAction(MoneyAction.ResetAnalysisFilters)
+                                        onAction(MoneyAction.UpdateSearchQuery(""))
+                                        onAction(MoneyAction.SelectCategory("All"))
+                                    },
+                                    shape = RoundedCornerShape(dims.buttonCornerRadius)
+                                ) {
+                                    Text("Reset Filters & Search")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    // Transaction list with pagination
+                    val listState = rememberLazyListState()
+
+                    // Trigger load more when reaching near bottom
+                    val shouldLoadMore = remember {
+                        derivedStateOf {
+                            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                            val totalItems = listState.layoutInfo.totalItemsCount
+                            lastVisibleItem >= totalItems - 5 // Load 5 items before end
+                        }
+                    }
+
+                    LaunchedEffect(shouldLoadMore.value) {
+                        if (shouldLoadMore.value && state.hasMore && !state.isLoadingMore) {
+                            onAction(MoneyAction.LoadMore)
+                        }
+                    }
+
+                    // Track single swiped item state
+                    var swipedTransactionId by remember { mutableStateOf<Long?>(null) }
+
+                    // Auto-close swiped item when scrolling
+                    LaunchedEffect(listState.isScrollInProgress) {
+                        if (listState.isScrollInProgress && swipedTransactionId != null) {
+                            swipedTransactionId = null
+                        }
+                    }
+
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = dims.screenHorizontalPadding,
+                            end = dims.screenHorizontalPadding,
+                            bottom = if (state.isSelectionMode) dims.screenBottomPadding + 84.dp else dims.screenBottomPadding
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+                    ) {
+                        items(
+                            items = state.filteredTransactions,
+                            key = { it.id }
+                        ) { transaction ->
+                            val isSelected = transaction.id in state.selectedTransactionIds
+                            SwipeableTransactionItem(
+                                transaction = transaction,
+                                isSwiped = swipedTransactionId == transaction.id,
+                                onSwipeStateChanged = { isSwiped ->
+                                    swipedTransactionId = if (isSwiped) transaction.id else if (swipedTransactionId == transaction.id) null else swipedTransactionId
                                 },
-                                shape = RoundedCornerShape(dims.buttonCornerRadius)
-                            ) {
-                                Text("Reset Filters & Search")
+                                isSelected = isSelected,
+                                isSelectionMode = state.isSelectionMode,
+                                onLongClick = {
+                                    onAction(MoneyAction.ToggleTransactionSelection(transaction.id))
+                                },
+                                onClick = {
+                                    if (state.isSelectionMode) {
+                                        onAction(MoneyAction.ToggleTransactionSelection(transaction.id))
+                                    } else {
+                                        onAction(MoneyAction.ShowTransactionDetail(transaction))
+                                    }
+                                },
+                                onEdit = { onAction(MoneyAction.ShowEditDialog(transaction)) },
+                                onDelete = { onAction(MoneyAction.ShowDeleteConfirmation(transaction)) }
+                            )
+                        }
+
+                        // Loading more indicator
+                        if (state.isLoadingMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = dims.itemSpacingLarge),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            else -> {
-                // Transaction list with pagination
-                val listState = rememberLazyListState()
-
-                // Trigger load more when reaching near bottom
-                val shouldLoadMore = remember {
-                    derivedStateOf {
-                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                        val totalItems = listState.layoutInfo.totalItemsCount
-                        lastVisibleItem >= totalItems - 5 // Load 5 items before end
-                    }
-                }
-
-                LaunchedEffect(shouldLoadMore.value) {
-                    if (shouldLoadMore.value && state.hasMore && !state.isLoadingMore) {
-                        onAction(MoneyAction.LoadMore)
-                    }
-                }
-
-                // Track single swiped item state
-                var swipedTransactionId by remember { mutableStateOf<Long?>(null) }
-
-                // Auto-close swiped item when scrolling
-                LaunchedEffect(listState.isScrollInProgress) {
-                    if (listState.isScrollInProgress && swipedTransactionId != null) {
-                        swipedTransactionId = null
-                    }
-                }
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = dims.screenHorizontalPadding,
-                        end = dims.screenHorizontalPadding,
-                        bottom = dims.screenBottomPadding
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
-                ) {
-                    items(
-                        items = state.filteredTransactions,
-                        key = { it.id }
-                    ) { transaction ->
-                        SwipeableTransactionItem(
-                            transaction = transaction,
-                            isSwiped = swipedTransactionId == transaction.id,
-                            onSwipeStateChanged = { isSwiped ->
-                                swipedTransactionId = if (isSwiped) transaction.id else if (swipedTransactionId == transaction.id) null else swipedTransactionId
-                            },
-                            onClick = { onAction(MoneyAction.ShowTransactionDetail(transaction)) },
-                            onEdit = { onAction(MoneyAction.ShowEditDialog(transaction)) },
-                            onDelete = { onAction(MoneyAction.ShowDeleteConfirmation(transaction)) }
-                        )
-                    }
-
-                    // Loading more indicator
-                    if (state.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = dims.itemSpacingLarge),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+            // Docked Selection Action Bar extending flush to navbar
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.isSelectionMode,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+            ) {
+                BulkSelectionActionBar(
+                    selectedCount = state.selectedTransactionIds.size,
+                    isAllSelected = state.selectedTransactionIds.size == state.filteredTransactions.size && state.filteredTransactions.isNotEmpty(),
+                    onSelectAllToggle = {
+                        if (state.selectedTransactionIds.size == state.filteredTransactions.size) {
+                            onAction(MoneyAction.ClearTransactionSelection)
+                        } else {
+                            onAction(MoneyAction.SelectAllTransactions)
                         }
-                    }
+                    },
+                    onClearSelection = { onAction(MoneyAction.ClearTransactionSelection) },
+                    onBulkEdit = { onAction(MoneyAction.ShowBulkEditSheet(true)) },
+                    onBulkDelete = { onAction(MoneyAction.ShowBulkDeleteConfirmation(true)) }
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Docked Bulk Selection Action Bar (Flush to bottom navbar)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun BulkSelectionActionBar(
+    selectedCount: Int,
+    isAllSelected: Boolean,
+    onSelectAllToggle: () -> Unit,
+    onClearSelection: () -> Unit,
+    onBulkEdit: () -> Unit,
+    onBulkDelete: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shadowElevation = 12.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Left: Close Button + Selection Count + Select All
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(
+                    onClick = onClearSelection,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear Selection",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = "$selectedCount",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                TextButton(
+                    onClick = onSelectAllToggle,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (isAllSelected) "Deselect" else "All",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // Right: Edit and Delete Buttons
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilledTonalButton(
+                    onClick = onBulkEdit,
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Edit",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                Button(
+                    onClick = onBulkDelete,
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Delete",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             }
         }

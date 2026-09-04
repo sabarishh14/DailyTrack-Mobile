@@ -45,6 +45,7 @@ fun MainScreen(
     var pendingRoute by remember { mutableStateOf<String?>(null) }
     var preselectedMediaForAddMovie by remember { mutableStateOf<MediaSearchResultDto?>(null) }
     var moneyInitialTab by remember { mutableStateOf<Int?>(null) }
+    var isMoneySelectionMode by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -267,7 +268,7 @@ fun MainScreen(
             }
         },
         floatingActionButton = {
-            if (!isFormScreen) {
+            if (!isFormScreen && !(currentRoute == Routes.Money.route && isMoneySelectionMode)) {
                 FloatingActionButton(
                     onClick = { showAddSheet = true },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -304,7 +305,8 @@ fun MainScreen(
                 )
                 Routes.Money.route -> MoneyScreen(
                     initialTab = moneyInitialTab,
-                    onTabConsumed = { moneyInitialTab = null }
+                    onTabConsumed = { moneyInitialTab = null },
+                    onSelectionModeChange = { isMoneySelectionMode = it }
                 )
                 Routes.Activities.route -> ActivitiesScreen()
                 Routes.Investments.route -> InvestmentsScreen()

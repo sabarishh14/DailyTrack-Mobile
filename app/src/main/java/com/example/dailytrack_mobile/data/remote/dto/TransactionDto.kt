@@ -63,3 +63,16 @@ data class ApiResponseDto(
     @Json(name = "message") val message: String? = null
 )
 
+@JsonClass(generateAdapter = true)
+data class BulkEditTransactionItemDto(
+    @Json(name = "id") val id: Long,
+    @Json(name = "account") val account: String,
+    @Json(name = "date") val date: String,
+    @Json(name = "type") val type: String,
+    @Json(name = "heading") val heading: String,
+    @Json(name = "description") val description: String? = "",
+    @Json(name = "amount") val amount: Double,
+    @Json(name = "exclude_analytics") val excludeAnalytics: Boolean = false
+)
+
+

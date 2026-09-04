@@ -459,6 +459,92 @@ class MoneyVM @Inject constructor(
                     }
                 }
             }
+
+            is MoneyAction.ToggleTransactionSelection -> {
+                _state.update { current ->
+                    val newSelection = if (current.selectedTransactionIds.contains(action.id)) {
+                        current.selectedTransactionIds - action.id
+                    } else {
+                        current.selectedTransactionIds + action.id
+                    }
+                    current.copy(selectedTransactionIds = newSelection)
+                }
+            }
+
+            is MoneyAction.SelectAllTransactions -> {
+                _state.update { current ->
+                    val allIds = current.filteredTransactions.map { it.id }.toSet()
+                    current.copy(selectedTransactionIds = allIds)
+                }
+            }
+
+            is MoneyAction.ClearTransactionSelection -> {
+                _state.update { it.copy(selectedTransactionIds = emptySet()) }
+            }
+
+            is MoneyAction.ShowBulkEditSheet -> {
+                _state.update { it.copy(showBulkEditSheet = action.show) }
+            }
+
+            is MoneyAction.ShowBulkDeleteConfirmation -> {
+                _state.update { it.copy(showBulkDeleteConfirm = action.show) }
+            }
+
+            is MoneyAction.ExecuteBulkDelete -> {
+                val selectedIds = _state.value.selectedTransactionIds.toList()
+                if (selectedIds.isNotEmpty()) {
+                    viewModelScope.launch {
+                        _state.update { it.copy(isBulkDeleting = true) }
+                        val result = repository.bulkDeleteTransactions(selectedIds)
+                        result.onSuccess {
+                            _state.update {
+                                it.copy(
+                                    isBulkDeleting = false,
+                                    showBulkDeleteConfirm = false,
+                                    selectedTransactionIds = emptySet(),
+                                    actionMessage = "Deleted ${selectedIds.size} transactions"
+                                )
+                            }
+                            loadInitialData()
+                        }.onFailure { error ->
+                            _state.update {
+                                it.copy(
+                                    isBulkDeleting = false,
+                                    errorMessage = error.message ?: "Failed to delete transactions"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            is MoneyAction.ExecuteBulkEdit -> {
+                val updates = action.updates
+                if (updates.isNotEmpty()) {
+                    viewModelScope.launch {
+                        _state.update { it.copy(isBulkUpdating = true) }
+                        val result = repository.bulkEditTransactions(updates)
+                        result.onSuccess {
+                            _state.update {
+                                it.copy(
+                                    isBulkUpdating = false,
+                                    showBulkEditSheet = false,
+                                    selectedTransactionIds = emptySet(),
+                                    actionMessage = "Updated ${updates.size} transactions"
+                                )
+                            }
+                            loadInitialData()
+                        }.onFailure { error ->
+                            _state.update {
+                                it.copy(
+                                    isBulkUpdating = false,
+                                    errorMessage = error.message ?: "Failed to update transactions"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

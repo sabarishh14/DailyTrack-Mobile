@@ -7,6 +7,7 @@ import com.example.dailytrack_mobile.data.remote.dto.AddMediaResponseDto
 import com.example.dailytrack_mobile.data.remote.dto.AddMovieDiaryRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.AddMovieRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.AddTransactionRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.BulkEditTransactionItemDto
 import com.example.dailytrack_mobile.data.remote.dto.AddTvDiaryRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.AddTvShowRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.ApiResponseDto
@@ -55,6 +56,16 @@ interface DailyTrackApi {
     @DELETE("/api/transactions/{id}")
     suspend fun deleteTransaction(
         @Path("id") id: Long
+    ): ApiResponseDto
+
+    @PUT("/api/transactions/bulk-edit")
+    suspend fun bulkEditTransactions(
+        @Body updates: List<BulkEditTransactionItemDto>
+    ): ApiResponseDto
+
+    @POST("/api/transactions/bulk-delete")
+    suspend fun bulkDeleteTransactions(
+        @Body ids: List<Long>
     ): ApiResponseDto
 
     @GET("/api/transactions/categories")

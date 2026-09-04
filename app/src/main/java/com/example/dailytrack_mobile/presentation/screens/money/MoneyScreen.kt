@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.screens.money.components.AnalysisTab
+import com.example.dailytrack_mobile.presentation.screens.money.components.BulkDeleteConfirmationDialog
+import com.example.dailytrack_mobile.presentation.screens.money.components.BulkEditTransactionsSheet
 import com.example.dailytrack_mobile.presentation.screens.money.components.DeleteConfirmationDialog
 import com.example.dailytrack_mobile.presentation.screens.money.components.EditTransactionDialog
 import com.example.dailytrack_mobile.presentation.screens.money.components.FilterBottomSheet
@@ -30,11 +32,16 @@ import com.example.dailytrack_mobile.presentation.util.Dimens
 fun MoneyScreen(
     viewModel: MoneyVM = hiltViewModel(),
     initialTab: Int? = null,
-    onTabConsumed: () -> Unit = {}
+    onTabConsumed: () -> Unit = {},
+    onSelectionModeChange: (Boolean) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.isSelectionMode) {
+        onSelectionModeChange(state.isSelectionMode)
+    }
 
     LaunchedEffect(initialTab) {
         if (initialTab != null) {
@@ -130,6 +137,7 @@ fun MoneyScreen(
             transaction = tx,
             availableAccounts = state.allAvailableAccounts,
             availableCategories = state.allAvailableCategories,
+            mostUsedCategories = state.mostUsedCategories,
             isUpdating = state.isUpdating,
             onSave = { id, type, category, amount, note, accountName, date, excludeAnalytics ->
                 viewModel.onAction(
@@ -179,6 +187,37 @@ fun MoneyScreen(
             },
             onDismiss = {
                 viewModel.onAction(MoneyAction.SetFilterSheetVisible(false))
+            }
+        )
+    }
+
+    // Bulk Edit Transactions Bottom Sheet
+    if (state.showBulkEditSheet && state.selectedTransactions.isNotEmpty()) {
+        BulkEditTransactionsSheet(
+            transactions = state.selectedTransactions,
+            availableAccounts = state.allAvailableAccounts,
+            availableCategories = state.allAvailableCategories,
+            mostUsedCategories = state.mostUsedCategories,
+            isUpdating = state.isBulkUpdating,
+            onSave = { updates ->
+                viewModel.onAction(MoneyAction.ExecuteBulkEdit(updates))
+            },
+            onDismiss = {
+                viewModel.onAction(MoneyAction.ShowBulkEditSheet(false))
+            }
+        )
+    }
+
+    // Bulk Delete Confirmation Dialog
+    if (state.showBulkDeleteConfirm && state.selectedTransactionIds.isNotEmpty()) {
+        BulkDeleteConfirmationDialog(
+            selectedCount = state.selectedTransactionIds.size,
+            isDeleting = state.isBulkDeleting,
+            onConfirm = {
+                viewModel.onAction(MoneyAction.ExecuteBulkDelete)
+            },
+            onDismiss = {
+                viewModel.onAction(MoneyAction.ShowBulkDeleteConfirmation(false))
             }
         )
     }

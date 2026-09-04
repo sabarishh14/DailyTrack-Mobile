@@ -269,6 +269,13 @@ data class MoneyState(
     val isDeleting: Boolean = false,
     val actionMessage: String? = null,
 
+    // Multi-Selection & Bulk Operations
+    val selectedTransactionIds: Set<Long> = emptySet(),
+    val showBulkEditSheet: Boolean = false,
+    val showBulkDeleteConfirm: Boolean = false,
+    val isBulkUpdating: Boolean = false,
+    val isBulkDeleting: Boolean = false,
+
     // Pagination
     val currentOffset: Int = 0,
     val hasMore: Boolean = false,
@@ -276,6 +283,10 @@ data class MoneyState(
     val totalTransactionCount: Int = 0
 ) {
     // ── Computed properties ──────────────────────────────────────────
+
+    val isSelectionMode: Boolean get() = selectedTransactionIds.isNotEmpty()
+    val selectedTransactions: List<Transaction>
+        get() = transactions.filter { it.id in selectedTransactionIds }
 
     val totalIncome: Double
         get() = transactions

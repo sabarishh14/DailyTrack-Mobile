@@ -4,6 +4,7 @@ import com.example.dailytrack_mobile.data.local.demo.DemoDataManager
 import com.example.dailytrack_mobile.data.remote.api.DailyTrackApi
 import com.example.dailytrack_mobile.data.remote.dto.AccountDto
 import com.example.dailytrack_mobile.data.remote.dto.AddTransactionRequestDto
+import com.example.dailytrack_mobile.data.remote.dto.BulkEditTransactionItemDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
 import kotlinx.coroutines.flow.SharedFlow
@@ -156,6 +157,43 @@ class MoneyRepository @Inject constructor(
             val response = api.deleteTransaction(id)
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to delete transaction")
+            }
+            clearCache()
+            demoDataManager.notifyDataUpdated()
+        }
+    }
+
+    suspend fun bulkDeleteTransactions(ids: List<Long>): Result<Unit> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            ids.forEach { demoDataManager.deleteTransaction(it) }
+        } else {
+            val response = api.bulkDeleteTransactions(ids)
+            if (!response.success) {
+                throw Exception(response.message ?: "Failed to bulk delete transactions")
+            }
+            clearCache()
+            demoDataManager.notifyDataUpdated()
+        }
+    }
+
+    suspend fun bulkEditTransactions(updates: List<BulkEditTransactionItemDto>): Result<Unit> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            updates.forEach { item ->
+                demoDataManager.updateTransaction(
+                    id = item.id,
+                    type = item.type,
+                    category = item.heading,
+                    amount = item.amount,
+                    note = item.description,
+                    accountName = item.account,
+                    date = item.date,
+                    excludeAnalytics = item.excludeAnalytics
+                )
+            }
+        } else {
+            val response = api.bulkEditTransactions(updates)
+            if (!response.success) {
+                throw Exception(response.message ?: "Failed to bulk edit transactions")
             }
             clearCache()
             demoDataManager.notifyDataUpdated()

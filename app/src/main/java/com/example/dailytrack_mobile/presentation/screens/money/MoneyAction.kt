@@ -45,4 +45,13 @@ sealed class MoneyAction {
     data class DeleteTransaction(val id: Long) : MoneyAction()
     data class ToggleExcludeAnalytics(val id: Long, val currentExcluded: Boolean) : MoneyAction()
     object ClearActionMessage : MoneyAction()
+
+    // Multi-Selection & Bulk Actions
+    data class ToggleTransactionSelection(val id: Long) : MoneyAction()
+    object SelectAllTransactions : MoneyAction()
+    object ClearTransactionSelection : MoneyAction()
+    data class ShowBulkEditSheet(val show: Boolean) : MoneyAction()
+    data class ShowBulkDeleteConfirmation(val show: Boolean) : MoneyAction()
+    object ExecuteBulkDelete : MoneyAction()
+    data class ExecuteBulkEdit(val updates: List<com.example.dailytrack_mobile.data.remote.dto.BulkEditTransactionItemDto>) : MoneyAction()
 }
