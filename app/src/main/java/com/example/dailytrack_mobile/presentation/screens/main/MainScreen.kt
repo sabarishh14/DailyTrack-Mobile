@@ -25,6 +25,7 @@ import com.example.dailytrack_mobile.presentation.screens.invest.InvestmentsScre
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyScreen
 import com.example.dailytrack_mobile.presentation.screens.sabdekho.SabdekhoScreen
 import com.example.dailytrack_mobile.presentation.screens.forms.*
+import com.example.dailytrack_mobile.presentation.screens.analytics.AnalyticsScreen
 import com.example.dailytrack_mobile.presentation.screens.home.components.HomeTopBar
 import com.example.dailytrack_mobile.presentation.screens.main.components.AddActionSheet
 import com.example.dailytrack_mobile.presentation.util.Dimens
@@ -114,6 +115,7 @@ fun MainScreen(
         Routes.AddAsset.route -> "Add Asset"
         Routes.AddInvestment.route -> "Add Investment"
         Routes.SyncBroker.route -> "Syncing Broker"
+        Routes.Analytics.route -> "Analytics"
         else -> "DailyTrack"
     }
 
@@ -201,11 +203,10 @@ fun MainScreen(
                 HomeTopBar(
                     onNavigateToSettings = onNavigateToSettings,
                     onNavigateToAnalytics = {
-                        moneyInitialTab = 0
-                        navigateSafely(Routes.Money.route)
+                        navigateSafely(Routes.Analytics.route)
                     }
                 )
-            } else {
+            } else if (currentRoute != Routes.Analytics.route) {
                 Column {
                     TopAppBar(
                         navigationIcon = {
@@ -295,6 +296,9 @@ fun MainScreen(
         ) {
             when (currentRoute) {
                 Routes.Home.route -> HomeScreen()
+                Routes.Analytics.route -> AnalyticsScreen(
+                    onNavigateBack = { navigateSafely(Routes.Home.route) }
+                )
                 Routes.Money.route -> MoneyScreen(
                     initialTab = moneyInitialTab,
                     onTabConsumed = { moneyInitialTab = null }

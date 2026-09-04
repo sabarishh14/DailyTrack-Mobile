@@ -16,4 +16,5 @@ sealed class Routes(val route: String) {
     object AddAsset : Routes("add_asset")
     object AddInvestment : Routes("add_investment")
     object SyncBroker : Routes("sync_broker")
+    object Analytics : Routes("analytics")
 }
