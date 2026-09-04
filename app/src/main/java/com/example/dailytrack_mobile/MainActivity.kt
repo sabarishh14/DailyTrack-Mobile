@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -15,7 +16,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
 import com.example.dailytrack_mobile.presentation.navigation.Routes
 import com.example.dailytrack_mobile.presentation.screens.lock.AppLockScreen
@@ -33,6 +33,8 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var appLockManager: AppLockManager
+
+    private val settingsVM: SettingsVM by viewModels()
 
     private var pendingDeepLinkRoute by mutableStateOf<String?>(null)
 
@@ -57,14 +59,17 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // Hold the splash screen until initial theme and config are ready to prevent flickering
+        splashScreen.setKeepOnScreenCondition {
+            !settingsVM.isInitialConfigLoaded.value
+        }
+
         enableEdgeToEdge()
 
         pendingDeepLinkRoute = extractDeepLinkRoute(intent)
 
         setContent {
-            // Provide SettingsVM via Hilt
-            val settingsVM: SettingsVM = hiltViewModel()
-            
             // Collect the settings state to get the currently selected theme and app lock
             val state by settingsVM.state.collectAsState()
 

@@ -127,7 +127,11 @@ fun EditTransactionDialog(
     var excludeAnalytics by remember { mutableStateOf(transaction.isExcluded) }
 
     val accountsList = remember(availableAccounts) {
-        if (availableAccounts.isNotEmpty()) availableAccounts else defaultAccounts
+        val list = if (availableAccounts.isNotEmpty()) availableAccounts else defaultAccounts
+        list.sortedBy { account ->
+            val index = defaultAccounts.indexOfFirst { it.equals(account, ignoreCase = true) }
+            if (index == -1) Int.MAX_VALUE else index
+        }
     }
 
     val allCategories = remember(availableCategories) {

@@ -23,8 +23,8 @@ enum class FilterMode {
 }
 
 enum class QuickFilterPreset {
-    LAST_30_DAYS,
     THIS_MONTH,
+    LAST_MONTH,
     EXPENSES_ONLY,
     INCOME_ONLY
 }
@@ -68,7 +68,13 @@ data class Transaction(
     val rawDate: String = "",
     val rawType: String = "",
     val split: SplitInfo? = null
-)
+) {
+    val isSavings: Boolean
+        get() = rawType.equals("Savings", ignoreCase = true) ||
+                rawType.equals("Saving", ignoreCase = true) ||
+                category.equals("Savings", ignoreCase = true) ||
+                category.equals("Saving", ignoreCase = true)
+}
 
 data class SpendingCategory(
     val name: String,
@@ -136,6 +142,7 @@ object ChartColors {
     val DailyNeed     = Color(0xFF8D6E63)   // brown
     val Education     = Color(0xFF42A5F5)   // light blue
     val Investment    = Color(0xFF66BB6A)   // green
+    val Savings       = Color(0xFF00ACC1)   // cyan/teal
     val Salary        = Color(0xFF26A69A)   // teal
     val IncomeGreen   = Color(0xFF2ECC71)   // emerald green
     val ExpenseRed    = Color(0xFFE74C3C)   // red
@@ -151,6 +158,7 @@ object ChartColors {
         "Daily Need"    -> DailyNeed
         "Education"     -> Education
         "Investment"    -> Investment
+        "Savings"       -> Savings
         "Salary"        -> Salary
         "Income"        -> IncomeGreen
         else            -> Color(0xFF78909C) // blue-grey fallback
@@ -193,7 +201,20 @@ data class MoneyState(
     val searchQuery: String = "",
     val selectedCategory: String = "All",
     val isFilterSheetVisible: Boolean = false,
-    val analysisFilterState: AnalysisFilterState = AnalysisFilterState(),
+    val analysisFilterState: AnalysisFilterState = AnalysisFilterState(
+        activeDatePreset = QuickFilterPreset.THIS_MONTH,
+        customDateRange = Pair(
+            java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.DAY_OF_MONTH, 1)
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis,
+            System.currentTimeMillis()
+        ),
+        selectedTypes = setOf(TransactionType.DEBIT)
+    ),
 
     // API-driven data
     val transactions: List<Transaction> = emptyList(),
@@ -223,12 +244,12 @@ data class MoneyState(
 
     val totalExpenses: Double
         get() = transactions
-            .filter { it.type == TransactionType.DEBIT && !it.isExcluded }
+            .filter { it.type == TransactionType.DEBIT && !it.isExcluded && !it.isSavings }
             .sumOf { it.amount }
 
     val spendingCategories: List<SpendingCategory>
         get() {
-            val debits = transactions.filter { it.type == TransactionType.DEBIT && !it.isExcluded }
+            val debits = transactions.filter { it.type == TransactionType.DEBIT && !it.isExcluded && !it.isSavings }
             return debits.groupBy { it.category }
                 .map { (cat, txs) ->
                     SpendingCategory(
@@ -251,9 +272,16 @@ data class MoneyState(
     val filteredTransactions: List<Transaction>
         get() {
             val filters = analysisFilterState
+            val isExpensesOnly = filters.selectedTypes == setOf(TransactionType.DEBIT)
             var list = transactions.filter { tx ->
                 // Binary: Type filter
                 if (filters.selectedTypes.isNotEmpty() && !filters.selectedTypes.contains(tx.type)) {
+                    return@filter false
+                }
+
+                // If Expenses Only is selected, exclude Savings unless explicitly selected in category filter
+                val isSavingsExplicitlySelected = filters.categoryFilters[tx.category] == ItemFilterStatus.INCLUDED || selectedCategory == tx.category
+                if (isExpensesOnly && tx.isSavings && !isSavingsExplicitlySelected) {
                     return@filter false
                 }
 
@@ -306,6 +334,7 @@ data class MoneyState(
     val filteredAnalysisTransactions: List<Transaction>
         get() {
             val filters = analysisFilterState
+            val isExpensesOnly = filters.selectedTypes == setOf(TransactionType.DEBIT)
             return transactions.filter { tx ->
                 // Binary: Type filter
                 if (filters.selectedTypes.isNotEmpty() && !filters.selectedTypes.contains(tx.type)) {
@@ -315,6 +344,11 @@ data class MoneyState(
                 // Web unconditionally hides exclude_analytics == true from the analyzer and charts
                 if (tx.isExcluded) return@filter false
 
+                // If Expenses Only is selected, exclude Savings unless explicitly included in category filter
+                val isSavingsExplicitlyIncluded = filters.categoryFilters[tx.category] == ItemFilterStatus.INCLUDED
+                if (isExpensesOnly && tx.isSavings && !isSavingsExplicitlyIncluded) {
+                    return@filter false
+                }
 
                 // Category Include / Exclude
                 val incCategories = filters.categoryFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys

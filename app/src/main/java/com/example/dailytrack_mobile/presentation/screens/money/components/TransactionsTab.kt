@@ -390,15 +390,16 @@ private fun ActiveFiltersChipRow(
         }
 
         // Active Quick Date Preset
-        if (filterState.activeDatePreset == QuickFilterPreset.LAST_30_DAYS) {
-            ActiveFilterChipItem(
-                text = "Last 30 Days",
-                onRemove = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_30_DAYS)) }
-            )
-        } else if (filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH) {
+        if (filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH) {
             ActiveFilterChipItem(
                 text = "This Month",
                 onRemove = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.THIS_MONTH)) }
+            )
+        }
+        if (filterState.activeDatePreset == QuickFilterPreset.LAST_MONTH) {
+            ActiveFilterChipItem(
+                text = "Last Month",
+                onRemove = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_MONTH)) }
             )
         }
 

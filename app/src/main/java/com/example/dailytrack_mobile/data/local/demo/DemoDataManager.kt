@@ -568,6 +568,7 @@ class DemoDataManager @Inject constructor(
         addTx(21, currentMonthStr, "HDFC", "Debit", "Transport", "Shell Fuel Refill", 3200.0)
         addTx(23, currentMonthStr, "ICICI", "Debit", "Shopping", "Zara Linen Shirt", 3990.0)
         addTx(25, currentMonthStr, "SBI", "Debit", "Bills", "Electricity Bill (BESCOM)", 2450.0)
+        addTx(26, currentMonthStr, "HDFC", "Savings", "Savings", "Emergency Fund Deposit", 15000.0)
 
         // Previous Month transactions
         addTx(1, prevMonthStr, "HDFC", "Credit", "Salary", "Monthly Salary Credit", 185000.0)

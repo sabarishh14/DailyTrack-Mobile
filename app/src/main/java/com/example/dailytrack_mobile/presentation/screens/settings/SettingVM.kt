@@ -71,10 +71,25 @@ class SettingsVM @Inject constructor(
         sabdekhoRepository = null
     )
 
-    private val _state = MutableStateFlow(SettingsState())
+    private val _isInitialConfigLoaded = MutableStateFlow(themeManager.hasSyncCache())
+    val isInitialConfigLoaded = _isInitialConfigLoaded.asStateFlow()
+
+    private val _state = MutableStateFlow(
+        SettingsState(
+            selectedTheme = themeManager.getInitialTheme(),
+            themeMode = themeManager.getInitialThemeMode(),
+            withAmoled = themeManager.getInitialAmoled()
+        )
+    )
     val state = _state.asStateFlow()
 
     init {
+        // Fallback safeguard to ensure splash screen is never stuck indefinitely
+        viewModelScope.launch {
+            delay(1200)
+            _isInitialConfigLoaded.value = true
+        }
+
         // Listen for theme changes from DataStore on startup
         viewModelScope.launch {
             themeManager.themeFlow.collect { savedThemeName ->
@@ -83,6 +98,7 @@ class SettingsVM @Inject constructor(
                 } catch (e: Exception) {
                     _state.update { it.copy(selectedTheme = AppTheme.YELLOW) }
                 }
+                _isInitialConfigLoaded.value = true
             }
         }
 

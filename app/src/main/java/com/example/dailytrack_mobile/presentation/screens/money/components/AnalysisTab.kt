@@ -1,18 +1,27 @@
 package com.example.dailytrack_mobile.presentation.screens.money.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -21,6 +30,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Alignment
@@ -36,14 +46,18 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.core.graphics.ColorUtils
 import kotlin.math.cos
+import kotlin.math.roundToLong
 import kotlin.math.sin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.example.dailytrack_mobile.presentation.screens.money.*
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import com.example.dailytrack_mobile.presentation.theme.DtOgChartColors
@@ -53,6 +67,60 @@ import com.example.dailytrack_mobile.presentation.util.Dimens
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+private fun formatExactCurrency(amount: Double): String {
+    val isNegative = amount < 0
+    val absAmount = Math.abs(amount)
+    val integerPart = absAmount.toLong()
+    val remainder = ((absAmount - integerPart) * 100).roundToLong()
+    val decimalStr = if (remainder > 0) String.format(java.util.Locale.US, ".%02d", remainder) else ""
+
+    val str = integerPart.toString()
+    val formattedInt = if (str.length <= 3) {
+        str
+    } else {
+        val last3 = str.substring(str.length - 3)
+        val rest = str.substring(0, str.length - 3)
+        val sb = StringBuilder()
+        var count = 0
+        for (i in rest.length - 1 downTo 0) {
+            sb.append(rest[i])
+            count++
+            if (count == 2 && i > 0) {
+                sb.append(',')
+                count = 0
+            }
+        }
+        sb.reverse().toString() + "," + last3
+    }
+
+    val sign = if (isNegative) "-" else ""
+    return "${sign}₹$formattedInt$decimalStr"
+}
+
+private fun formatShortened(amount: Double, withPrefix: Boolean = false): String {
+    val abs = Math.abs(amount)
+    val sign = if (amount < 0) "-" else ""
+    val prefix = if (withPrefix) "₹" else ""
+    val (num, suffix) = when {
+        abs >= 1_00_00_000 -> (abs / 1_00_00_000) to "Cr"
+        abs >= 1_00_000 -> (abs / 1_00_000) to "L"
+        abs >= 1_000 -> (abs / 1_000) to "k"
+        else -> abs to ""
+    }
+    val formattedNum = if (suffix.isEmpty()) {
+        String.format(java.util.Locale.US, "%.0f", num)
+    } else if (num >= 100) {
+        String.format(java.util.Locale.US, "%.0f%s", num, suffix)
+    } else if (num >= 10 || suffix == "k") {
+        val s = String.format(java.util.Locale.US, "%.1f%s", num, suffix)
+        s.replace(".0", "")
+    } else {
+        val s = String.format(java.util.Locale.US, "%.2f%s", num, suffix)
+        s.replace(".00", "").replace(Regex("""(\.\d)0$"""), "$1")
+    }
+    return "$sign$prefix$formattedNum"
+}
+
 private fun formatCompact(amount: Double): String {
     val abs = Math.abs(amount)
     return when {
@@ -73,6 +141,7 @@ fun AnalysisTab(
     val dims = Dimens.current
     val categories = state.spendingAnalyzerData
     val filterState = state.analysisFilterState
+    val isInitialLoading = state.isLoading && state.transactions.isEmpty()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -95,10 +164,23 @@ fun AnalysisTab(
 
         // Cash Flow Breakdown Donut Card
         item {
-            if (categories.isNotEmpty()) {
+            val periodTitle = filterState.financialYear ?: when (filterState.activeDatePreset) {
+                QuickFilterPreset.THIS_MONTH -> "THIS MONTH"
+                QuickFilterPreset.LAST_MONTH -> "LAST MONTH"
+                else -> filterState.formattedDateRange() ?: "ALL TIME"
+            }
+            if (isInitialLoading && categories.isEmpty()) {
+                CashFlowBreakdownCard(
+                    categories = emptyList(),
+                    periodLabel = periodTitle,
+                    isLoading = true,
+                    onCategoryClick = {}
+                )
+            } else if (categories.isNotEmpty()) {
                 CashFlowBreakdownCard(
                     categories = categories,
-                    periodLabel = filterState.financialYear ?: "ALL TIME",
+                    periodLabel = periodTitle,
+                    isLoading = false,
                     onCategoryClick = { category ->
                         onAction(MoneyAction.ViewCategoryTransactions(category))
                     }
@@ -112,9 +194,16 @@ fun AnalysisTab(
 
         // Income & Expense Summary Row
         item {
+            val periodSubtitle = filterState.financialYear ?: when (filterState.activeDatePreset) {
+                QuickFilterPreset.THIS_MONTH -> "This month"
+                QuickFilterPreset.LAST_MONTH -> "Last month"
+                else -> filterState.formattedDateRange() ?: "All time"
+            }
             IncomeExpenseRow(
                 income = state.filteredTotalIncome,
-                expenses = state.filteredTotalExpenses
+                expenses = state.filteredTotalExpenses,
+                periodLabel = periodSubtitle,
+                isLoading = isInitialLoading
             )
         }
 
@@ -123,6 +212,7 @@ fun AnalysisTab(
             ViewTransactionsActionCard(
                 transactionCount = state.filteredTransactions.size,
                 hasActiveFilters = filterState.hasActiveFilters,
+                isLoading = isInitialLoading,
                 onClick = { onAction(MoneyAction.SelectTab(1)) }
             )
         }
@@ -215,13 +305,6 @@ private fun AnalysisFilterRow(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
-            // 1. "Last 30 Days" Quick Preset Pill
-            val isLast30Days = filterState.activeDatePreset == QuickFilterPreset.LAST_30_DAYS
-            QuickPresetChip(
-                text = "Last 30 Days",
-                isSelected = isLast30Days,
-                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_30_DAYS)) }
-            )
 
             // 2. "This Month" Quick Preset Pill
             val isThisMonth = filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH
@@ -239,7 +322,15 @@ private fun AnalysisFilterRow(
                 onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
             )
 
-            // 4. "Income Only" Quick Preset Pill
+            // 4. "Last Month" Quick Preset Pill (After Expenses Only in UI)
+            val isLastMonth = filterState.activeDatePreset == QuickFilterPreset.LAST_MONTH
+            QuickPresetChip(
+                text = "Last Month",
+                isSelected = isLastMonth,
+                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_MONTH)) }
+            )
+
+            // 5. "Income Only" Quick Preset Pill
             val isIncomeOnly = filterState.selectedTypes == setOf(TransactionType.CREDIT)
             QuickPresetChip(
                 text = "Income Only",
@@ -465,6 +556,7 @@ private fun ActiveFilterRemovableChip(
 private fun CashFlowBreakdownCard(
     categories: List<SpendingCategory>,
     periodLabel: String,
+    isLoading: Boolean = false,
     onCategoryClick: (String) -> Unit
 ) {
     val dims = Dimens.current
@@ -473,28 +565,27 @@ private fun CashFlowBreakdownCard(
     val currentTheme = LocalAppTheme.current
     val isDtOg = currentTheme == AppTheme.DT_OG
     val primaryColor = MaterialTheme.colorScheme.primary
+    val scope = rememberCoroutineScope()
 
-    val maxCategories = if (isDtOg) 10 else 6
+    // Assign colors to all categories without compressing into "Others"
     val processedCategories = remember(categories, primaryColor, isDtOg) {
-        val baseList = if (categories.size > maxCategories) {
-            val topN = categories.take(maxCategories - 1)
-            val othersTotal = categories.drop(maxCategories - 1).sumOf { it.amount }
-            topN + SpendingCategory("Others", othersTotal, primaryColor)
-        } else {
-            categories
-        }
-        
         if (isDtOg) {
-            baseList.mapIndexed { index, cat ->
+            categories.mapIndexed { index, cat ->
                 cat.copy(color = DtOgChartColors.PieColors[index % DtOgChartColors.PieColors.size])
             }
         } else {
-            val palette = generateThemeChartPalette(primaryColor, baseList.size)
-            baseList.mapIndexed { index, cat ->
+            val palette = generateThemeChartPalette(primaryColor, categories.size)
+            categories.mapIndexed { index, cat ->
                 cat.copy(color = palette[index])
             }
         }
     }
+
+    val itemsPerPage = if (isDtOg) 10 else 6
+    val pages = remember(processedCategories, itemsPerPage) {
+        processedCategories.chunked(itemsPerPage)
+    }
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -521,9 +612,9 @@ private fun CashFlowBreakdownCard(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(dims.sectionSpacing))
+            Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
 
-            // Donut chart with center text (3D for DT_OG, 2D for standard themes)
+            // Donut chart with center text (3D for DT_OG, 2D for standard themes) or Inside-Card Loading
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -531,25 +622,95 @@ private fun CashFlowBreakdownCard(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
                         RoundedCornerShape(16.dp)
                     )
-                    .padding(24.dp),
+                    .padding(vertical = 14.dp, horizontal = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                DonutChart(
-                    categories = processedCategories,
-                    total = total,
-                    isDtOgStyle = isDtOg,
-                    modifier = Modifier.size(dims.donutChartSize)
-                )
+                if (isLoading && categories.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(dims.donutChartSize),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 2.5.dp
+                        )
+                        Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                        Text(
+                            text = "Analyzing spending...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    DonutChart(
+                        categories = processedCategories,
+                        total = total,
+                        isDtOgStyle = isDtOg,
+                        modifier = Modifier.size(dims.donutChartSize)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(dims.sectionSpacing))
+            if (!isLoading) {
+                Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
 
-            // Legend grid — 2 columns, 3 rows
-            LegendGrid(
-                categories = processedCategories,
-                isDtOg = isDtOg,
-                onCategoryClick = onCategoryClick
-            )
+                // Swipeable Legend Pages if multiple, or simple compact grid if single page
+                if (pages.size > 1) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { pageIndex ->
+                        val pageCategories = pages.getOrElse(pageIndex) { emptyList() }
+                        LegendGrid(
+                            categories = pageCategories,
+                            isDtOg = isDtOg,
+                            onCategoryClick = onCategoryClick
+                        )
+                    }
+
+                    // Page Indicator Dots
+                    Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(pages.size) { index ->
+                            val isSelected = pagerState.currentPage == index
+                            val width by animateDpAsState(
+                                targetValue = if (isSelected) 18.dp else 6.dp,
+                                label = "pager_dot_width"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 3.dp)
+                                    .height(6.dp)
+                                    .width(width)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                                    )
+                                    .clickable {
+                                        scope.launch {
+                                            pagerState.animateScrollToPage(index)
+                                        }
+                                    }
+                            )
+                        }
+                    }
+                } else if (pages.size == 1) {
+                    LegendGrid(
+                        categories = pages[0],
+                        isDtOg = isDtOg,
+                        onCategoryClick = onCategoryClick
+                    )
+                }
+            }
         }
     }
 }
@@ -855,7 +1016,10 @@ private fun LegendGrid(
     val dims = Dimens.current
     // Chunk into rows of 2
     val rows = categories.chunked(2)
-    Column(verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+    ) {
         rows.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -865,11 +1029,7 @@ private fun LegendGrid(
                     LegendItem(
                         category = category,
                         isDtOg = isDtOg,
-                        onClick = {
-                            if (category.name != "Others") {
-                                onCategoryClick(category.name)
-                            }
-                        },
+                        onClick = { onCategoryClick(category.name) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -927,7 +1087,12 @@ private fun LegendItem(
 // Income / Expenses Summary Row
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun IncomeExpenseRow(income: Double, expenses: Double) {
+private fun IncomeExpenseRow(
+    income: Double,
+    expenses: Double,
+    periodLabel: String = "This month",
+    isLoading: Boolean = false
+) {
     val dims = Dimens.current
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -937,12 +1102,18 @@ private fun IncomeExpenseRow(income: Double, expenses: Double) {
             label = "INCOME",
             amount = income,
             accentColor = ChartColors.IncomeGreen,
+            icon = Icons.AutoMirrored.Filled.TrendingUp,
+            periodLabel = periodLabel,
+            isLoading = isLoading,
             modifier = Modifier.weight(1f)
         )
         SummaryCard(
             label = "EXPENSES",
             amount = expenses,
             accentColor = ChartColors.ExpenseRed,
+            icon = Icons.AutoMirrored.Filled.TrendingDown,
+            periodLabel = periodLabel,
+            isLoading = isLoading,
             modifier = Modifier.weight(1f)
         )
     }
@@ -953,11 +1124,33 @@ private fun SummaryCard(
     label: String,
     amount: Double,
     accentColor: Color,
+    icon: ImageVector,
+    periodLabel: String,
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
+    var isExactPrimary by rememberSaveable { mutableStateOf(true) }
+
+    val exactText = formatExactCurrency(amount)
+    val shortenedText = formatShortened(amount, withPrefix = false)
+    val shortenedWithCurrency = formatShortened(amount, withPrefix = true)
+
+    // Dynamic auto-scaling font size for exact amount to comfortably fit within half-screen card width
+    val dynamicFontSize = remember(exactText.length) {
+        when {
+            exactText.length <= 6 -> 22.sp
+            exactText.length <= 8 -> 19.sp
+            exactText.length <= 10 -> 17.sp
+            exactText.length <= 12 -> 15.sp
+            else -> 13.sp
+        }
+    }
+
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .clip(RoundedCornerShape(dims.cardCornerRadius))
+            .clickable(enabled = !isLoading) { isExactPrimary = !isExactPrimary },
         shape = RoundedCornerShape(dims.cardCornerRadius),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -967,30 +1160,142 @@ private fun SummaryCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(dims.cardInnerPadding - 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                ),
-                color = accentColor
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = formatCompact(amount),
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "This month",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Header: Icon + Type label on left, Shortened Pill Badge on right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = accentColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        ),
+                        color = accentColor
+                    )
+                }
+
+                // Shortened / Exact badge (swaps on tap or shows placeholder when loading)
+                Surface(
+                    shape = RoundedCornerShape(dims.buttonCornerRadius - 4.dp),
+                    color = accentColor.copy(alpha = 0.12f),
+                    contentColor = accentColor
+                ) {
+                    Text(
+                        text = if (isLoading) "—" else if (isExactPrimary) shortenedText else exactText,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        ),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // Primary amount display or inside-card loading indicator
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(28.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = accentColor
+                    )
+                }
+            } else {
+                AnimatedContent(
+                    targetState = isExactPrimary,
+                    transitionSpec = {
+                        (fadeIn() + slideInVertically { it / 3 }) togetherWith (fadeOut() + slideOutVertically { -it / 3 })
+                    },
+                    label = "AmountDisplay"
+                ) { showExact ->
+                    if (showExact) {
+                        Text(
+                            text = exactText,
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = dynamicFontSize,
+                                letterSpacing = (-0.3).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    } else {
+                        Text(
+                            text = shortenedWithCurrency,
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp,
+                                letterSpacing = (-0.3).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Subtitle: Active filter period + interactive toggle hint
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = periodLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                if (!isLoading) {
+                    Text(
+                        text = if (isExactPrimary) "tap for k/L" else "tap for exact",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                        ),
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
@@ -1002,6 +1307,7 @@ private fun SummaryCard(
 private fun ViewTransactionsActionCard(
     transactionCount: Int,
     hasActiveFilters: Boolean,
+    isLoading: Boolean = false,
     onClick: () -> Unit
 ) {
     val dims = Dimens.current
@@ -1050,7 +1356,8 @@ private fun ViewTransactionsActionCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (transactionCount == 1) "1 transaction matches current filters"
+                        text = if (isLoading) "Loading transactions..."
+                               else if (transactionCount == 1) "1 transaction matches current filters"
                                else "$transactionCount transactions match current filters",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

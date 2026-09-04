@@ -200,26 +200,7 @@ class MoneyVM @Inject constructor(
             is MoneyAction.ToggleQuickPreset -> _state.update { current ->
                 val filters = current.analysisFilterState
                 when (action.preset) {
-                    QuickFilterPreset.LAST_30_DAYS -> {
-                        if (filters.activeDatePreset == QuickFilterPreset.LAST_30_DAYS) {
-                            current.copy(
-                                analysisFilterState = filters.copy(
-                                    customDateRange = null,
-                                    activeDatePreset = null
-                                )
-                            )
-                        } else {
-                            val now = System.currentTimeMillis()
-                            val thirtyDaysAgo = now - (30L * 24 * 60 * 60 * 1000)
-                            current.copy(
-                                analysisFilterState = filters.copy(
-                                    customDateRange = Pair(thirtyDaysAgo, now),
-                                    financialYear = null,
-                                    activeDatePreset = QuickFilterPreset.LAST_30_DAYS
-                                )
-                            )
-                        }
-                    }
+
                     QuickFilterPreset.THIS_MONTH -> {
                         if (filters.activeDatePreset == QuickFilterPreset.THIS_MONTH) {
                             current.copy(
@@ -243,6 +224,43 @@ class MoneyVM @Inject constructor(
                                     customDateRange = Pair(startOfMonth, now),
                                     financialYear = null,
                                     activeDatePreset = QuickFilterPreset.THIS_MONTH
+                                )
+                            )
+                        }
+                    }
+                    QuickFilterPreset.LAST_MONTH -> {
+                        if (filters.activeDatePreset == QuickFilterPreset.LAST_MONTH) {
+                            current.copy(
+                                analysisFilterState = filters.copy(
+                                    customDateRange = null,
+                                    activeDatePreset = null
+                                )
+                            )
+                        } else {
+                            val startOfLastMonth = java.util.Calendar.getInstance().apply {
+                                add(java.util.Calendar.MONTH, -1)
+                                set(java.util.Calendar.DAY_OF_MONTH, 1)
+                                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                set(java.util.Calendar.MINUTE, 0)
+                                set(java.util.Calendar.SECOND, 0)
+                                set(java.util.Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+
+                            val endOfLastMonth = java.util.Calendar.getInstance().apply {
+                                add(java.util.Calendar.MONTH, -1)
+                                val maxDay = getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                                set(java.util.Calendar.DAY_OF_MONTH, maxDay)
+                                set(java.util.Calendar.HOUR_OF_DAY, 23)
+                                set(java.util.Calendar.MINUTE, 59)
+                                set(java.util.Calendar.SECOND, 59)
+                                set(java.util.Calendar.MILLISECOND, 999)
+                            }.timeInMillis
+
+                            current.copy(
+                                analysisFilterState = filters.copy(
+                                    customDateRange = Pair(startOfLastMonth, endOfLastMonth),
+                                    financialYear = null,
+                                    activeDatePreset = QuickFilterPreset.LAST_MONTH
                                 )
                             )
                         }
@@ -282,11 +300,22 @@ class MoneyVM @Inject constructor(
             }
 
             is MoneyAction.ViewCategoryTransactions -> _state.update { current ->
-                val updatedCats = current.analysisFilterState.categoryFilters.toMutableMap().apply {
-                    put(action.category, ItemFilterStatus.INCLUDED)
+                val newCategoryFilters = mutableMapOf<String, ItemFilterStatus>()
+                if (action.category.equals("Others", ignoreCase = true)) {
+                    val cats = if (action.otherCategories.isNotEmpty()) {
+                        (action.otherCategories + listOf("Others", "Other")).distinct()
+                    } else {
+                        listOf("Others", "Other")
+                    }
+                    cats.forEach { cat ->
+                        newCategoryFilters[cat] = ItemFilterStatus.INCLUDED
+                    }
+                } else {
+                    newCategoryFilters[action.category] = ItemFilterStatus.INCLUDED
                 }
                 current.copy(
-                    analysisFilterState = current.analysisFilterState.copy(categoryFilters = updatedCats),
+                    analysisFilterState = current.analysisFilterState.copy(categoryFilters = newCategoryFilters),
+                    selectedCategory = "All",
                     selectedTab = 1
                 )
             }
@@ -447,7 +476,7 @@ private fun com.example.dailytrack_mobile.data.remote.dto.TransactionDto.toDomai
         timestampMillis = timestampMs,
         monthStr = month,
         rawDate = dateOnly,
-        rawType = normalizedType,
+        rawType = type,
         split = split?.let { s ->
             SplitInfo(
                 id = s.id,

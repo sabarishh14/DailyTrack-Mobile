@@ -8,6 +8,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -88,14 +91,18 @@ fun AddMoneyScreen(
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var excludeAnalytics by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var accountDropdownExpanded by remember { mutableStateOf(false) }
+    var showAccountSheet by remember { mutableStateOf(false) }
 
     val amountFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val dims = Dimens.current
 
     val accountsList = remember(formState.accounts) {
-        if (formState.accounts.isNotEmpty()) formState.accounts else defaultAccounts
+        val list = if (formState.accounts.isNotEmpty()) formState.accounts else defaultAccounts
+        list.sortedBy { account ->
+            val index = defaultAccounts.indexOfFirst { it.equals(account, ignoreCase = true) }
+            if (index == -1) Int.MAX_VALUE else index
+        }
     }
 
     // Auto-select first account if not yet selected
@@ -609,76 +616,47 @@ fun AddMoneyScreen(
             }
 
             // ACCOUNT Card
-            ExposedDropdownMenuBox(
-                expanded = accountDropdownExpanded,
-                onExpandedChange = { accountDropdownExpanded = it },
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = cardBorder,
+                onClick = { showAccountSheet = true },
                 modifier = Modifier.weight(1f)
             ) {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = cardBorder,
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .padding(14.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp)
+                    Text(
+                        text = "ACCOUNT",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.2.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "ACCOUNT",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 1.2.sp,
-                                fontWeight = FontWeight.Bold
+                            text = selectedAccount ?: "Select",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = selectedAccount ?: "Select",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Select Account",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-
-                ExposedDropdownMenu(
-                    expanded = accountDropdownExpanded,
-                    onDismissRequest = { accountDropdownExpanded = false }
-                ) {
-                    accountsList.forEach { account ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = account,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = if (selectedAccount == account) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                )
-                            },
-                            onClick = {
-                                selectedAccount = account
-                                accountDropdownExpanded = false
-                            }
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Select Account",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -906,5 +884,93 @@ fun AddMoneyScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    if (showAccountSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showAccountSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "Select Account",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(accountsList) { account ->
+                        val isSelected = selectedAccount == account
+                        val accountBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                        val accountContentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(accountBg)
+                                .clickable {
+                                    selectedAccount = account
+                                    showAccountSheet = false
+                                }
+                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) 
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = account.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Text(
+                                text = account,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                ),
+                                color = accountContentColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
