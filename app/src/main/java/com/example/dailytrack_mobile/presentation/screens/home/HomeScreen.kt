@@ -26,11 +26,9 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Money
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -82,12 +80,6 @@ private fun getIconForAccount(accountName: String): ImageVector {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-    in 0..11  -> "Good morning"
-    in 12..16 -> "Good afternoon"
-    else      -> "Good evening"
-}
-
 private fun formatCurrency(amount: Double): String {
     val abs = Math.abs(amount)
     return when {
@@ -155,7 +147,6 @@ fun HomeScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(dims.sectionSpacing)
         ) {
-            item { GreetingHeader() }
             item {
                 NetWorthSection(
                     totalBankBalance = apiBankBalance,
@@ -202,116 +193,6 @@ fun HomeScreen(
                 )
             }
         }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Greeting header  +  Sheets action box
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun GreetingHeader() {
-    // Recomputes every minute so the greeting updates live as time passes
-    val greetingText by produceState(initialValue = greeting()) {
-        while (true) {
-            delay(60_000L)   // wait 1 minute, then refresh
-            value = greeting()
-        }
-    }
-
-    Row(
-        modifier              = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
-    ) {
-        // Left – greeting text
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text  = "$greetingText,",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text  = "Sabarish 👋",
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-
-        // Right – Sheets action box
-        SheetsActionBox()
-    }
-}
-
-/**
- * A fieldset-style box labelled "Sheets" on the top-left border,
- * containing a Sync button and an Upload button.
- */
-@Composable
-private fun SheetsActionBox() {
-    val dims = Dimens.current
-    val borderColor = MaterialTheme.colorScheme.outlineVariant
-    val bgColor     = MaterialTheme.colorScheme.background   // matches page background
-
-    // Outer Box positions the label on top of the border line
-    Box(modifier = Modifier.wrapContentSize()) {
-
-        // ── Border container ─────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .padding(top = 8.dp)              // leave room above for the label
-                .border(
-                    width = 1.dp,
-                    color = borderColor,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(horizontal = 4.dp, vertical = 4.dp)
-        ) {
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                // Sync button
-                IconButton(onClick = { /* TODO: sync */ }) {
-                    Icon(
-                        imageVector        = Icons.Default.Sync,
-                        contentDescription = "Sync",
-                        tint               = MaterialTheme.colorScheme.primary,
-                        modifier           = Modifier.size(dims.iconSizeMedium)
-                    )
-                }
-                // Vertical divider
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(dims.iconSizeSmall)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
-                )
-                // Upload button
-                IconButton(onClick = { /* TODO: upload */ }) {
-                    Icon(
-                        imageVector        = Icons.Default.CloudUpload,
-                        contentDescription = "Upload",
-                        tint               = MaterialTheme.colorScheme.primary,
-                        modifier           = Modifier.size(dims.iconSizeMedium)
-                    )
-                }
-            }
-        }
-
-        // ── "Sheets" label sitting on the top-left border line ───────────
-        Text(
-            text  = "Sheets",
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight    = FontWeight.SemiBold,
-                letterSpacing = 0.5.sp
-            ),
-            color    = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(x = 10.dp, y = 1.dp)    // sit right on the border line
-                .background(bgColor)             // punch through the border visually
-                .padding(horizontal = 4.dp)
-        )
     }
 }
 

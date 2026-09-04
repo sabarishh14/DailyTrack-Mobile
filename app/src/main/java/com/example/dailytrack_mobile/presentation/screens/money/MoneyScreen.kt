@@ -28,11 +28,20 @@ import com.example.dailytrack_mobile.presentation.util.Dimens
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun MoneyScreen(
-    viewModel: MoneyVM = hiltViewModel()
+    viewModel: MoneyVM = hiltViewModel(),
+    initialTab: Int? = null,
+    onTabConsumed: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(initialTab) {
+        if (initialTab != null) {
+            viewModel.onAction(MoneyAction.SelectTab(initialTab))
+            onTabConsumed()
+        }
+    }
 
     LaunchedEffect(state.actionMessage) {
         state.actionMessage?.let { message ->

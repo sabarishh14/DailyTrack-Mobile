@@ -25,6 +25,7 @@ import com.example.dailytrack_mobile.presentation.screens.invest.InvestmentsScre
 import com.example.dailytrack_mobile.presentation.screens.money.MoneyScreen
 import com.example.dailytrack_mobile.presentation.screens.sabdekho.SabdekhoScreen
 import com.example.dailytrack_mobile.presentation.screens.forms.*
+import com.example.dailytrack_mobile.presentation.screens.home.components.HomeTopBar
 import com.example.dailytrack_mobile.presentation.screens.main.components.AddActionSheet
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import kotlinx.coroutines.launch
@@ -42,6 +43,7 @@ fun MainScreen(
     var showDiscardDialog by remember { mutableStateOf(false) }
     var pendingRoute by remember { mutableStateOf<String?>(null) }
     var preselectedMediaForAddMovie by remember { mutableStateOf<MediaSearchResultDto?>(null) }
+    var moneyInitialTab by remember { mutableStateOf<Int?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -195,55 +197,68 @@ fun MainScreen(
 
     Scaffold(
         topBar = {
-            Column {
-                TopAppBar(
-                    navigationIcon = {
-                        if (currentRoute != Routes.Home.route) {
-                            IconButton(onClick = { navigateSafely(Routes.Home.route) }) {
+            if (currentRoute == Routes.Home.route) {
+                HomeTopBar(
+                    onNavigateToSettings = onNavigateToSettings,
+                    onNavigateToAnalytics = {
+                        moneyInitialTab = 0
+                        navigateSafely(Routes.Money.route)
+                    }
+                )
+            } else {
+                Column {
+                    TopAppBar(
+                        navigationIcon = {
+                            if (currentRoute != Routes.Home.route) {
+                                IconButton(onClick = { navigateSafely(Routes.Home.route) }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back to Home",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(dims.iconSizeMedium)
+                                    )
+                                }
+                            }
+                        },
+                        title = {
+                            Text(
+                                text = screenTitle,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        actions = {
+                            IconButton(onClick = onNavigateToSettings) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back to Home",
-                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(dims.iconSizeMedium)
                                 )
                             }
-                        }
-                    },
-                    title = {
-                        Text(
-                            text = screenTitle,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    actions = {
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(dims.iconSizeMedium)
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    modifier = Modifier.statusBarsPadding()
-                )
-                // Subtle divider between topbar and canvas
-                HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                )
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                        modifier = Modifier.statusBarsPadding()
+                    )
+                    // Subtle divider between topbar and canvas
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+                }
             }
         },
         bottomBar = {
             BottomNavBar(
                 currentRoute = currentRoute,
                 onNavigate = { targetRoute ->
+                    if (targetRoute == Routes.Money.route && currentRoute != Routes.Money.route) {
+                        moneyInitialTab = null
+                    }
                     navigateSafely(targetRoute)
                 }
             )
@@ -280,7 +295,10 @@ fun MainScreen(
         ) {
             when (currentRoute) {
                 Routes.Home.route -> HomeScreen()
-                Routes.Money.route -> MoneyScreen()
+                Routes.Money.route -> MoneyScreen(
+                    initialTab = moneyInitialTab,
+                    onTabConsumed = { moneyInitialTab = null }
+                )
                 Routes.Activities.route -> ActivitiesScreen()
                 Routes.Investments.route -> InvestmentsScreen()
                 Routes.Sabdekho.route -> SabdekhoScreen(
