@@ -618,7 +618,6 @@ fun AddMoneyScreen(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = cardBg),
                     border = cardBorder,
-                    onClick = { accountDropdownExpanded = !accountDropdownExpanded },
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
