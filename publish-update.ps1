@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. Bumps versionCode and versionName in app/build.gradle.kts.
-    2. Builds app-debug.apk using Android Studio's bundled JBR.
+    2. Builds app-release.apk using Android Studio's bundled JBR.
     3. Copies the built APK to releases/DailyTrack-v<version>.apk.
     4. Commits and pushes the version bump to Git.
     5. Creates a GitHub Release and uploads the APK automatically (if GITHUB_TOKEN is available)
@@ -76,16 +76,16 @@ Set-Content -Path $GradleFile -Value $GradleContent -NoNewline
 Write-Host "  -> Set versionName = `"$CleanVersion`"" -ForegroundColor Green
 
 # 2. Build APK
-Write-Host "`n[2/5] Building debug APK with Gradle..." -ForegroundColor Yellow
+Write-Host "`n[2/5] Building release APK with Gradle..." -ForegroundColor Yellow
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 
-cmd.exe /c "set ""JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"" && gradlew.bat assembleDebug"
+cmd.exe /c "set ""JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"" && gradlew.bat assembleRelease"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Gradle build failed with exit code $LASTEXITCODE"
     exit 1
 }
 
-$ApkSource = Join-Path $RootPath "app\build\outputs\apk\debug\app-debug.apk"
+$ApkSource = Join-Path $RootPath "app\build\outputs\apk\release\app-release.apk"
 if (-not (Test-Path $ApkSource)) {
     Write-Error "Could not find built APK at $ApkSource"
     exit 1
