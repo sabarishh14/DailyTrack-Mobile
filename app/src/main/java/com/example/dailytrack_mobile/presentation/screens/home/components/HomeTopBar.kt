@@ -13,9 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.example.dailytrack_mobile.data.local.auth.AuthManager
 import com.example.dailytrack_mobile.presentation.util.Dimens
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import java.util.Locale
 
 private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 0..11  -> "Good morning"
@@ -23,13 +27,57 @@ private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_
     else      -> "Good evening"
 }
 
+private fun extractDisplayName(fullName: String?, email: String?): String {
+    if (!fullName.isNullOrBlank()) {
+        val first = fullName.trim().split("\\s+".toRegex()).firstOrNull { it.isNotBlank() }
+        if (!first.isNullOrBlank()) {
+            return first.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+        }
+    }
+    if (!email.isNullOrBlank()) {
+        val emailPrefix = email.substringBefore("@").replace(Regex("[._0-9]"), " ").trim()
+        val firstFromEmail = emailPrefix.split("\\s+".toRegex()).firstOrNull { it.isNotBlank() }
+        if (!firstFromEmail.isNullOrBlank()) {
+            return firstFromEmail.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+        }
+    }
+    return "Sabarish"
+}
+
 @Composable
 fun HomeTopBar(
     onNavigateToSettings: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
+    userName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
+    val context = LocalContext.current
+    val authManager = remember { AuthManager(context.applicationContext) }
+    val storedName by authManager.userNameFlow.collectAsState(initial = null)
+    val storedEmail by authManager.userEmailFlow.collectAsState(initial = null)
+
+    val firebaseName = remember {
+        try {
+            FirebaseAuth.getInstance().currentUser?.displayName
+        } catch (_: Exception) {
+            null
+        }
+    }
+    val firebaseEmail = remember {
+        try {
+            FirebaseAuth.getInstance().currentUser?.email
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    val resolvedFullName = userName ?: storedName ?: firebaseName
+    val resolvedEmail = storedEmail ?: firebaseEmail
+
+    val userGreetingName = remember(resolvedFullName, resolvedEmail) {
+        extractDisplayName(resolvedFullName, resolvedEmail)
+    }
 
     // Recomputes every minute so the greeting updates live as time passes
     val greetingText by produceState(initialValue = greeting()) {
@@ -51,7 +99,7 @@ fun HomeTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // ── Left: Greeting Text (Hello Sabarish) ─────────────────────────────
+        // ── Left: Greeting Text (Hello User) ─────────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = "$greetingText,",
@@ -59,7 +107,7 @@ fun HomeTopBar(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Sabarish 👋",
+                text = "$userGreetingName 👋",
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onBackground
             )

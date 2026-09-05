@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -26,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import com.example.dailytrack_mobile.presentation.util.Dimens
+import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -65,6 +67,16 @@ private fun formatPnl(amount: Double): String {
     return "$prefix${formatCompact(amount)}"
 }
 
+private fun formatPointDate(dateStr: String): String {
+    return try {
+        val date = java.time.LocalDate.parse(dateStr)
+        val month = date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+        "${date.dayOfMonth} $month ${date.year}"
+    } catch (e: Exception) {
+        dateStr
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Composable
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +88,11 @@ fun InvestmentsScreen(
     val dims = Dimens.current
 
     var showExpandedChart by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var selectedChartPoint by remember { mutableStateOf<ChartPoint?>(null) }
+
+    LaunchedEffect(state.chartPoints) {
+        selectedChartPoint = null
+    }
 
     if (showExpandedChart) {
         ExpandedChartOverlay(
@@ -123,6 +140,8 @@ fun InvestmentsScreen(
             item {
                 PortfolioHeader(
                     state = state,
+                    selectedPoint = selectedChartPoint,
+                    onClearSelection = { selectedChartPoint = null },
                     onExpandClicked = { showExpandedChart = true }
                 )
             }
@@ -133,6 +152,8 @@ fun InvestmentsScreen(
                     points = state.chartPoints,
                     isValueMode = true,
                     isGain = state.isFilteredGain,
+                    selectedPoint = selectedChartPoint,
+                    onPointSelected = { selectedChartPoint = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(dims.sparklineHeight)
@@ -195,9 +216,18 @@ fun InvestmentsScreen(
 @Composable
 private fun PortfolioHeader(
     state: InvestState,
+    selectedPoint: ChartPoint? = null,
+    onClearSelection: () -> Unit = {},
     onExpandClicked: () -> Unit
 ) {
     val dims = Dimens.current
+    val isSelected = selectedPoint != null
+    val displayCurrent = selectedPoint?.current?.toDouble() ?: state.totalCurrent
+    val displayInvested = selectedPoint?.invested?.toDouble() ?: state.totalInvested
+    val displayPnl = selectedPoint?.let { (it.current - it.invested).toDouble() } ?: state.totalPnl
+    val displayPnlPercent = selectedPoint?.pnlPercent?.toDouble() ?: state.totalPnlPercent
+    val isGain = displayPnl >= 0
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,20 +240,51 @@ private fun PortfolioHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {
-        Column {
-            Text(
-                text = "PORTFOLIO VALUE",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                ),
-                color = MaterialTheme.colorScheme.primary
-            )
+        Column(modifier = Modifier.weight(1f, fill = false)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = if (isSelected) "VALUE ON ${formatPointDate(selectedPoint!!.date).uppercase()}" else "PORTFOLIO VALUE",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = if (isSelected) 1.2.sp else 2.sp
+                    ),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary
+                )
+
+                if (isSelected) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.clickable { onClearSelection() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text = "Reset",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Reset",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = formatFull(state.totalCurrent),
+                text = formatFull(displayCurrent),
                 style = MaterialTheme.typography.displaySmall.copy(
                     fontWeight = FontWeight.ExtraBold
                 ),
@@ -234,20 +295,20 @@ private fun PortfolioHeader(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (state.isOverallGain) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                    imageVector = if (isGain) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                     contentDescription = null,
-                    tint = if (state.isOverallGain) InvestColors.GainGreen else InvestColors.LossRed,
+                    tint = if (isGain) InvestColors.GainGreen else InvestColors.LossRed,
                     modifier = Modifier.size(dims.iconSizeSmall)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "${formatPnl(state.totalPnl)} (${String.format("%.1f", state.totalPnlPercent)}%)",
+                    text = "${formatPnl(displayPnl)} (${String.format(java.util.Locale.US, "%.1f", displayPnlPercent)}%)",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (state.isOverallGain) InvestColors.GainGreen else InvestColors.LossRed
+                    color = if (isGain) InvestColors.GainGreen else InvestColors.LossRed
                 )
                 Spacer(modifier = Modifier.width(dims.itemSpacingMedium))
                 Text(
-                    text = "Overall",
+                    text = if (isSelected) "Inv: ${formatCompact(displayInvested)}" else "Overall",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -284,6 +345,8 @@ private fun AdvancedChart(
     isValueMode: Boolean,
     isGain: Boolean,
     showXAxis: Boolean = false,
+    selectedPoint: ChartPoint? = null,
+    onPointSelected: ((ChartPoint?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (points.size < 2) {
@@ -293,11 +356,24 @@ private fun AdvancedChart(
         return
     }
 
-    var scale by remember { mutableStateOf(1f) }
-    val scrollState = rememberScrollState()
+    var internalSelectedPoint by remember { mutableStateOf<ChartPoint?>(null) }
+    val activePoint = selectedPoint ?: internalSelectedPoint
+
+    fun updatePoint(point: ChartPoint?) {
+        internalSelectedPoint = point
+        onPointSelected?.invoke(point)
+    }
+
+    val activeIndex = remember(activePoint, points) {
+        if (activePoint != null) {
+            val idx = points.indexOfFirst { it.date == activePoint.date }
+            if (idx >= 0) idx else null
+        } else null
+    }
     
     val primaryColor = if (isGain) InvestColors.GainGreen else InvestColors.LossRed
     val investedColor = MaterialTheme.colorScheme.primary
+    val guideLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
 
     val yVals = if (isValueMode) {
         points.flatMap { listOf(it.current, it.invested) }
@@ -309,13 +385,10 @@ private fun AdvancedChart(
     val maxVal = yVals.maxOrNull() ?: 0f
     val range = (maxVal - minVal).coerceAtLeast(0.01f)
     
-    val paddingTop = 24f
+    val paddingTop = 28f
     val paddingBottom = if (showXAxis) 60f else 24f
     
     BoxWithConstraints(modifier = modifier) {
-        val baseWidth = maxWidth
-        val canvasWidth = baseWidth * scale
-        
         Row(modifier = Modifier.fillMaxSize()) {
             // Chart part
             Box(
@@ -323,12 +396,41 @@ private fun AdvancedChart(
                     .weight(1f)
                     .fillMaxHeight()
                     .clipToBounds()
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, _, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                        }
+                    .pointerInput(points) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                if (points.isNotEmpty()) {
+                                    val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+                                    val index = (offset.x / stepX).roundToInt().coerceIn(0, points.size - 1)
+                                    val tappedPoint = points[index]
+                                    if (activePoint?.date == tappedPoint.date) {
+                                        updatePoint(null)
+                                    } else {
+                                        updatePoint(tappedPoint)
+                                    }
+                                }
+                            }
+                        )
                     }
-                    .horizontalScroll(scrollState)
+                    .pointerInput(points) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset ->
+                                if (points.isNotEmpty()) {
+                                    val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+                                    val index = (offset.x / stepX).roundToInt().coerceIn(0, points.size - 1)
+                                    updatePoint(points[index])
+                                }
+                            },
+                            onHorizontalDrag = { change, _ ->
+                                if (points.isNotEmpty()) {
+                                    val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+                                    val index = (change.position.x / stepX).roundToInt().coerceIn(0, points.size - 1)
+                                    updatePoint(points[index])
+                                    change.consume()
+                                }
+                            }
+                        )
+                    }
             ) {
                 val textPaint = remember {
                     android.graphics.Paint().apply {
@@ -339,9 +441,7 @@ private fun AdvancedChart(
                 }
 
                 Canvas(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(canvasWidth)
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     val stepX = size.width / (points.size - 1).coerceAtLeast(1)
                     
@@ -349,7 +449,7 @@ private fun AdvancedChart(
                         return size.height - paddingBottom - ((value - minVal) / range) * (size.height - paddingTop - paddingBottom)
                     }
 
-                    // Dotted grid
+                    // Dotted horizontal grid lines
                     val pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
                     val gridLines = 4
                     for (i in 0..gridLines) {
@@ -417,9 +517,48 @@ private fun AdvancedChart(
                             style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                         )
                         
+                        // Subtle point dots when point count is manageable
+                        if (points.size in 3..25) {
+                            for (i in 0 until points.size) {
+                                drawCircle(
+                                    color = primaryColor.copy(alpha = 0.5f),
+                                    radius = 3.5f,
+                                    center = Offset(i * stepX, yOf(points[i].current))
+                                )
+                            }
+                        }
+
                         // Draw end dots
                         drawCircle(color = investedColor.copy(alpha = 0.8f), radius = 6f, center = Offset((points.size - 1) * stepX, yOf(points.last().invested)))
                         drawCircle(color = primaryColor, radius = 6f, center = Offset((points.size - 1) * stepX, yOf(points.last().current)))
+
+                        // Selected point indicators
+                        if (activeIndex != null && activeIndex in points.indices) {
+                            val selPt = points[activeIndex]
+                            val selX = activeIndex * stepX
+                            val guidePath = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                            
+                            // Vertical guide line
+                            drawLine(
+                                color = guideLineColor,
+                                start = Offset(selX, paddingTop),
+                                end = Offset(selX, size.height - paddingBottom),
+                                strokeWidth = 2f,
+                                pathEffect = guidePath
+                            )
+
+                            // Invested marker
+                            val invY = yOf(selPt.invested)
+                            drawCircle(color = investedColor.copy(alpha = 0.25f), radius = 10f, center = Offset(selX, invY))
+                            drawCircle(color = investedColor, radius = 5.5f, center = Offset(selX, invY))
+                            drawCircle(color = Color.White, radius = 2.5f, center = Offset(selX, invY))
+
+                            // Current marker
+                            val currY = yOf(selPt.current)
+                            drawCircle(color = primaryColor.copy(alpha = 0.3f), radius = 12f, center = Offset(selX, currY))
+                            drawCircle(color = primaryColor, radius = 6.5f, center = Offset(selX, currY))
+                            drawCircle(color = Color.White, radius = 3f, center = Offset(selX, currY))
+                        }
                     } else {
                         // Return Mode
                         val returnPath = Path().apply {
@@ -450,6 +589,16 @@ private fun AdvancedChart(
                             style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                         )
                         
+                        if (points.size in 3..25) {
+                            for (i in 0 until points.size) {
+                                drawCircle(
+                                    color = primaryColor.copy(alpha = 0.5f),
+                                    radius = 3.5f,
+                                    center = Offset(i * stepX, yOf(points[i].pnlPercent))
+                                )
+                            }
+                        }
+
                         drawCircle(color = primaryColor, radius = 6f, center = Offset((points.size - 1) * stepX, yOf(points.last().pnlPercent)))
 
                         // Zero line
@@ -461,6 +610,96 @@ private fun AdvancedChart(
                                 strokeWidth = 2f,
                                 pathEffect = pathEffect
                             )
+                        }
+
+                        // Selected point indicator for Return mode
+                        if (activeIndex != null && activeIndex in points.indices) {
+                            val selPt = points[activeIndex]
+                            val selX = activeIndex * stepX
+                            val guidePath = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+
+                            drawLine(
+                                color = guideLineColor,
+                                start = Offset(selX, paddingTop),
+                                end = Offset(selX, size.height - paddingBottom),
+                                strokeWidth = 2f,
+                                pathEffect = guidePath
+                            )
+
+                            val pnlY = yOf(selPt.pnlPercent)
+                            drawCircle(color = primaryColor.copy(alpha = 0.3f), radius = 12f, center = Offset(selX, pnlY))
+                            drawCircle(color = primaryColor, radius = 6.5f, center = Offset(selX, pnlY))
+                            drawCircle(color = Color.White, radius = 3f, center = Offset(selX, pnlY))
+                        }
+                    }
+                }
+
+                // Interactive floating badge at top center of the chart
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = activePoint != null,
+                    enter = fadeIn() + slideInVertically { -it / 2 },
+                    exit = fadeOut() + slideOutVertically { -it / 2 },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 2.dp)
+                ) {
+                    if (activePoint != null) {
+                        val ptGain = if (isValueMode) activePoint.current >= activePoint.invested else activePoint.pnlPercent >= 0f
+                        val ptGainColor = if (ptGain) InvestColors.GainGreen else InvestColors.LossRed
+
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.95f),
+                            shadowElevation = 2.dp,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = formatPointDate(activePoint.date),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .size(3.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                )
+
+                                if (isValueMode) {
+                                    Text(
+                                        text = formatCompact(activePoint.current.toDouble()),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                                        color = ptGainColor
+                                    )
+                                    Text(
+                                        text = "(${if (ptGain) "+" else ""}${String.format(java.util.Locale.US, "%.1f", activePoint.pnlPercent)}%)",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = ptGainColor
+                                    )
+                                } else {
+                                    Text(
+                                        text = "${if (ptGain) "+" else ""}${String.format(java.util.Locale.US, "%.1f", activePoint.pnlPercent)}%",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                                        color = ptGainColor
+                                    )
+                                }
+
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clip(CircleShape)
+                                        .clickable { updatePoint(null) }
+                                )
+                            }
                         }
                     }
                 }
@@ -979,6 +1218,11 @@ private fun ExpandedChartOverlay(
     onTabSelected: (InvestTab) -> Unit
 ) {
     var isValueMode by remember { mutableStateOf(true) }
+    var selectedPoint by remember { mutableStateOf<ChartPoint?>(null) }
+
+    LaunchedEffect(state.chartPoints) {
+        selectedPoint = null
+    }
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -1046,12 +1290,84 @@ private fun ExpandedChartOverlay(
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                AnimatedVisibility(
+                    visible = selectedPoint != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    if (selectedPoint != null) {
+                        val ptGain = if (isValueMode) selectedPoint!!.current >= selectedPoint!!.invested else selectedPoint!!.pnlPercent >= 0f
+                        val ptGainColor = if (ptGain) InvestColors.GainGreen else InvestColors.LossRed
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = formatPointDate(selectedPoint!!.date),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (isValueMode) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = formatFull(selectedPoint!!.current.toDouble()),
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "${formatPnl(selectedPoint!!.pnl.toDouble())} (${String.format(java.util.Locale.US, "%.1f", selectedPoint!!.pnlPercent)}%)",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = ptGainColor
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "Return: ${if (ptGain) "+" else ""}${String.format(java.util.Locale.US, "%.1f", selectedPoint!!.pnlPercent)}%",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = ptGainColor
+                                        )
+                                    }
+                                }
+
+                                androidx.compose.material3.IconButton(
+                                    onClick = { selectedPoint = null },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 AdvancedChart(
                     points = state.chartPoints,
                     isValueMode = isValueMode,
                     isGain = state.isFilteredGain,
                     showXAxis = true,
+                    selectedPoint = selectedPoint,
+                    onPointSelected = { selectedPoint = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp)
