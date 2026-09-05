@@ -25,7 +25,7 @@ android {
         applicationId = "com.example.dailytrack_mobile"
         minSdk = 27
         targetSdk = 37
-        versionCode = 5
+        versionCode = 6
         versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
