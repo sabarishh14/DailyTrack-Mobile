@@ -24,8 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +66,8 @@ fun EditTransactionDialog(
     availableAccounts: List<String>,
     availableCategories: List<String>,
     mostUsedCategories: List<String> = emptyList(),
+    recentDescriptions: List<String> = emptyList(),
+    descriptionsByCategory: Map<String, List<String>> = emptyMap(),
     isUpdating: Boolean,
     onSave: (
         id: Long,
@@ -79,6 +84,8 @@ fun EditTransactionDialog(
 ) {
     val dims = Dimens.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val focusManager = LocalFocusManager.current
+    var isNoteFocused by remember { mutableStateOf(false) }
     val apiDateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
     val displayDateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.US) }
 
@@ -145,6 +152,25 @@ fun EditTransactionDialog(
         (listOf(categoryInput) + filtered).distinct().take(8)
     }
 
+    val noteSuggestions = remember(categoryInput, note, recentDescriptions, descriptionsByCategory) {
+        val categoryList = if (categoryInput.isNotBlank()) {
+            descriptionsByCategory[categoryInput.trim()].orEmpty()
+        } else {
+            emptyList()
+        }
+        val fallback = listOf("Lunch", "Dinner", "Snacks", "Coffee", "Groceries", "Uber", "Fuel", "Shopping", "Subscription", "Bill")
+        val combined = (categoryList + recentDescriptions + fallback).filter { it.isNotBlank() }.distinct()
+        val query = note.trim()
+        if (query.isBlank()) {
+            combined.take(50)
+        } else {
+            val (startsWith, contains) = combined
+                .filter { !it.equals(query, ignoreCase = true) }
+                .partition { it.startsWith(query, ignoreCase = true) }
+            (startsWith + contains.filter { it.contains(query, ignoreCase = true) }).take(50)
+        }
+    }
+
     // Date Picker Dialog
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
@@ -206,6 +232,7 @@ fun EditTransactionDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.79f)
+                .imePadding()
         ) {
             // ── Header ───────────────────────────────────────────────────────
             Row(
@@ -264,8 +291,8 @@ fun EditTransactionDialog(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(horizontal = dims.screenHorizontalPadding, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // 1. Hero Amount Card (Centered without weird left-box bias)
                 val amountFocusRequester = remember { FocusRequester() }
@@ -655,9 +682,6 @@ fun EditTransactionDialog(
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    val noteSuggestions = remember(categoryInput) {
-                        listOf("Lunch", "Dinner", "Snacks", "Coffee", "Groceries", "Uber", "Fuel", "Shopping", "Subscription", "Bill")
-                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -665,9 +689,20 @@ fun EditTransactionDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         noteSuggestions.forEach { suggestion ->
+                            val isCategoryMatch = categoryInput.isNotBlank() &&
+                                descriptionsByCategory[categoryInput.trim()]?.contains(suggestion) == true
                             SuggestionChip(
                                 onClick = { note = suggestion },
                                 label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) },
+                                icon = if (isCategoryMatch) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                } else null,
                                 shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
                             )
                         }
@@ -675,6 +710,9 @@ fun EditTransactionDialog(
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isNoteFocused = it.isFocused },
                         placeholder = { Text("What was this for?", style = MaterialTheme.typography.bodyMedium) },
                         leadingIcon = {
                             Icon(
@@ -696,8 +734,7 @@ fun EditTransactionDialog(
                         },
                         minLines = 2,
                         maxLines = 3,
-                        shape = RoundedCornerShape(dims.buttonCornerRadius),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(dims.buttonCornerRadius)
                     )
                 }
 
@@ -736,77 +773,199 @@ fun EditTransactionDialog(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-            // ── Sticky Footer Action Buttons ─────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
-                horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Delete Button
-                OutlinedButton(
-                    onClick = { onDelete(transaction) },
-                    enabled = !isUpdating,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    shape = RoundedCornerShape(dims.buttonCornerRadius),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+            // ── Sticky Footer: Docked Suggestion Accessory Bar or Action Buttons ──
+            if (isNoteFocused) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 6.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteOutline,
-                        contentDescription = "Delete",
-                        modifier = Modifier.size(dims.iconSizeSmall)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Delete",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (categoryInput.isNotBlank()) "SUGGESTIONS • ${categoryInput.uppercase()}" else "SUGGESTIONS",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        letterSpacing = 1.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "• 1-tap to fill",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    isNoteFocused = false
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = "Done",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            noteSuggestions.forEach { suggestion ->
+                                val isCategoryMatch = categoryInput.isNotBlank() &&
+                                    descriptionsByCategory[categoryInput.trim()]?.contains(suggestion) == true
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isCategoryMatch) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isCategoryMatch) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                        } else {
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                        }
+                                    ),
+                                    modifier = Modifier.clickable {
+                                        note = suggestion
+                                        focusManager.clearFocus()
+                                        isNoteFocused = false
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isCategoryMatch) Icons.Default.Check else Icons.Default.Schedule,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = suggestion,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontSize = 13.sp,
+                                                fontWeight = if (isCategoryMatch) FontWeight.Bold else FontWeight.SemiBold
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-
-                // Save Changes Button
-                val isValidAmount = (amount.toDoubleOrNull() ?: 0.0) > 0
-                val isFormValid = isValidAmount && categoryInput.isNotBlank() && selectedAccount.isNotBlank()
-
-                Button(
-                    onClick = {
-                        val parsedAmt = amount.toDoubleOrNull() ?: 0.0
-                        val dateStr = apiDateFormat.format(Date(selectedDate))
-                        onSave(
-                            transaction.id,
-                            selectedType.dbValue,
-                            categoryInput.trim().ifEmpty { "Other" },
-                            parsedAmt,
-                            note.takeIf { it.isNotBlank() },
-                            selectedAccount,
-                            dateStr,
-                            excludeAnalytics
-                        )
-                    },
-                    enabled = !isUpdating && isFormValid,
-                    shape = RoundedCornerShape(dims.buttonCornerRadius),
+            } else {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(dims.searchBarHeight)
+                        .fillMaxWidth()
+                        .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
+                    horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isUpdating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Saving...", style = MaterialTheme.typography.labelLarge)
-                    } else {
+                    // Delete Button
+                    OutlinedButton(
+                        onClick = { onDelete(transaction) },
+                        enabled = !isUpdating,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        shape = RoundedCornerShape(dims.buttonCornerRadius),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "Delete",
+                            modifier = Modifier.size(dims.iconSizeSmall)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Changes", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            text = "Delete",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+
+                    // Save Changes Button
+                    val isValidAmount = (amount.toDoubleOrNull() ?: 0.0) > 0
+                    val isFormValid = isValidAmount && categoryInput.isNotBlank() && selectedAccount.isNotBlank()
+
+                    Button(
+                        onClick = {
+                            val parsedAmt = amount.toDoubleOrNull() ?: 0.0
+                            val dateStr = apiDateFormat.format(Date(selectedDate))
+                            onSave(
+                                transaction.id,
+                                selectedType.dbValue,
+                                categoryInput.trim().ifEmpty { "Other" },
+                                parsedAmt,
+                                note.takeIf { it.isNotBlank() },
+                                selectedAccount,
+                                dateStr,
+                                excludeAnalytics
+                            )
+                        },
+                        enabled = !isUpdating && isFormValid,
+                        shape = RoundedCornerShape(dims.buttonCornerRadius),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(dims.searchBarHeight)
+                    ) {
+                        if (isUpdating) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(dims.iconSizeMedium)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Save Changes",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
                     }
                 }
             }

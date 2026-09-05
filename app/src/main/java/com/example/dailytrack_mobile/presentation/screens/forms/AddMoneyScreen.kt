@@ -199,7 +199,7 @@ fun AddMoneyScreen(
 
     // Contextual Description Suggestions:
     // Prioritize past descriptions under the currently selected category,
-    // followed by other recent descriptions across categories.
+    // followed by other historical descriptions across all transactions.
     val descriptionSuggestions = remember(
         categoryInput,
         note,
@@ -214,12 +214,12 @@ fun AddMoneyScreen(
         val combined = (categoryList + formState.recentDescriptions).distinct()
         val query = note.trim()
         if (query.isBlank()) {
-            combined.take(6)
+            combined.take(50)
         } else {
             val (startsWith, contains) = combined
                 .filter { !it.equals(query, ignoreCase = true) }
                 .partition { it.startsWith(query, ignoreCase = true) }
-            (startsWith + contains.filter { it.contains(query, ignoreCase = true) }).take(6)
+            (startsWith + contains.filter { it.contains(query, ignoreCase = true) }).take(50)
         }
     }
 
@@ -1011,7 +1011,7 @@ fun AddMoneyScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (categoryInput.isNotBlank()) "SUGGESTIONS FOR ${categoryInput.uppercase()}" else "RECENT DESCRIPTIONS",
+                        text = if (categoryInput.isNotBlank()) "SUGGESTIONS • ${categoryInput.uppercase()}" else "SUGGESTIONS • ALL PAST NOTES",
                         style = MaterialTheme.typography.labelSmall.copy(
                             letterSpacing = 1.sp,
                             fontWeight = FontWeight.Bold,
@@ -1039,12 +1039,22 @@ fun AddMoneyScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     descriptionSuggestions.forEach { suggestion ->
+                        val isCategoryMatch = categoryInput.isNotBlank() &&
+                            formState.descriptionsByCategory[categoryInput.trim()]?.contains(suggestion) == true
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surface,
+                            color = if (isCategoryMatch) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
                             border = BorderStroke(
                                 1.dp,
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                if (isCategoryMatch) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                }
                             ),
                             onClick = {
                                 note = suggestion
@@ -1057,7 +1067,7 @@ fun AddMoneyScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Schedule,
+                                    imageVector = if (isCategoryMatch) Icons.Default.Check else Icons.Default.Schedule,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(13.dp)
@@ -1066,7 +1076,7 @@ fun AddMoneyScreen(
                                     text = suggestion,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = if (isCategoryMatch) FontWeight.Bold else FontWeight.SemiBold
                                     ),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )

@@ -68,16 +68,19 @@ class FormsVM @Inject constructor(
 
     private var searchJob: Job? = null
 
+    private var progressiveDescriptionsJob: Job? = null
+
     init {
         loadMoneyFormData()
     }
 
     fun loadMoneyFormData() {
+        progressiveDescriptionsJob?.cancel()
         viewModelScope.launch {
             _addMoneyState.update { it.copy(isLoadingData = true) }
             val accountsRes = moneyRepository.getAccounts()
             val categoriesRes = moneyRepository.getCategories()
-            val txsRes = moneyRepository.getTransactions(limit = 100)
+            val txsRes = moneyRepository.getTransactions(limit = 500, offset = 0)
 
             val txs = txsRes.getOrNull()?.transactions ?: emptyList()
             val usedExpenses = txs.filter { !it.type.equals("Credit", ignoreCase = true) }
@@ -91,11 +94,7 @@ class FormsVM @Inject constructor(
                 .sortedByDescending { it.value.size }
                 .map { it.key }
 
-            val nonBlankTxs = txs.filter { !it.description.isNullOrBlank() }
-            val recentDescriptions = nonBlankTxs.map { it.description!!.trim() }.distinct()
-            val descriptionsByCategory = nonBlankTxs
-                .groupBy { it.heading }
-                .mapValues { (_, list) -> list.map { it.description!!.trim() }.distinct() }
+            val (cachedRecent, cachedByCat) = moneyRepository.getAllCachedDescriptions()
 
             _addMoneyState.update { state ->
                 state.copy(
@@ -104,9 +103,21 @@ class FormsVM @Inject constructor(
                     categories = categoriesRes.getOrNull() ?: state.categories,
                     mostUsedExpenseCategories = usedExpenses,
                     mostUsedIncomeCategories = usedIncome,
-                    recentDescriptions = recentDescriptions,
-                    descriptionsByCategory = descriptionsByCategory
+                    recentDescriptions = cachedRecent,
+                    descriptionsByCategory = cachedByCat
                 )
+            }
+
+            // Progressive background loading for all historical transactions across the database
+            progressiveDescriptionsJob = launch {
+                moneyRepository.fetchAllTransactionsForDescriptions { allDescriptions, byCategory ->
+                    _addMoneyState.update { state ->
+                        state.copy(
+                            recentDescriptions = allDescriptions,
+                            descriptionsByCategory = byCategory
+                        )
+                    }
+                }
             }
         }
     }

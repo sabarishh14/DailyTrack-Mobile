@@ -176,12 +176,12 @@ fun BulkEditTransactionsSheet(
         val existing = (recentDescriptions + items.map { it.description }.filter { it.isNotBlank() } + defaultFallbackSuggestions).distinct()
         val query = currentDescriptionText.trim()
         if (query.isBlank()) {
-            existing.take(10)
+            existing.take(40)
         } else {
             val (startsWith, contains) = existing
                 .filter { !it.equals(query, ignoreCase = true) }
                 .partition { it.startsWith(query, ignoreCase = true) }
-            (startsWith + contains.filter { it.contains(query, ignoreCase = true) }).take(10)
+            (startsWith + contains.filter { it.contains(query, ignoreCase = true) }).take(40)
         }
     }
 

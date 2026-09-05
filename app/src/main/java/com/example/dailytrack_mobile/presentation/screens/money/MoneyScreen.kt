@@ -135,6 +135,21 @@ fun MoneyScreen(
         )
     }
 
+    // Historical descriptions and contextual descriptions by category
+    val allDescriptions = remember(state.transactions) {
+        state.transactions
+            .mapNotNull { it.note?.takeIf { n -> n.isNotBlank() } ?: it.title.takeIf { t -> t != it.category && t.isNotBlank() } }
+            .distinct()
+    }
+    val descriptionsByCategory = remember(state.transactions) {
+        state.transactions
+            .filter { (it.note?.isNotBlank() == true) || (it.title != it.category && it.title.isNotBlank()) }
+            .groupBy { it.category }
+            .mapValues { (_, txs) ->
+                txs.mapNotNull { it.note?.takeIf { n -> n.isNotBlank() } ?: it.title.takeIf { t -> t != it.category && t.isNotBlank() } }.distinct()
+            }
+    }
+
     // Edit Transaction Dialog
     state.editingTransaction?.let { tx ->
         EditTransactionDialog(
@@ -142,6 +157,8 @@ fun MoneyScreen(
             availableAccounts = state.allAvailableAccounts,
             availableCategories = state.allAvailableCategories,
             mostUsedCategories = state.mostUsedCategories,
+            recentDescriptions = allDescriptions,
+            descriptionsByCategory = descriptionsByCategory,
             isUpdating = state.isUpdating,
             onSave = { id, type, category, amount, note, accountName, date, excludeAnalytics ->
                 viewModel.onAction(
@@ -197,18 +214,12 @@ fun MoneyScreen(
 
     // Bulk Edit Transactions Bottom Sheet
     if (state.showBulkEditSheet && state.selectedTransactions.isNotEmpty()) {
-        val recentDescriptions = remember(state.transactions) {
-            state.transactions
-                .mapNotNull { it.note?.takeIf { n -> n.isNotBlank() } ?: it.title.takeIf { t -> t != it.category && t.isNotBlank() } }
-                .distinct()
-                .take(30)
-        }
         BulkEditTransactionsSheet(
             transactions = state.selectedTransactions,
             availableAccounts = state.allAvailableAccounts,
             availableCategories = state.allAvailableCategories,
             mostUsedCategories = state.mostUsedCategories,
-            recentDescriptions = recentDescriptions,
+            recentDescriptions = allDescriptions,
             isUpdating = state.isBulkUpdating,
             onSave = { updates ->
                 viewModel.onAction(MoneyAction.ExecuteBulkEdit(updates))

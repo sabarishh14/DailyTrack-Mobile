@@ -21,11 +21,87 @@ class MoneyRepository @Inject constructor(
     private var cachedAccounts: List<AccountDto>? = null
     private val cachedTransactions = mutableMapOf<String, TransactionsResponseDto>()
     private var cachedCategories: List<String>? = null
+    private val cachedAllDescriptions = mutableListOf<String>()
+    private val cachedDescriptionsByCategory = mutableMapOf<String, MutableList<String>>()
+    private var allHistoricalTransactionsFetched = false
 
     fun clearCache() {
         cachedAccounts = null
         cachedTransactions.clear()
         cachedCategories = null
+    }
+
+    fun recordSingleDescription(category: String, note: String) {
+        val trimmed = note.trim()
+        if (trimmed.isNotBlank()) {
+            synchronized(this) {
+                cachedAllDescriptions.remove(trimmed)
+                cachedAllDescriptions.add(0, trimmed)
+                val catKey = category.trim()
+                if (catKey.isNotBlank()) {
+                    val list = cachedDescriptionsByCategory.getOrPut(catKey) { mutableListOf() }
+                    list.remove(trimmed)
+                    list.add(0, trimmed)
+                }
+            }
+        }
+    }
+
+    fun recordTransactions(txs: List<TransactionDto>) {
+        synchronized(this) {
+            for (tx in txs) {
+                val desc = tx.description?.trim()
+                if (!desc.isNullOrBlank()) {
+                    if (!cachedAllDescriptions.contains(desc)) {
+                        cachedAllDescriptions.add(desc)
+                    }
+                    val catKey = tx.heading.trim()
+                    if (catKey.isNotBlank()) {
+                        val list = cachedDescriptionsByCategory.getOrPut(catKey) { mutableListOf() }
+                        if (!list.contains(desc)) {
+                            list.add(desc)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun getAllCachedDescriptions(): Pair<List<String>, Map<String, List<String>>> {
+        synchronized(this) {
+            return Pair(
+                cachedAllDescriptions.toList(),
+                cachedDescriptionsByCategory.mapValues { it.value.toList() }
+            )
+        }
+    }
+
+    suspend fun fetchAllTransactionsForDescriptions(
+        forceRefresh: Boolean = false,
+        onBatchLoaded: ((List<String>, Map<String, List<String>>) -> Unit)? = null
+    ): Pair<List<String>, Map<String, List<String>>> {
+        if (!forceRefresh && allHistoricalTransactionsFetched && cachedAllDescriptions.isNotEmpty()) {
+            return getAllCachedDescriptions()
+        }
+
+        var offset = 0
+        var hasMore = true
+
+        while (hasMore) {
+            val result = getTransactions(limit = 500, offset = offset, forceRefresh = forceRefresh).getOrNull()
+            if (result == null || result.transactions.isEmpty()) break
+            
+            recordTransactions(result.transactions)
+            
+            val currentCached = getAllCachedDescriptions()
+            onBatchLoaded?.invoke(currentCached.first, currentCached.second)
+
+            hasMore = result.hasMore
+            offset += 500
+        }
+
+        allHistoricalTransactionsFetched = true
+        return getAllCachedDescriptions()
     }
 
     suspend fun getAccounts(forceRefresh: Boolean = false): Result<List<AccountDto>> = runCatching {
@@ -47,14 +123,19 @@ class MoneyRepository @Inject constructor(
         forceRefresh: Boolean = false
     ): Result<TransactionsResponseDto> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
-            demoDataManager.getTransactions(limit = limit, offset = offset, month = month)
+            demoDataManager.getTransactions(limit = limit, offset = offset, month = month).also {
+                recordTransactions(it.transactions)
+            }
         } else {
             val key = "$limit-$offset-$month"
             if (!forceRefresh && cachedTransactions.containsKey(key)) {
-                cachedTransactions[key]!!
+                cachedTransactions[key]!!.also {
+                    recordTransactions(it.transactions)
+                }
             } else {
                 api.getTransactions(limit = limit, offset = offset, month = month).also {
                     cachedTransactions[key] = it
+                    recordTransactions(it.transactions)
                 }
             }
         }
@@ -105,6 +186,9 @@ class MoneyRepository @Inject constructor(
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to add transaction")
             }
+            if (!note.isNullOrBlank()) {
+                recordSingleDescription(category = category, note = note)
+            }
             clearCache()
             demoDataManager.notifyDataUpdated()
         }
@@ -131,6 +215,9 @@ class MoneyRepository @Inject constructor(
                 date = date,
                 excludeAnalytics = excludeAnalytics
             )
+            if (!note.isNullOrBlank()) {
+                recordSingleDescription(category = category, note = note)
+            }
         } else {
             val request = AddTransactionRequestDto(
                 account = accountName,
@@ -144,6 +231,9 @@ class MoneyRepository @Inject constructor(
             val response = api.updateTransaction(id, request)
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to update transaction")
+            }
+            if (!note.isNullOrBlank()) {
+                recordSingleDescription(category = category, note = note)
             }
             clearCache()
             demoDataManager.notifyDataUpdated()
@@ -189,11 +279,19 @@ class MoneyRepository @Inject constructor(
                     date = item.date,
                     excludeAnalytics = item.excludeAnalytics
                 )
+                if (!item.description.isNullOrBlank()) {
+                    recordSingleDescription(category = item.heading, note = item.description)
+                }
             }
         } else {
             val response = api.bulkEditTransactions(updates)
             if (!response.success) {
                 throw Exception(response.message ?: "Failed to bulk edit transactions")
+            }
+            updates.forEach { item ->
+                if (!item.description.isNullOrBlank()) {
+                    recordSingleDescription(category = item.heading, note = item.description)
+                }
             }
             clearCache()
             demoDataManager.notifyDataUpdated()
