@@ -1,6 +1,8 @@
 package com.example.dailytrack_mobile.presentation.screens.invest
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,9 +19,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -87,20 +92,11 @@ fun InvestmentsScreen(
     val state by viewModel.state.collectAsState()
     val dims = Dimens.current
 
-    var showExpandedChart by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var isValueMode by remember { mutableStateOf(true) }
     var selectedChartPoint by remember { mutableStateOf<ChartPoint?>(null) }
 
     LaunchedEffect(state.chartPoints) {
         selectedChartPoint = null
-    }
-
-    if (showExpandedChart) {
-        ExpandedChartOverlay(
-            state = state,
-            onDismiss = { showExpandedChart = false },
-            onTimeRangeSelected = { viewModel.onAction(InvestAction.SelectTimeRange(it)) },
-            onTabSelected = { viewModel.onAction(InvestAction.SelectTab(it)) }
-        )
     }
 
     DailyTrackPullToRefreshBox(
@@ -136,78 +132,115 @@ fun InvestmentsScreen(
                     .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
             ) {
-            // ── Portfolio header ────────────────────────────────────────────
-            item {
-                PortfolioHeader(
-                    state = state,
-                    selectedPoint = selectedChartPoint,
-                    onClearSelection = { selectedChartPoint = null },
-                    onExpandClicked = { showExpandedChart = true }
-                )
-            }
-
-            // ── Advanced chart ─────────────────────────────────────────────
-            item {
-                AdvancedChart(
-                    points = state.chartPoints,
-                    isValueMode = true,
-                    isGain = state.isFilteredGain,
-                    selectedPoint = selectedChartPoint,
-                    onPointSelected = { selectedChartPoint = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(dims.sparklineHeight)
-                        .padding(horizontal = dims.screenHorizontalPadding)
-                )
-            }
-
-            // ── Summary row (Invested / Current / P&L) ─────────────────────
-            item {
-                SummaryRow(state = state)
-            }
-
-            // ── Filter pill tabs ────────────────────────────────────────────
-            item {
-                FilterPills(
-                    selectedTab = state.selectedTab,
-                    onTabSelected = { viewModel.onAction(InvestAction.SelectTab(it)) }
-                )
-            }
-
-            // ── Content based on selected tab ───────────────────────────────
-            when (state.selectedTab) {
-                InvestTab.OVERVIEW -> {
-                    // Show category summary cards
-                    items(state.categorySummaries) { summary ->
-                        CategorySummaryCard(summary = summary)
-                    }
+                // ── Portfolio header ────────────────────────────────────────────
+                item {
+                    PortfolioHeader(
+                        state = state,
+                        isValueMode = isValueMode,
+                        onValueModeChanged = { isValueMode = it },
+                        selectedPoint = selectedChartPoint,
+                        onClearSelection = { selectedChartPoint = null }
+                    )
                 }
-                else -> {
-                    // Show individual holdings
-                    val filtered = state.filteredHoldings
-                    val catInvested = filtered.sumOf { it.invested }
-                    val catCurrent = filtered.sumOf { it.current }
-                    val catPnl = catCurrent - catInvested
-                    val catPnlPercent = if (catInvested == 0.0) 0.0 else (catPnl / catInvested) * 100.0
 
-                    item {
-                        TabSummaryHeader(
-                            label = state.selectedTab.label,
-                            invested = catInvested,
-                            current = catCurrent,
-                            pnl = catPnl,
-                            pnlPercent = catPnlPercent
-                        )
+                // ── Advanced chart ─────────────────────────────────────────────
+                item {
+                    AdvancedChart(
+                        points = state.chartPoints,
+                        isValueMode = isValueMode,
+                        isGain = state.isPeriodGain,
+                        showXAxis = true,
+                        selectedPoint = selectedChartPoint,
+                        onPointSelected = { selectedChartPoint = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(205.dp)
+                            .padding(horizontal = dims.screenHorizontalPadding)
+                    )
+                }
+
+                // ── Chart Legend (Current vs Invested or Return vs Baseline) ───
+                item {
+                    ChartLegend(
+                        isValueMode = isValueMode,
+                        isGain = state.isPeriodGain
+                    )
+                }
+
+                // ── Time range toggle (1M | 3M | 6M | 1Y | YTD | ALL) ───────────
+                item {
+                    Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
+                    TimeRangeToggle(
+                        selectedRange = state.selectedTimeRange,
+                        onRangeSelected = { viewModel.onAction(InvestAction.SelectTimeRange(it)) },
+                        modifier = Modifier.padding(horizontal = dims.screenHorizontalPadding)
+                    )
+                }
+
+                // ── Summary row (Invested / Current / P&L) ─────────────────────
+                item {
+                    Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
+                    SummaryRow(
+                        state = state,
+                        selectedPoint = selectedChartPoint
+                    )
+                }
+
+                // ── Filter pill tabs ────────────────────────────────────────────
+                item {
+                    FilterPills(
+                        selectedTab = state.selectedTab,
+                        onTabSelected = { viewModel.onAction(InvestAction.SelectTab(it)) }
+                    )
+                }
+
+                // ── Content based on selected tab ───────────────────────────────
+                when (state.selectedTab) {
+                    InvestTab.OVERVIEW -> {
+                        // Show asset allocation breakdown card
+                        if (state.categorySummaries.isNotEmpty()) {
+                            item {
+                                AssetAllocationCard(
+                                    summaries = state.categorySummaries,
+                                    totalCurrent = state.totalCurrent
+                                )
+                            }
+                        }
+                        // Show category summary cards
+                        items(state.categorySummaries) { summary ->
+                            CategorySummaryCard(
+                                summary = summary,
+                                onClick = {
+                                    val targetTab = when (summary.category) {
+                                        InvestCategory.STOCKS -> InvestTab.STOCKS
+                                        InvestCategory.MUTUAL_FUNDS -> InvestTab.MUTUAL_FUNDS
+                                        InvestCategory.RETIREMENT -> InvestTab.RETIREMENT
+                                        InvestCategory.FD -> InvestTab.FD
+                                        InvestCategory.GOLD -> InvestTab.GOLD
+                                        InvestCategory.REAL_ESTATE -> InvestTab.REAL_ESTATE
+                                    }
+                                    viewModel.onAction(InvestAction.SelectTab(targetTab))
+                                }
+                            )
+                        }
                     }
-
-                    items(filtered) { holding ->
-                        HoldingItem(holding = holding)
+                    else -> {
+                        // Show individual holdings directly (TabSummaryHeader is removed as cards below graph show it)
+                        val filtered = state.filteredHoldings
+                        if (filtered.isEmpty()) {
+                            item {
+                                EmptyHoldingsState(tab = state.selectedTab)
+                            }
+                        } else {
+                            items(filtered) { holding ->
+                                HoldingItem(holding = holding)
+                            }
+                        }
                     }
                 }
             }
         }
     }
-}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,17 +249,29 @@ fun InvestmentsScreen(
 @Composable
 private fun PortfolioHeader(
     state: InvestState,
+    isValueMode: Boolean,
+    onValueModeChanged: (Boolean) -> Unit,
     selectedPoint: ChartPoint? = null,
-    onClearSelection: () -> Unit = {},
-    onExpandClicked: () -> Unit
+    onClearSelection: () -> Unit = {}
 ) {
     val dims = Dimens.current
     val isSelected = selectedPoint != null
-    val displayCurrent = selectedPoint?.current?.toDouble() ?: state.totalCurrent
-    val displayInvested = selectedPoint?.invested?.toDouble() ?: state.totalInvested
-    val displayPnl = selectedPoint?.let { (it.current - it.invested).toDouble() } ?: state.totalPnl
-    val displayPnlPercent = selectedPoint?.pnlPercent?.toDouble() ?: state.totalPnlPercent
-    val isGain = displayPnl >= 0
+    val displayCurrent = selectedPoint?.current?.toDouble() ?: state.periodCurrent
+    val displayInvested = selectedPoint?.invested?.toDouble() ?: state.periodInvested
+    val displayPnl = selectedPoint?.let { (it.current - it.invested).toDouble() } ?: state.periodPnl
+    val displayPnlPercent = selectedPoint?.pnlPercent?.toDouble() ?: state.periodPnlPercent
+    val isGain = displayPnl >= 0.0
+
+    val headerTitle = when {
+        isSelected -> "VALUE ON ${formatPointDate(selectedPoint!!.date).uppercase()}"
+        state.selectedTab == InvestTab.OVERVIEW -> "PORTFOLIO VALUE"
+        else -> "${state.selectedTab.label.uppercase()} VALUE"
+    }
+
+    val periodSubtext = when {
+        isSelected -> "Inv: ${formatCompact(displayInvested)}"
+        else -> state.periodLabel
+    }
 
     Row(
         modifier = Modifier
@@ -246,12 +291,12 @@ private fun PortfolioHeader(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = if (isSelected) "VALUE ON ${formatPointDate(selectedPoint!!.date).uppercase()}" else "PORTFOLIO VALUE",
+                    text = headerTitle,
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = if (isSelected) 1.2.sp else 2.sp
+                        letterSpacing = if (isSelected) 1.2.sp else 1.8.sp
                     ),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 if (isSelected) {
@@ -278,17 +323,40 @@ private fun PortfolioHeader(
                             )
                         }
                     }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                    ) {
+                        Text(
+                            text = state.selectedTimeRange.label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 10.sp,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            val heroValue = if (isValueMode) {
+                formatFull(displayCurrent)
+            } else {
+                "${if (isGain) "+" else ""}${String.format(java.util.Locale.US, "%.2f", displayPnlPercent)}%"
+            }
+
             Text(
-                text = formatFull(displayCurrent),
+                text = heroValue,
                 style = MaterialTheme.typography.displaySmall.copy(
                     fontWeight = FontWeight.ExtraBold
                 ),
-                color = MaterialTheme.colorScheme.onBackground
+                color = if (isValueMode) MaterialTheme.colorScheme.onBackground else if (isGain) InvestColors.GainGreen else InvestColors.LossRed
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -301,27 +369,29 @@ private fun PortfolioHeader(
                     modifier = Modifier.size(dims.iconSizeSmall)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
+                val sublineMetrics = if (isValueMode) {
+                    "${formatPnl(displayPnl)} (${String.format(java.util.Locale.US, "%.1f", displayPnlPercent)}%)"
+                } else {
+                    "Val: ${formatCompact(displayCurrent)} • Net: ${formatPnl(displayPnl)}"
+                }
                 Text(
-                    text = "${formatPnl(displayPnl)} (${String.format(java.util.Locale.US, "%.1f", displayPnlPercent)}%)",
+                    text = sublineMetrics,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (isGain) InvestColors.GainGreen else InvestColors.LossRed
+                    color = if (isValueMode) (if (isGain) InvestColors.GainGreen else InvestColors.LossRed) else MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(dims.itemSpacingMedium))
                 Text(
-                    text = if (isSelected) "Inv: ${formatCompact(displayInvested)}" else "Overall",
+                    text = periodSubtext,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-        
-        androidx.compose.material3.IconButton(onClick = onExpandClicked) {
-            Icon(
-                imageVector = Icons.Default.OpenInFull,
-                contentDescription = "Expand Chart",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+
+        ValueReturnToggle(
+            isValueMode = isValueMode,
+            onModeChanged = onValueModeChanged
+        )
     }
 }
 
@@ -356,10 +426,14 @@ private fun AdvancedChart(
         return
     }
 
+    val haptic = LocalHapticFeedback.current
     var internalSelectedPoint by remember { mutableStateOf<ChartPoint?>(null) }
     val activePoint = selectedPoint ?: internalSelectedPoint
 
     fun updatePoint(point: ChartPoint?) {
+        if (point != null && point.date != activePoint?.date) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
         internalSelectedPoint = point
         onPointSelected?.invoke(point)
     }
@@ -737,28 +811,45 @@ private fun formatCompactForAxis(amount: Double, isPercent: Boolean = false): St
 // Summary Row
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun SummaryRow(state: InvestState) {
+private fun SummaryRow(
+    state: InvestState,
+    selectedPoint: ChartPoint? = null
+) {
     val dims = Dimens.current
+    val isSelected = selectedPoint != null
+    val displayCurrent = selectedPoint?.current?.toDouble() ?: state.periodCurrent
+    val displayInvested = selectedPoint?.invested?.toDouble() ?: state.periodInvested
+    val displayPnl = selectedPoint?.let { (it.current - it.invested).toDouble() } ?: state.periodPnl
+    val displayPnlPercent = selectedPoint?.pnlPercent?.toDouble() ?: state.periodPnlPercent
+    val isGain = displayPnl >= 0.0
+
+    val pnlLabel = when {
+        isSelected -> "POINT P&L"
+        state.selectedTimeRange == ChartTimeRange.ALL -> "TOTAL P&L"
+        else -> "${state.selectedTimeRange.label} RETURN"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
+            .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingMedium),
         horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
     ) {
         SummaryMiniCard(
             label = "INVESTED",
-            value = formatCompact(state.totalInvested),
+            value = formatCompact(displayInvested),
             modifier = Modifier.weight(1f)
         )
         SummaryMiniCard(
             label = "CURRENT",
-            value = formatCompact(state.totalCurrent),
+            value = formatCompact(displayCurrent),
             modifier = Modifier.weight(1f)
         )
         SummaryMiniCard(
-            label = "P&L",
-            value = formatPnl(state.totalPnl),
-            valueColor = if (state.isOverallGain) InvestColors.GainGreen else InvestColors.LossRed,
+            label = pnlLabel,
+            value = formatPnl(displayPnl),
+            subValue = "${if (isGain) "+" else ""}${String.format(java.util.Locale.US, "%.1f", displayPnlPercent)}%",
+            valueColor = if (isGain) InvestColors.GainGreen else InvestColors.LossRed,
             modifier = Modifier.weight(1f)
         )
     }
@@ -768,6 +859,7 @@ private fun SummaryRow(state: InvestState) {
 private fun SummaryMiniCard(
     label: String,
     value: String,
+    subValue: String? = null,
     valueColor: Color? = null,
     modifier: Modifier = Modifier
 ) {
@@ -781,27 +873,48 @@ private fun SummaryMiniCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(
-                horizontal = dims.miniCardPaddingHorizontal,
-                vertical = dims.miniCardPaddingVertical
-            )
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = dims.miniCardPaddingHorizontal,
+                    vertical = dims.miniCardPaddingVertical
+                )
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.8.sp,
+                    fontSize = 10.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
                 ),
-                color = valueColor ?: MaterialTheme.colorScheme.onSurface
+                color = valueColor ?: MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
+            if (subValue != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subValue,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 10.5.sp
+                    ),
+                    color = valueColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -856,9 +969,13 @@ private fun FilterPills(
 // Category Summary Card (for Overview tab)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun CategorySummaryCard(summary: InvestState.CategorySummary) {
+private fun CategorySummaryCard(
+    summary: InvestState.CategorySummary,
+    onClick: () -> Unit
+) {
     val dims = Dimens.current
     Card(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingSmall),
@@ -873,7 +990,7 @@ private fun CategorySummaryCard(summary: InvestState.CategorySummary) {
                 .fillMaxWidth()
                 .padding(dims.cardInnerPadding - 4.dp)
         ) {
-            // Header row: category name + P&L badge
+            // Header row: category name + P&L badge + chevron
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -897,22 +1014,34 @@ private fun CategorySummaryCard(summary: InvestState.CategorySummary) {
                     )
                 }
 
-                // P&L percentage badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (summary.isGain) InvestColors.GainGreen.copy(alpha = 0.15f)
-                            else InvestColors.LossRed.copy(alpha = 0.15f)
-                        )
-                        .padding(horizontal = dims.itemSpacingMedium, vertical = 4.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "${if (summary.isGain) "+" else ""}${String.format("%.1f", summary.pnlPercent)}%",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = if (summary.isGain) InvestColors.GainGreen else InvestColors.LossRed
+                    // P&L percentage badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (summary.isGain) InvestColors.GainGreen.copy(alpha = 0.15f)
+                                else InvestColors.LossRed.copy(alpha = 0.15f)
+                            )
+                            .padding(horizontal = dims.itemSpacingMedium, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${if (summary.isGain) "+" else ""}${String.format("%.1f", summary.pnlPercent)}%",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = if (summary.isGain) InvestColors.GainGreen else InvestColors.LossRed
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "View holdings",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -975,21 +1104,16 @@ private fun ValueColumn(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab Summary Header (for filtered tabs)
+// Empty Holdings State (for filtered tabs with 0 items)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun TabSummaryHeader(
-    label: String,
-    invested: Double,
-    current: Double,
-    pnl: Double,
-    pnlPercent: Double
+private fun EmptyHoldingsState(
+    tab: InvestTab,
+    modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
-    val isGain = pnl >= 0
-
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingMedium),
         shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
@@ -1001,54 +1125,29 @@ private fun TabSummaryHeader(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(dims.cardInnerPadding - 4.dp)
+                .padding(dims.cardInnerPadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "$label Summary",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (isGain) InvestColors.GainGreen.copy(alpha = 0.15f)
-                            else InvestColors.LossRed.copy(alpha = 0.15f)
-                        )
-                        .padding(horizontal = dims.itemSpacingMedium, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "${if (isGain) "+" else ""}${String.format("%.1f", pnlPercent)}%",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = if (isGain) InvestColors.GainGreen else InvestColors.LossRed
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(dims.itemSpacingLarge))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                ValueColumn(label = "INVESTED", value = formatCompact(invested))
-                ValueColumn(label = "CURRENT", value = formatCompact(current))
-                ValueColumn(
-                    label = "P&L",
-                    value = formatPnl(pnl),
-                    valueColor = if (isGain) InvestColors.GainGreen else InvestColors.LossRed
-                )
-            }
+            Icon(
+                imageVector = Icons.Filled.PieChart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+            Text(
+                text = "No ${tab.label} holdings yet",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Holdings categorized under ${tab.label} will be displayed here.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
@@ -1130,77 +1229,133 @@ private fun HoldingItem(holding: InvestmentHolding) {
 @Composable
 private fun TimeRangeToggle(
     selectedRange: ChartTimeRange,
-    onRangeSelected: (ChartTimeRange) -> Unit
+    onRangeSelected: (ChartTimeRange) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-            .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
-        ChartTimeRange.values().forEach { range ->
-            val isSelected = range == selectedRange
-            val bgColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent
-            val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-            
-            Box(
-                modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                    .background(bgColor)
-                    .clickable { onRangeSelected(range) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = range.label,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                    ),
-                    color = contentColor
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ChartTimeRange.entries.forEach { range ->
+                val isSelected = range == selectedRange
+                val bgColor by animateColorAsState(
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    animationSpec = tween(durationMillis = 200),
+                    label = "timeRangeBg"
                 )
+                val contentColor by animateColorAsState(
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(durationMillis = 200),
+                    label = "timeRangeText"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(bgColor)
+                        .clickable { onRangeSelected(range) }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = range.label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            fontSize = 11.sp
+                        ),
+                        maxLines = 1,
+                        color = contentColor
+                    )
+                }
             }
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Small Filter Pills (for Overlay)
+// Value vs Return Toggle (in Portfolio Header)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun SmallFilterPills(
-    selectedTab: InvestTab,
-    onTabSelected: (InvestTab) -> Unit
+private fun ValueReturnToggle(
+    isValueMode: Boolean,
+    onModeChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val scrollState = rememberScrollState()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     ) {
-        InvestTab.entries.forEach { tab ->
-            val isSelected = tab == selectedTab
+        Row(
+            modifier = Modifier.padding(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val valueBg by animateColorAsState(
+                targetValue = if (isValueMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                animationSpec = tween(durationMillis = 180),
+                label = "valueBg"
+            )
+            val valueColor by animateColorAsState(
+                targetValue = if (isValueMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                animationSpec = tween(durationMillis = 180),
+                label = "valueColor"
+            )
+            val returnBg by animateColorAsState(
+                targetValue = if (!isValueMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                animationSpec = tween(durationMillis = 180),
+                label = "returnBg"
+            )
+            val returnColor by animateColorAsState(
+                targetValue = if (!isValueMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                animationSpec = tween(durationMillis = 180),
+                label = "returnColor"
+            )
+
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onTabSelected(tab) }
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .background(valueBg)
+                    .clickable { onModeChanged(true) }
+                    .padding(horizontal = 9.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = tab.label,
+                    text = "Value",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        fontWeight = if (isValueMode) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 11.sp
                     ),
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = valueColor
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(returnBg)
+                    .clickable { onModeChanged(false) }
+                    .padding(horizontal = 9.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Return",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = if (!isValueMode) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 11.sp
+                    ),
+                    color = returnColor
                 )
             }
         }
@@ -1208,185 +1363,177 @@ private fun SmallFilterPills(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Expanded Chart Overlay
+// Chart Legend (Current vs Invested or Return vs Baseline)
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
-private fun ExpandedChartOverlay(
-    state: InvestState,
-    onDismiss: () -> Unit,
-    onTimeRangeSelected: (ChartTimeRange) -> Unit,
-    onTabSelected: (InvestTab) -> Unit
+private fun ChartLegend(
+    isValueMode: Boolean,
+    isGain: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    var isValueMode by remember { mutableStateOf(true) }
-    var selectedPoint by remember { mutableStateOf<ChartPoint?>(null) }
+    val gainLossColor = if (isGain) InvestColors.GainGreen else InvestColors.LossRed
+    val investedColor = MaterialTheme.colorScheme.primary
 
-    LaunchedEffect(state.chartPoints) {
-        selectedPoint = null
-    }
-
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.current.screenHorizontalPadding, vertical = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        if (isValueMode) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(gainLossColor)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Current Value",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .width(12.dp)
+                    .height(2.5.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(investedColor)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Invested",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(gainLossColor)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Return %",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .width(12.dp)
+                    .height(1.5.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "0% Baseline",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Asset Allocation Breakdown Card (for Overview tab)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun AssetAllocationCard(
+    summaries: List<InvestState.CategorySummary>,
+    totalCurrent: Double,
+    modifier: Modifier = Modifier
+) {
+    val dims = Dimens.current
+    if (totalCurrent <= 0.0 || summaries.isEmpty()) return
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingSmall),
+        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f))
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(dims.cardInnerPadding - 4.dp)
         ) {
-            Column(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ASSET ALLOCATION",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp
+                    ),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "${summaries.size} Categories",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Multi-segment horizontal bar
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(24.dp)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Portfolio Chart",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    // Value vs Return Toggle
-                    Row(
-                        modifier = Modifier
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(8.dp))
-                            .padding(2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
+                summaries.forEach { cat ->
+                    val ratio = (cat.current / totalCurrent).toFloat().coerceIn(0f, 1f)
+                    if (ratio > 0f) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isValueMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                .clickable { isValueMode = true }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("Value", style = MaterialTheme.typography.labelSmall, color = if (isValueMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (!isValueMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                .clickable { isValueMode = false }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("Return", style = MaterialTheme.typography.labelSmall, color = if (!isValueMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-
-                    androidx.compose.material3.IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                .weight(ratio)
+                                .fillMaxHeight()
+                                .background(cat.category.color)
                         )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-                AnimatedVisibility(
-                    visible = selectedPoint != null,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    if (selectedPoint != null) {
-                        val ptGain = if (isValueMode) selectedPoint!!.current >= selectedPoint!!.invested else selectedPoint!!.pnlPercent >= 0f
-                        val ptGainColor = if (ptGain) InvestColors.GainGreen else InvestColors.LossRed
+            Spacer(modifier = Modifier.height(10.dp))
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            // Mini legend pills row using FlowRow
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                summaries.forEach { cat ->
+                    val percent = if (totalCurrent > 0) (cat.current / totalCurrent) * 100.0 else 0.0
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = formatPointDate(selectedPoint!!.date),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (isValueMode) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = formatFull(selectedPoint!!.current.toDouble()),
-                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${formatPnl(selectedPoint!!.pnl.toDouble())} (${String.format(java.util.Locale.US, "%.1f", selectedPoint!!.pnlPercent)}%)",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                                color = ptGainColor
-                                            )
-                                        }
-                                    } else {
-                                        Text(
-                                            text = "Return: ${if (ptGain) "+" else ""}${String.format(java.util.Locale.US, "%.1f", selectedPoint!!.pnlPercent)}%",
-                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = ptGainColor
-                                        )
-                                    }
-                                }
-
-                                androidx.compose.material3.IconButton(
-                                    onClick = { selectedPoint = null },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(cat.category.color)
+                        )
+                        Text(
+                            text = "${cat.category.label}: ${String.format(java.util.Locale.US, "%.0f", percent)}%",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                }
-                
-                AdvancedChart(
-                    points = state.chartPoints,
-                    isValueMode = isValueMode,
-                    isGain = state.isFilteredGain,
-                    showXAxis = true,
-                    selectedPoint = selectedPoint,
-                    onPointSelected = { selectedPoint = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                SmallFilterPills(
-                    selectedTab = state.selectedTab,
-                    onTabSelected = onTabSelected
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    TimeRangeToggle(
-                        selectedRange = state.selectedTimeRange,
-                        onRangeSelected = onTimeRangeSelected
-                    )
                 }
             }
         }

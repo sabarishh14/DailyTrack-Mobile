@@ -79,7 +79,7 @@ data class InvestState(
     val selectedTab: InvestTab = InvestTab.OVERVIEW,
     val holdings: List<InvestmentHolding> = emptyList(),
     val historicalSnapshots: List<com.example.dailytrack_mobile.data.remote.dto.PortfolioSnapshotDto> = emptyList(),
-    val selectedTimeRange: ChartTimeRange = ChartTimeRange.ALL,
+    val selectedTimeRange: ChartTimeRange = ChartTimeRange.THREE_MONTHS,
     val chartPoints: List<ChartPoint> = emptyList()
 ) {
     // ── Derived portfolio totals ────────────────────────────────────────
@@ -125,6 +125,48 @@ data class InvestState(
     val filteredInvested: Double get() = filteredHoldings.sumOf { it.invested }
     val filteredCurrent: Double get() = filteredHoldings.sumOf { it.current }
     val filteredPnl: Double get() = filteredCurrent - filteredInvested
+    val filteredPnlPercent: Double get() = if (filteredInvested == 0.0) 0.0 else (filteredPnl / filteredInvested) * 100.0
     val isFilteredGain: Boolean get() = filteredPnl >= 0
+
+    // ── Timeframe period metrics ─────────────────────────────────────────
+    val periodStartPoint: ChartPoint? get() = chartPoints.firstOrNull()
+    val periodEndPoint: ChartPoint? get() = chartPoints.lastOrNull()
+
+    val periodCurrent: Double
+        get() = periodEndPoint?.current?.toDouble() ?: filteredCurrent
+
+    val periodInvested: Double
+        get() = periodEndPoint?.invested?.toDouble() ?: filteredInvested
+
+    val periodPnl: Double
+        get() {
+            if (selectedTimeRange == ChartTimeRange.ALL || chartPoints.size < 2) {
+                return filteredPnl
+            }
+            val start = periodStartPoint ?: return filteredPnl
+            val end = periodEndPoint ?: return filteredPnl
+            val netInflow = (end.invested - start.invested).toDouble()
+            val valueDiff = (end.current - start.current).toDouble()
+            return valueDiff - netInflow
+        }
+
+    val periodPnlPercent: Double
+        get() {
+            if (selectedTimeRange == ChartTimeRange.ALL || chartPoints.size < 2) {
+                return filteredPnlPercent
+            }
+            val start = periodStartPoint ?: return filteredPnlPercent
+            val base = start.current.toDouble()
+            return if (base > 0.0) (periodPnl / base) * 100.0 else 0.0
+        }
+
+    val isPeriodGain: Boolean get() = periodPnl >= 0.0
+
+    val periodLabel: String
+        get() = when (selectedTimeRange) {
+            ChartTimeRange.ALL -> "overall"
+            ChartTimeRange.YTD -> "YTD"
+            else -> "past ${selectedTimeRange.label}"
+        }
 
 }
