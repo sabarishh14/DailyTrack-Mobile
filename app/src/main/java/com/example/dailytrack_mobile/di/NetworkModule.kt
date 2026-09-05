@@ -28,22 +28,31 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(authManager: com.example.dailytrack_mobile.data.local.auth.AuthManager): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
-        val apiKeyInterceptor = Interceptor { chain ->
+        val authInterceptor = Interceptor { chain ->
             val original = chain.request()
-            val request = original.newBuilder()
-                .header("X-API-KEY", ApiConfig.API_KEY)
-                .header("Authorization", "Bearer ${ApiConfig.API_KEY}")
-                .build()
-            chain.proceed(request)
+
+            // Do not add auth header to firebase-login or external URLs (e.g. GitHub Releases)
+            if (original.url.encodedPath.contains("/api/auth/firebase-login")) {
+                return@Interceptor chain.proceed(original)
+            }
+
+            val token = authManager.getCachedToken()
+            val requestBuilder = original.newBuilder()
+
+            if (!token.isNullOrBlank()) {
+                requestBuilder.header("Authorization", "Bearer $token")
+            }
+
+            chain.proceed(requestBuilder.build())
         }
 
         return OkHttpClient.Builder()
-            .addInterceptor(apiKeyInterceptor)
+            .addInterceptor(authInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

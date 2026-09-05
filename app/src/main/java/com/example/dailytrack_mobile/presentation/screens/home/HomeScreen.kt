@@ -918,7 +918,7 @@ private fun FlowSection(
             onDismiss     = { showDatePicker = false },
             onSelected    = { m, y ->
                 showDatePicker = false
-                onDateChange(m, y)
+                onDateChange(m ?: selectedMonth, y)
             }
         )
     }

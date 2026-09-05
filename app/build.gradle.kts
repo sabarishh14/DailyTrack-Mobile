@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.google.devtools.ksp)
     alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
     alias(libs.plugins.hilt.android.plugin)
+    alias(libs.plugins.google.services)
 }
 
 val localProperties = Properties()
@@ -13,8 +14,8 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val apiBaseUrl = localProperties.getProperty("API_BASE_URL") ?: ""
-val apiSecretKey = localProperties.getProperty("API_SECRET_KEY") ?: ""
+val apiBaseUrl = localProperties.getProperty("API_BASE_URL")?.takeIf { it.isNotBlank() }
+    ?: "https://sabarishhh14-dailytrack-v2.hf.space"
 
 android {
     namespace = "com.example.dailytrack_mobile"
@@ -30,7 +31,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         buildConfigField("String", "BASE_URL", "\"$apiBaseUrl\"")
-        buildConfigField("String", "API_KEY", "\"$apiSecretKey\"")
     }
 
     buildTypes {
@@ -103,6 +103,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+    implementation(libs.play.services.auth)
     "ksp"(libs.androidx.room.compiler)
     "ksp"(libs.moshi.kotlin.codegen)
     "ksp"(libs.hilt.android.compiler)

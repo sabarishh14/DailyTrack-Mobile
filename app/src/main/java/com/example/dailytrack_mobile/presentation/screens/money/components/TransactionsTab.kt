@@ -94,7 +94,6 @@ fun TransactionsTab(
             if (filterState.hasActiveFilters || state.searchQuery.isNotBlank() || state.selectedCategory != "All") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -102,23 +101,6 @@ fun TransactionsTab(
                                else "${state.filteredTransactions.size} transactions found",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Clear Filters",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable {
-                                onAction(MoneyAction.ResetAnalysisFilters)
-                                if (state.selectedCategory != "All") {
-                                    onAction(MoneyAction.SelectCategory("All"))
-                                }
-                                if (state.searchQuery.isNotBlank()) {
-                                    onAction(MoneyAction.UpdateSearchQuery(""))
-                                }
-                            }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
             }
@@ -527,7 +509,11 @@ private fun ActiveFiltersChipRow(
     ) {
         // Clear all button
         Surface(
-            onClick = { onAction(MoneyAction.ResetAnalysisFilters) },
+            onClick = {
+                onAction(MoneyAction.ResetAnalysisFilters)
+                onAction(MoneyAction.SelectCategory("All"))
+                onAction(MoneyAction.UpdateSearchQuery(""))
+            },
             shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
             color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
             modifier = Modifier.height(30.dp)

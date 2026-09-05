@@ -48,7 +48,8 @@ class SettingsVM @Inject constructor(
     private val moneyRepository: MoneyRepository? = null,
     private val activitiesRepository: ActivitiesRepository? = null,
     private val investmentsRepository: InvestmentsRepository? = null,
-    private val sabdekhoRepository: SabdekhoRepository? = null
+    private val sabdekhoRepository: SabdekhoRepository? = null,
+    private val authRepository: com.example.dailytrack_mobile.data.repository.AuthRepository? = null
 ) : ViewModel() {
 
     constructor(
@@ -170,6 +171,24 @@ class SettingsVM @Inject constructor(
                 }
             }
         }
+
+        authRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.userEmailFlow.collect { email ->
+                    _state.update { it.copy(loggedInUserEmail = email) }
+                }
+            }
+            viewModelScope.launch {
+                repo.userNameFlow.collect { name ->
+                    _state.update { it.copy(loggedInUserName = name) }
+                }
+            }
+            viewModelScope.launch {
+                repo.isAdminFlow.collect { isAdmin ->
+                    _state.update { it.copy(isUserAdmin = isAdmin) }
+                }
+            }
+        }
     }
 
     fun onAction(action: SettingsAction) {
@@ -266,6 +285,11 @@ class SettingsVM @Inject constructor(
             }
             is SettingsAction.OnSendTestNotification -> {
                 NotificationsHelper(context).showReminderNotification()
+            }
+            is SettingsAction.OnLogoutClicked -> {
+                viewModelScope.launch {
+                    authRepository?.logout()
+                }
             }
         }
     }

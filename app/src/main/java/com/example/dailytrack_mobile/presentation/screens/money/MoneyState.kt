@@ -151,6 +151,9 @@ data class AnalysisFilterState(
             val monthName = selectedMonth.getDisplayName(TextStyle.FULL, Locale.getDefault())
             return "$monthName $selectedYear"
         }
+        if (selectedMonth == null && selectedYear != null) {
+            return "Year $selectedYear"
+        }
         val range = customDateRange ?: return null
         val start = range.first
         val end = range.second
@@ -181,6 +184,25 @@ fun getMonthRangeMillis(month: Month, year: Int): Pair<Long, Long> {
         .toEpochMilli()
 
     return Pair(startOfMonth, endOfMonth)
+}
+
+/**
+ * Calculates epoch millis for the exact start (00:00:00.000) of Jan 1 and end (23:59:59.999) of Dec 31 of a given [year].
+ */
+fun getYearRangeMillis(year: Int): Pair<Long, Long> {
+    val zone = java.time.ZoneId.systemDefault()
+    val startOfYear = java.time.LocalDate.of(year, 1, 1)
+        .atStartOfDay(zone)
+        .toInstant()
+        .toEpochMilli()
+
+    val endOfYear = java.time.LocalDate.of(year, 12, 31)
+        .atTime(java.time.LocalTime.MAX)
+        .atZone(zone)
+        .toInstant()
+        .toEpochMilli()
+
+    return Pair(startOfYear, endOfYear)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -461,27 +483,11 @@ data class MoneyState(
     val spendingAnalyzerData: List<SpendingCategory>
         get() {
             val txList = filteredAnalysisTransactions
-
-            // Drill-down logic: If exactly one category is included, group by description.
-            val incCategories = analysisFilterState.categoryFilters.filter { it.value == ItemFilterStatus.INCLUDED }.keys
-            val isDrillDown = incCategories.size == 1
-            
-            val grouped = if (isDrillDown) {
-                txList.groupBy { it.description?.takeIf { d -> d.isNotBlank() }?.trim() ?: "No Description" }
-            } else {
-                txList.groupBy { it.category }
-            }
+            val grouped = txList.groupBy { it.category }
 
             val result = grouped.map { (key, txs) ->
                 val sum = txs.sumOf { Math.abs(it.amount) }
-                val color = if (isDrillDown) {
-                    val hash = Math.abs(key.hashCode())
-                    val hue = (hash % 360).toFloat()
-                    androidx.compose.ui.graphics.Color.hsv(hue, 0.6f, 0.9f)
-                } else {
-                    ChartColors.forCategory(key)
-                }
-                SpendingCategory(key, sum, color)
+                SpendingCategory(key, sum, ChartColors.forCategory(key))
             }.filter { it.amount > 0 }
             
             return result.sortedByDescending { it.amount }

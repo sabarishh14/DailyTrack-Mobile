@@ -25,5 +25,8 @@ data class SettingsState(
     val serverStatusResult: Boolean? = null,
     val isReminderEnabled: Boolean = false,
     val reminderTime: String = "21:00",
-    val reminderDays: Set<DayOfWeek> = DayOfWeek.values().toSet()
+    val reminderDays: Set<DayOfWeek> = DayOfWeek.values().toSet(),
+    val loggedInUserEmail: String? = null,
+    val loggedInUserName: String? = null,
+    val isUserAdmin: Boolean = false
 )

@@ -1,13 +1,17 @@
 package com.example.dailytrack_mobile.presentation.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.dailytrack_mobile.presentation.util.Dimens
@@ -27,15 +32,15 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Reusable Month & Year picker dialog with year navigation, 3x4 month grid,
- * and a quick "Current Month" shortcut button.
+ * Reusable Month & Year picker dialog with year navigation, entire year selection,
+ * 3x4 month grid, and a quick "Current Month" shortcut button.
  */
 @Composable
 fun MonthYearPickerDialog(
-    selectedMonth: Month = LocalDate.now().month,
+    selectedMonth: Month? = LocalDate.now().month,
     selectedYear: Int = LocalDate.now().year,
     onDismiss: () -> Unit,
-    onSelected: (Month, Int) -> Unit
+    onSelected: (Month?, Int) -> Unit
 ) {
     var displayYear by remember { mutableIntStateOf(selectedYear) }
     val dims = Dimens.current
@@ -73,7 +78,7 @@ fun MonthYearPickerDialog(
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
                     Text(
-                        text  = "Select Month & Year",
+                        text  = "Select Month or Year",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -132,10 +137,91 @@ fun MonthYearPickerDialog(
                     }
                 }
 
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                    thickness = 0.5.dp
-                )
+                // Quick "View Entire Year" button
+                val isFullYearSelected = selectedMonth == null && displayYear == selectedYear
+                Surface(
+                    onClick = { onSelected(null, displayYear) },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isFullYearSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                    border = BorderStroke(
+                        width = if (isFullYearSelected) 1.5.dp else 0.5.dp,
+                        color = if (isFullYearSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isFullYearSelected) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "View Entire Year $displayYear",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = if (isFullYearSelected) FontWeight.Bold else FontWeight.SemiBold
+                                ),
+                                color = if (isFullYearSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (isFullYearSelected) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "All 12 Months",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+                }
+
+                // Subtle Divider with Section Label
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+                    Text(
+                        text = "OR SPECIFIC MONTH",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 9.5.sp,
+                            letterSpacing = 1.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+                }
 
                 // Month grid (3 columns × 4 rows)
                 val months  = Month.entries

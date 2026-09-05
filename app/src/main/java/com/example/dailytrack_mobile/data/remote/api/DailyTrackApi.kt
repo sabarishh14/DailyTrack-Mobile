@@ -134,4 +134,9 @@ interface DailyTrackApi {
 
     @GET("/test-db")
     suspend fun testDb(): Response<ResponseBody>
+
+    @POST("/api/auth/firebase-login")
+    suspend fun firebaseLogin(
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.FirebaseLoginRequestDto
+    ): Response<com.example.dailytrack_mobile.data.remote.dto.FirebaseLoginResponseDto>
 }

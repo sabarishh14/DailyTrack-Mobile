@@ -17,8 +17,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.dailytrack_mobile.data.local.security.AppLockManager
+import com.example.dailytrack_mobile.data.repository.AuthRepository
 import com.example.dailytrack_mobile.presentation.navigation.Routes
 import com.example.dailytrack_mobile.presentation.screens.lock.AppLockScreen
+import com.example.dailytrack_mobile.presentation.screens.login.LoginScreen
+import com.example.dailytrack_mobile.presentation.screens.login.LoginViewModel
 import com.example.dailytrack_mobile.presentation.screens.main.MainScreen
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsAction
 import com.example.dailytrack_mobile.presentation.screens.settings.SettingsScreen
@@ -34,7 +37,11 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var appLockManager: AppLockManager
 
+    @Inject
+    lateinit var authRepository: AuthRepository
+
     private val settingsVM: SettingsVM by viewModels()
+    private val loginVM: LoginViewModel by viewModels()
 
     private var pendingDeepLinkRoute by mutableStateOf<String?>(null)
 
@@ -60,9 +67,9 @@ class MainActivity : FragmentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        // Hold the splash screen until initial theme and config are ready to prevent flickering
+        // Hold the splash screen until initial theme and auth session are loaded
         splashScreen.setKeepOnScreenCondition {
-            !settingsVM.isInitialConfigLoaded.value
+            !settingsVM.isInitialConfigLoaded.value || authRepository.isLoggedInFlow.value == null
         }
 
         enableEdgeToEdge()
@@ -72,6 +79,8 @@ class MainActivity : FragmentActivity() {
         setContent {
             // Collect the settings state to get the currently selected theme and app lock
             val state by settingsVM.state.collectAsState()
+            val isLoggedIn by authRepository.isLoggedInFlow.collectAsState()
+            val loginState by loginVM.state.collectAsState()
 
             // Simple navigation state
             var currentScreen by rememberSaveable { mutableStateOf("Main") }
@@ -120,7 +129,13 @@ class MainActivity : FragmentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        if (isAppLocked && state.isAppLockEnabled) {
+                        if (isLoggedIn == false && !state.isDemoModeEnabled) {
+                            LoginScreen(
+                                state = loginState,
+                                onAction = loginVM::onAction,
+                                onLoginSuccess = { }
+                            )
+                        } else if (isAppLocked && state.isAppLockEnabled) {
                             AppLockScreen(
                                 appLockManager = appLockManager,
                                 onUnlocked = { isAppLocked = false }

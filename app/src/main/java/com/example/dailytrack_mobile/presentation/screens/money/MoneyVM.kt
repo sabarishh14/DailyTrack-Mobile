@@ -308,7 +308,11 @@ class MoneyVM @Inject constructor(
             }
 
             is MoneyAction.SelectMonthYearFilter -> _state.update { current ->
-                val (start, end) = getMonthRangeMillis(action.month, action.year)
+                val (start, end) = if (action.month != null) {
+                    getMonthRangeMillis(action.month, action.year)
+                } else {
+                    getYearRangeMillis(action.year)
+                }
                 current.copy(
                     analysisFilterState = current.analysisFilterState.copy(
                         customDateRange = Pair(start, end),

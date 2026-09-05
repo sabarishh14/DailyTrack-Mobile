@@ -21,10 +21,11 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
@@ -136,6 +137,25 @@ private fun formatCompact(amount: Double): String {
     }
 }
 
+private fun cleanDescriptionTitle(raw: String): String {
+    var text = raw.trim()
+    // Strip leading payment method tags like UPI/, UPI-, POS-, POS , IMPS-, NEFT-, etc.
+    text = text.replace(Regex("^(UPI[-/]|POS[- ]|IMPS[-/]|NEFT[-/]|ACH[-/]|BILLDESK[- ]|PAYTM[-* ]|RAZORPAY[-* ]|BBPS[-/])", RegexOption.IGNORE_CASE), "")
+    // Strip "Paid to " or "Transfer to " prefixes
+    text = text.replace(Regex("^(Paid to |Transfer to |Payment to |To )", RegexOption.IGNORE_CASE), "")
+    // If there's an internal slash separation (like 12345/Merchant/Bank), pick the most descriptive word
+    if (text.contains("/")) {
+        val parts = text.split("/").map { it.trim() }.filter { it.length > 2 && !it.all { ch -> ch.isDigit() } }
+        if (parts.isNotEmpty()) {
+            text = parts.firstOrNull { !it.equals("UPI", ignoreCase = true) && !it.equals("OK", ignoreCase = true) } ?: parts.first()
+        }
+    }
+    // Remove trailing reference numbers/IDs like /1234567 or - 1234567
+    text = text.replace(Regex("[-/]\\s*\\d{6,}.*$"), "")
+    text = text.replace(Regex("\\s+"), " ").trim()
+    return text.ifBlank { "Other" }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Analysis Tab
 // ─────────────────────────────────────────────────────────────────────────────
@@ -178,17 +198,25 @@ fun AnalysisTab(
             if (isInitialLoading && categories.isEmpty()) {
                 CashFlowBreakdownCard(
                     categories = emptyList(),
+                    transactions = emptyList(),
                     periodLabel = periodTitle,
+                    hasActiveFilters = filterState.hasActiveFilters,
                     isLoading = true,
-                    onCategoryClick = {}
+                    onViewTransactions = {}
                 )
             } else if (categories.isNotEmpty()) {
                 CashFlowBreakdownCard(
                     categories = categories,
+                    transactions = state.filteredAnalysisTransactions,
                     periodLabel = periodTitle,
+                    hasActiveFilters = filterState.hasActiveFilters,
                     isLoading = false,
-                    onCategoryClick = { category ->
-                        onAction(MoneyAction.ViewCategoryTransactions(category))
+                    onViewTransactions = { category ->
+                        if (category != null) {
+                            onAction(MoneyAction.ViewCategoryTransactions(category))
+                        } else {
+                            onAction(MoneyAction.SelectTab(1))
+                        }
                     }
                 )
             } else {
@@ -212,16 +240,6 @@ fun AnalysisTab(
                 isLoading = isInitialLoading
             )
         }
-
-        // View Transactions Action Card
-        item {
-            ViewTransactionsActionCard(
-                transactionCount = state.filteredTransactions.size,
-                hasActiveFilters = filterState.hasActiveFilters,
-                isLoading = isInitialLoading,
-                onClick = { onAction(MoneyAction.SelectTab(1)) }
-            )
-        }
     }
 }
 
@@ -237,14 +255,12 @@ private fun AnalysisFilterRow(
 ) {
     val dims = Dimens.current
 
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val clearButtonWidthPx = remember { with(density) { 88.dp.toPx().toInt() } }
-    val scrollState = rememberScrollState(initial = if (filterState.hasActiveFilters) clearButtonWidthPx else 0)
+    val scrollState = rememberScrollState()
     var showMonthYearPicker by remember { mutableStateOf(false) }
 
     if (showMonthYearPicker) {
         MonthYearPickerDialog(
-            selectedMonth = filterState.selectedMonth ?: LocalDate.now().month,
+            selectedMonth = filterState.selectedMonth,
             selectedYear = filterState.selectedYear ?: LocalDate.now().year,
             onSelected = { month, year ->
                 onAction(MoneyAction.SelectMonthYearFilter(month, year))
@@ -255,10 +271,8 @@ private fun AnalysisFilterRow(
     }
 
     LaunchedEffect(filterState.hasActiveFilters) {
-        if (filterState.hasActiveFilters && scrollState.value < clearButtonWidthPx) {
-            scrollState.scrollTo(clearButtonWidthPx)
-        } else if (!filterState.hasActiveFilters) {
-            scrollState.scrollTo(0)
+        if (!filterState.hasActiveFilters) {
+            scrollState.animateScrollTo(0)
         }
     }
 
@@ -273,12 +287,7 @@ private fun AnalysisFilterRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Hidden "Pull to Reveal" Clear Button
-            if (filterState.hasActiveFilters) {
-                DottedClearButton(onClick = { onAction(MoneyAction.ResetAnalysisFilters) })
-            }
-
-            // Main Filter Button with Badge
+            // Main Filter Button with Badge (Always visible at start!)
             FilterChip(
                 selected = filterState.hasActiveFilters,
                 onClick = onOpenFilterSheet,
@@ -318,13 +327,43 @@ private fun AnalysisFilterRow(
                 shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
             )
 
+            // Clear Button (Visible when active filters exist)
+            if (filterState.hasActiveFilters) {
+                Surface(
+                    onClick = { onAction(MoneyAction.ResetAnalysisFilters) },
+                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear all filters",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Clear",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+
             // Vertical divider separating main filter button from quick pills
             VerticalDivider(
                 modifier = Modifier.height(20.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
 
-            // 1. Active Category Filters (Included / Excluded) - Placed FIRST so selected categories appear prominently!
+            // ─── 1. ACTIVE / SELECTED FILTERS FIRST ──────────────────────────
+
+            // A. Active Categories (Included / Excluded)
             filterState.categoryFilters.forEach { (cat, status) ->
                 when (status) {
                     ItemFilterStatus.INCLUDED -> {
@@ -345,7 +384,7 @@ private fun AnalysisFilterRow(
                 }
             }
 
-            // 2. Active Account Filters (Included / Excluded)
+            // B. Active Accounts (Included / Excluded)
             val sortedAccountFilters = remember(filterState.accountFilters) {
                 sortAccountsCanonical(filterState.accountFilters.keys.toList()).mapNotNull { acc ->
                     filterState.accountFilters[acc]?.let { status -> acc to status }
@@ -371,61 +410,37 @@ private fun AnalysisFilterRow(
                 }
             }
 
-            // 3. "This Month" Quick Preset Pill
-            val isThisMonth = filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH
-            QuickPresetChip(
-                text = "This Month",
-                isSelected = isThisMonth,
-                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.THIS_MONTH)) }
-            )
-
-            // 4. "Expenses Only" Quick Preset Pill
-            val isExpensesOnly = filterState.selectedTypes == setOf(TransactionType.DEBIT)
-            QuickPresetChip(
-                text = "Expenses Only",
-                isSelected = isExpensesOnly,
-                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
-            )
-
-            // 5. "Last Month" Quick Preset Pill (After Expenses Only in UI)
-            val isLastMonth = filterState.activeDatePreset == QuickFilterPreset.LAST_MONTH
-            QuickPresetChip(
-                text = "Last Month",
-                isSelected = isLastMonth,
-                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_MONTH)) }
-            )
-
-            // 6. "Month / Year" Quick Action Pill
-            val isMonthYearActive = filterState.selectedMonth != null && filterState.selectedYear != null
-            val monthYearText = if (isMonthYearActive) {
-                "${filterState.selectedMonth!!.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${filterState.selectedYear}"
-            } else {
-                "Month / Year"
-            }
-            QuickPresetChip(
-                text = monthYearText,
-                isSelected = isMonthYearActive,
-                onClick = { showMonthYearPicker = true }
-            )
-
-            // 7. "Income Only" Quick Preset Pill
-            val isIncomeOnly = filterState.selectedTypes == setOf(TransactionType.CREDIT)
-            QuickPresetChip(
-                text = "Income Only",
-                isSelected = isIncomeOnly,
-                onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.INCOME_ONLY)) }
-            )
-
-            // Active Financial Year Chip (if selected via bottom sheet)
-            if (!filterState.financialYear.isNullOrBlank() && filterState.financialYear != "All Time") {
+            // C. Active Date Filter (Month/Year, Preset, Financial Year, or Custom Range)
+            val isMonthYearActive = filterState.selectedYear != null
+            if (isMonthYearActive) {
+                val monthYearActiveText = when {
+                    filterState.selectedMonth != null ->
+                        "${filterState.selectedMonth.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${filterState.selectedYear}"
+                    else ->
+                        "Year ${filterState.selectedYear}"
+                }
+                ActiveFilterRemovableChip(
+                    text = monthYearActiveText,
+                    onRemove = { onAction(MoneyAction.ClearDateRangeFilter) }
+                )
+            } else if (filterState.activeDatePreset == QuickFilterPreset.THIS_MONTH) {
+                QuickPresetChip(
+                    text = "This Month",
+                    isSelected = true,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.THIS_MONTH)) }
+                )
+            } else if (filterState.activeDatePreset == QuickFilterPreset.LAST_MONTH) {
+                QuickPresetChip(
+                    text = "Last Month",
+                    isSelected = true,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_MONTH)) }
+                )
+            } else if (!filterState.financialYear.isNullOrBlank() && filterState.financialYear != "All Time") {
                 ActiveFilterRemovableChip(
                     text = filterState.financialYear,
                     onRemove = { onAction(MoneyAction.ClearFinancialYearFilter) }
                 )
-            }
-
-            // Active Custom Date Range Chip (only if not a preset)
-            if (filterState.activeDatePreset == null) {
+            } else if (filterState.customDateRange != null) {
                 filterState.formattedDateRange()?.let { rangeText ->
                     ActiveFilterRemovableChip(
                         text = rangeText,
@@ -434,14 +449,77 @@ private fun AnalysisFilterRow(
                 }
             }
 
-            // Active Types (if not standard single debit or credit preset)
-            if (filterState.selectedTypes != setOf(TransactionType.DEBIT) && filterState.selectedTypes != setOf(TransactionType.CREDIT)) {
+            // D. Active Type Filter
+            val isExpensesOnly = filterState.selectedTypes == setOf(TransactionType.DEBIT)
+            val isIncomeOnly = filterState.selectedTypes == setOf(TransactionType.CREDIT)
+            if (isExpensesOnly) {
+                QuickPresetChip(
+                    text = "Expenses Only",
+                    isSelected = true,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
+                )
+            } else if (isIncomeOnly) {
+                QuickPresetChip(
+                    text = "Income Only",
+                    isSelected = true,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.INCOME_ONLY)) }
+                )
+            } else if (filterState.selectedTypes.isNotEmpty() && filterState.selectedTypes.size != TransactionType.values().size) {
                 filterState.selectedTypes.forEach { type ->
                     ActiveFilterRemovableChip(
                         text = type.displayName,
                         onRemove = { onAction(MoneyAction.RemoveTypeFilter(type)) }
                     )
                 }
+            }
+
+            // Subtle divider between active filters and available quick presets
+            if (filterState.hasActiveFilters) {
+                VerticalDivider(
+                    modifier = Modifier.height(16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                )
+            }
+
+            // ─── 2. AVAILABLE / UNSELECTED PRESETS ───────────────────────────
+            if (filterState.activeDatePreset != QuickFilterPreset.THIS_MONTH) {
+                QuickPresetChip(
+                    text = "This Month",
+                    isSelected = false,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.THIS_MONTH)) }
+                )
+            }
+
+            if (!isExpensesOnly) {
+                QuickPresetChip(
+                    text = "Expenses Only",
+                    isSelected = false,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.EXPENSES_ONLY)) }
+                )
+            }
+
+            if (filterState.activeDatePreset != QuickFilterPreset.LAST_MONTH) {
+                QuickPresetChip(
+                    text = "Last Month",
+                    isSelected = false,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.LAST_MONTH)) }
+                )
+            }
+
+            if (!isMonthYearActive) {
+                QuickPresetChip(
+                    text = "Month / Year",
+                    isSelected = false,
+                    onClick = { showMonthYearPicker = true }
+                )
+            }
+
+            if (!isIncomeOnly) {
+                QuickPresetChip(
+                    text = "Income Only",
+                    isSelected = false,
+                    onClick = { onAction(MoneyAction.ToggleQuickPreset(QuickFilterPreset.INCOME_ONLY)) }
+                )
             }
         }
     }
@@ -591,9 +669,11 @@ private fun ActiveFilterRemovableChip(
 @Composable
 private fun CashFlowBreakdownCard(
     categories: List<SpendingCategory>,
+    transactions: List<Transaction>,
     periodLabel: String,
+    hasActiveFilters: Boolean = false,
     isLoading: Boolean = false,
-    onCategoryClick: (String) -> Unit
+    onViewTransactions: (String?) -> Unit
 ) {
     val dims = Dimens.current
     val total = categories.sumOf { it.amount }
@@ -603,25 +683,198 @@ private fun CashFlowBreakdownCard(
     val primaryColor = MaterialTheme.colorScheme.primary
     val scope = rememberCoroutineScope()
 
-    // Assign colors to all categories without compressing into "Others"
+    var activeDrilldownCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    var drilldownBackStack by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+
+    val isOthersDrilldown = activeDrilldownCategory == "__OTHERS__"
+
+    val handleBack: () -> Unit = {
+        if (drilldownBackStack.isNotEmpty()) {
+            activeDrilldownCategory = drilldownBackStack.last()
+            drilldownBackStack = drilldownBackStack.dropLast(1)
+        } else {
+            activeDrilldownCategory = null
+        }
+    }
+
+    // Intercept back button when drill-down is active
+    BackHandler(enabled = activeDrilldownCategory != null) {
+        handleBack()
+    }
+
+    // Filter transactions for the selected drill-down category
+    val categoryTransactions = remember(transactions, activeDrilldownCategory) {
+        if (activeDrilldownCategory == null || activeDrilldownCategory == "__OTHERS__") emptyList()
+        else transactions.filter { it.category.equals(activeDrilldownCategory, ignoreCase = true) }
+    }
+
+    // Auto-reset if category no longer exists in filtered transactions (ignore for __OTHERS__)
+    LaunchedEffect(categoryTransactions, activeDrilldownCategory, isLoading) {
+        if (activeDrilldownCategory != null && !isOthersDrilldown && categoryTransactions.isEmpty() && !isLoading) {
+            handleBack()
+        }
+    }
+
+    // Calculate drill-down breakdown (Top 4 descriptions + "Others")
+    val categoryTotal = remember(categoryTransactions) {
+        categoryTransactions.sumOf { Math.abs(it.amount) }
+    }
+
+    val othersColor = if (isDtOg) Color(0xFF888888) else Color(0xFF7A889B)
+
+    val drilldownItemsPerPage = 6
+    val maxDrilldownPages = 5
+    val maxDrilldownItems = drilldownItemsPerPage * maxDrilldownPages
+
+    val processedDrilldownCategories = remember(categoryTransactions, categoryTotal, primaryColor, isDtOg, othersColor) {
+        if (categoryTransactions.isEmpty()) emptyList()
+        else {
+            val grouped = categoryTransactions.groupBy { tx ->
+                val raw = tx.note?.takeIf { it.isNotBlank() }
+                    ?: tx.description?.takeIf { it.isNotBlank() }
+                    ?: tx.title.takeIf { it.isNotBlank() && !it.equals(tx.category, ignoreCase = true) }
+                    ?: "General"
+                cleanDescriptionTitle(raw)
+            }
+            val aggregated = grouped.map { (desc, txs) ->
+                desc to txs.sumOf { Math.abs(it.amount) }
+            }.sortedByDescending { it.second }
+
+            val items = if (aggregated.size <= maxDrilldownItems) {
+                aggregated
+            } else {
+                val topItems = aggregated.take(maxDrilldownItems - 1)
+                val othersSum = aggregated.drop(maxDrilldownItems - 1).sumOf { it.second }
+                topItems + listOf("Others" to othersSum)
+            }
+
+            if (isDtOg) {
+                items.mapIndexed { idx, (name, amt) ->
+                    val color = if (name == "Others") othersColor else DtOgChartColors.PieColors[idx % DtOgChartColors.PieColors.size]
+                    SpendingCategory(name, amt, color)
+                }
+            } else {
+                val palette = generateThemeChartPalette(primaryColor, items.size)
+                items.mapIndexed { idx, (name, amt) ->
+                    val color = if (name == "Others") othersColor else palette[idx]
+                    SpendingCategory(name, amt, color)
+                }
+            }
+        }
+    }
+
+    val drilldownPages = remember(processedDrilldownCategories, drilldownItemsPerPage) {
+        processedDrilldownCategories.chunked(drilldownItemsPerPage)
+    }
+    val drilldownPagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { drilldownPages.size.coerceAtLeast(1) }
+    )
+
+    LaunchedEffect(activeDrilldownCategory) {
+        if (activeDrilldownCategory != null && activeDrilldownCategory != "__OTHERS__" && drilldownPages.isNotEmpty() && drilldownPagerState.currentPage != 0) {
+            drilldownPagerState.scrollToPage(0)
+        }
+    }
+
+    // Top descriptions for the donut chart: Top 7 individual descriptions + 1 "Others" (with sleek slate color)
+    val drilldownDonutCategories = remember(processedDrilldownCategories, categoryTotal, othersColor) {
+        if (processedDrilldownCategories.size <= 7) {
+            processedDrilldownCategories
+        } else {
+            val top7 = processedDrilldownCategories.take(7)
+            val remainingAmt = (categoryTotal - top7.sumOf { it.amount }).coerceAtLeast(0.0)
+            top7 + listOf(SpendingCategory("Others", remainingAmt, othersColor))
+        }
+    }
+
+    // Assign colors to all categories. For > 10 categories, the top 9 get full-spread theme palette.
     val processedCategories = remember(categories, primaryColor, isDtOg) {
         if (isDtOg) {
             categories.mapIndexed { index, cat ->
                 cat.copy(color = DtOgChartColors.PieColors[index % DtOgChartColors.PieColors.size])
             }
         } else {
-            val palette = generateThemeChartPalette(primaryColor, categories.size)
+            val palette = if (categories.size <= 10) {
+                generateThemeChartPalette(primaryColor, categories.size)
+            } else {
+                val top9 = generateThemeChartPalette(primaryColor, 9)
+                val rest = generateThemeChartPalette(primaryColor.copy(alpha = 0.7f), categories.size - 9)
+                top9 + rest
+            }
             categories.mapIndexed { index, cat ->
                 cat.copy(color = palette[index])
             }
         }
     }
 
-    val itemsPerPage = 10
-    val pages = remember(processedCategories, itemsPerPage) {
-        processedCategories.chunked(itemsPerPage)
+    // ─── OTHER CATEGORIES BREAKDOWN (For the "Others" Drilldown) ─────────────
+    val otherCategoriesRaw = remember(categories) {
+        if (categories.size <= 10) emptyList() else categories.drop(9)
     }
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { pages.size })
+    val othersTotal = remember(otherCategoriesRaw) { otherCategoriesRaw.sumOf { it.amount } }
+
+    val otherCategories = remember(otherCategoriesRaw, primaryColor, isDtOg) {
+        if (otherCategoriesRaw.isEmpty()) emptyList()
+        else {
+            if (isDtOg) {
+                otherCategoriesRaw.mapIndexed { idx, cat ->
+                    cat.copy(color = DtOgChartColors.PieColors[(idx + 9) % DtOgChartColors.PieColors.size])
+                }
+            } else {
+                val palette = generateThemeChartPalette(primaryColor.copy(alpha = 0.85f), otherCategoriesRaw.size)
+                otherCategoriesRaw.mapIndexed { idx, cat ->
+                    cat.copy(color = palette[idx])
+                }
+            }
+        }
+    }
+
+    val othersDonutCategories = remember(otherCategories, othersTotal, othersColor) {
+        if (otherCategories.size <= 7) {
+            otherCategories
+        } else {
+            val top7 = otherCategories.take(7)
+            val remainingAmt = (othersTotal - top7.sumOf { it.amount }).coerceAtLeast(0.0)
+            top7 + listOf(SpendingCategory("Others", remainingAmt, othersColor))
+        }
+    }
+
+    val otherCategoriesPages = remember(otherCategories) {
+        otherCategories.chunked(6)
+    }
+    val otherCategoriesPagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { otherCategoriesPages.size.coerceAtLeast(1) }
+    )
+
+    LaunchedEffect(activeDrilldownCategory) {
+        if (isOthersDrilldown && otherCategoriesPages.isNotEmpty() && otherCategoriesPagerState.currentPage != 0) {
+            otherCategoriesPagerState.scrollToPage(0)
+        }
+    }
+
+    // Top categories for the main donut chart: Exactly 10 portions max (Top 9 individual categories + 1 "Others" slice with sleek slate color)
+    val mainDonutCategories = remember(processedCategories, total, othersTotal, othersColor) {
+        if (processedCategories.size <= 10) {
+            processedCategories
+        } else {
+            val top9 = processedCategories.take(9)
+            val othersSlice = SpendingCategory("Others", othersTotal, othersColor)
+            top9 + listOf(othersSlice)
+        }
+    }
+
+    // Main level pills: Exactly 10 pills (Top 9 individual categories + 1 "Others" pill). NO pager needed!
+    val mainPills = remember(categories, processedCategories, total, othersTotal, otherCategoriesRaw, othersColor) {
+        if (categories.size <= 10) {
+            processedCategories
+        } else {
+            val top9 = processedCategories.take(9)
+            val othersPill = SpendingCategory("Others (${otherCategoriesRaw.size})", othersTotal, othersColor)
+            top9 + listOf(othersPill)
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -642,16 +895,76 @@ private fun CashFlowBreakdownCard(
                 ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Section label
-            Text(
-                text = "SPENDING ANALYSER — ${periodLabel.uppercase()}",
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            )
+            // Header Bar
+            if (activeDrilldownCategory != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { handleBack() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Back",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Back",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = if (isOthersDrilldown) "📦 OTHER CATEGORIES" else "${CategoryEmojis.forCategory(activeDrilldownCategory!!)} ${activeDrilldownCategory!!.uppercase()}",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    val share = if (total > 0) {
+                        if (isOthersDrilldown) (othersTotal / total) * 100.0 else (categoryTotal / total) * 100.0
+                    } else 0.0
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "%.1f%%".format(share),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "SPENDING ANALYSER — ${periodLabel.uppercase()}",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
 
@@ -686,12 +999,28 @@ private fun CashFlowBreakdownCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                } else {
-                    val donutCategories = remember(processedCategories) { processedCategories.take(10) }
+                } else if (isOthersDrilldown) {
                     DonutChart(
-                        categories = donutCategories,
+                        categories = othersDonutCategories,
+                        total = othersTotal,
+                        isDtOgStyle = isDtOg,
+                        centerTitle = "OTHER CATS",
+                        modifier = Modifier.size(dims.donutChartSize)
+                    )
+                } else if (activeDrilldownCategory != null) {
+                    DonutChart(
+                        categories = drilldownDonutCategories,
+                        total = categoryTotal,
+                        isDtOgStyle = isDtOg,
+                        centerTitle = "${CategoryEmojis.forCategory(activeDrilldownCategory!!)} ${activeDrilldownCategory!!.uppercase()}",
+                        modifier = Modifier.size(dims.donutChartSize)
+                    )
+                } else {
+                    DonutChart(
+                        categories = mainDonutCategories,
                         total = total,
                         isDtOgStyle = isDtOg,
+                        centerTitle = "TOTAL",
                         modifier = Modifier.size(dims.donutChartSize)
                     )
                 }
@@ -700,83 +1029,241 @@ private fun CashFlowBreakdownCard(
             if (!isLoading) {
                 Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
 
-                // Section header row: CATEGORIES label + "Tap to show" hint
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "CATEGORIES",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Tap to show ›",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Swipeable Legend Pages if multiple, or simple compact grid if single page
-                if (pages.size > 1) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { pageIndex ->
-                        val pageCategories = pages.getOrElse(pageIndex) { emptyList() }
-                        LegendGrid(
-                            categories = pageCategories,
-                            isDtOg = isDtOg,
-                            onCategoryClick = onCategoryClick
-                        )
-                    }
-
-                    // Page Indicator Dots
-                    Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                if (isOthersDrilldown) {
+                    // Drilldown Mode: OTHER CATEGORIES (Paginated 6 per page)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        repeat(pages.size) { index ->
-                            val isSelected = pagerState.currentPage == index
-                            val width by animateDpAsState(
-                                targetValue = if (isSelected) 18.dp else 6.dp,
-                                label = "pager_dot_width"
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 3.dp)
-                                    .height(6.dp)
-                                    .width(width)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
-                                    )
-                                    .clickable {
-                                        scope.launch {
-                                            pagerState.animateScrollToPage(index)
-                                        }
-                                    }
+                        Text(
+                            text = "ALL OTHER CATEGORIES",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (otherCategoriesPages.size > 1) {
+                            Text(
+                                text = "Page ${otherCategoriesPagerState.currentPage + 1} of ${otherCategoriesPages.size} ›",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
                             )
                         }
                     }
-                } else if (pages.size == 1) {
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    if (otherCategoriesPages.size > 1) {
+                        HorizontalPager(
+                            state = otherCategoriesPagerState,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { pageIndex ->
+                            val pageCategories = otherCategoriesPages.getOrElse(pageIndex) { emptyList() }
+                            LegendGrid(
+                                categories = pageCategories,
+                                totalAmount = othersTotal,
+                                isDtOg = isDtOg,
+                                onCategoryClick = { clickedCat ->
+                                    drilldownBackStack = drilldownBackStack + listOf("__OTHERS__")
+                                    activeDrilldownCategory = clickedCat
+                                }
+                            )
+                        }
+
+                        // Page Indicator Dots
+                        Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            repeat(otherCategoriesPages.size) { index ->
+                                val isSelected = otherCategoriesPagerState.currentPage == index
+                                val width by animateDpAsState(
+                                    targetValue = if (isSelected) 18.dp else 6.dp,
+                                    label = "others_dot_width"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 3.dp)
+                                        .height(6.dp)
+                                        .width(width)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                                        )
+                                        .clickable {
+                                            scope.launch {
+                                                otherCategoriesPagerState.animateScrollToPage(index)
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                    } else if (otherCategoriesPages.isNotEmpty()) {
+                        LegendGrid(
+                            categories = otherCategoriesPages[0],
+                            totalAmount = othersTotal,
+                            isDtOg = isDtOg,
+                            onCategoryClick = { clickedCat ->
+                                drilldownBackStack = drilldownBackStack + listOf("__OTHERS__")
+                                activeDrilldownCategory = clickedCat
+                            }
+                        )
+                    }
+                } else if (activeDrilldownCategory != null) {
+                    // Drilldown Mode: TOP DESCRIPTIONS (Paginated & Swipeable)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "TOP DESCRIPTIONS",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (drilldownPages.size > 1) {
+                            Text(
+                                text = "Page ${drilldownPagerState.currentPage + 1} of ${drilldownPages.size} ›",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    if (drilldownPages.size > 1) {
+                        HorizontalPager(
+                            state = drilldownPagerState,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { pageIndex ->
+                            val pageCategories = drilldownPages.getOrElse(pageIndex) { emptyList() }
+                            LegendGrid(
+                                categories = pageCategories,
+                                totalAmount = categoryTotal,
+                                isDtOg = isDtOg,
+                                onCategoryClick = { /* Leaf description pills */ }
+                            )
+                        }
+
+                        // Page Indicator Dots
+                        Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            repeat(drilldownPages.size) { index ->
+                                val isSelected = drilldownPagerState.currentPage == index
+                                val width by animateDpAsState(
+                                    targetValue = if (isSelected) 18.dp else 6.dp,
+                                    label = "drilldown_dot_width"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 3.dp)
+                                        .height(6.dp)
+                                        .width(width)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                                        )
+                                        .clickable {
+                                            scope.launch {
+                                                drilldownPagerState.animateScrollToPage(index)
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                    } else if (drilldownPages.isNotEmpty()) {
+                        LegendGrid(
+                            categories = drilldownPages[0],
+                            totalAmount = categoryTotal,
+                            isDtOg = isDtOg,
+                            onCategoryClick = { /* Leaf description pills */ }
+                        )
+                    }
+                } else {
+                    // Normal Mode: CATEGORIES (Max 10 pills, exactly matching Donut Chart 1:1, NO Pager!)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "CATEGORIES",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Tap to explore ›",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     LegendGrid(
-                        categories = pages[0],
+                        categories = mainPills,
+                        totalAmount = total,
                         isDtOg = isDtOg,
-                        onCategoryClick = onCategoryClick
+                        onCategoryClick = { clickedCat ->
+                            if (clickedCat.startsWith("Others")) {
+                                drilldownBackStack = emptyList()
+                                activeDrilldownCategory = "__OTHERS__"
+                            } else {
+                                drilldownBackStack = emptyList()
+                                activeDrilldownCategory = clickedCat
+                            }
+                        }
+                    )
+                }
+
+                // In-Card Action Button in the exact same spot for both Normal & Drilldown states
+                Spacer(modifier = Modifier.height(10.dp))
+
+                FilledTonalButton(
+                    onClick = { onViewTransactions(if (isOthersDrilldown) null else activeDrilldownCategory) },
+                    shape = RoundedCornerShape(dims.buttonCornerRadius),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (isOthersDrilldown) {
+                            "View All Other Transactions →"
+                        } else if (activeDrilldownCategory != null) {
+                            "View All $activeDrilldownCategory Transactions →"
+                        } else if (hasActiveFilters) {
+                            "View Filtered Transactions →"
+                        } else {
+                            "View All Transactions →"
+                        },
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
             }
@@ -843,6 +1330,7 @@ private fun DonutChart(
     categories: List<SpendingCategory>,
     total: Double,
     isDtOgStyle: Boolean = false,
+    centerTitle: String = "TOTAL",
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -915,12 +1403,14 @@ private fun DonutChart(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "TOTAL",
+                text = centerTitle,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 2.sp,
+                    letterSpacing = 1.5.sp,
                     fontWeight = FontWeight.SemiBold
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = formatCompact(total),
@@ -1080,6 +1570,7 @@ private fun generateThemeChartPalette(primary: Color, count: Int): List<Color> {
 @Composable
 private fun LegendGrid(
     categories: List<SpendingCategory>,
+    totalAmount: Double = 0.0,
     isDtOg: Boolean = false,
     onCategoryClick: (String) -> Unit
 ) {
@@ -1095,8 +1586,11 @@ private fun LegendGrid(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 row.forEach { category ->
+                    val percentage = if (totalAmount > 0) (category.amount / totalAmount) * 100.0 else 0.0
+                    val percentageStr = "%.1f%%".format(percentage)
                     LegendItem(
                         category = category,
+                        percentageText = percentageStr,
                         isDtOg = isDtOg,
                         onClick = { onCategoryClick(category.name) },
                         modifier = Modifier.weight(1f)
@@ -1114,6 +1608,7 @@ private fun LegendGrid(
 @Composable
 private fun LegendItem(
     category: SpendingCategory,
+    percentageText: String? = null,
     isDtOg: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1126,7 +1621,7 @@ private fun LegendItem(
             .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
             .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 6.dp)
+            .padding(horizontal = 9.dp, vertical = 5.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1155,12 +1650,27 @@ private fun LegendItem(
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            // Amount
-            Text(
-                text = "₹${formatCompact(category.amount)}",
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
-            )
+            // Amount & Percentage Stack
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "₹${formatCompact(category.amount)}",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (!percentageText.isNullOrBlank()) {
+                    Text(
+                        text = percentageText,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
     }
 }
@@ -1382,86 +1892,4 @@ private fun SummaryCard(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// View Transactions Action Card
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun ViewTransactionsActionCard(
-    transactionCount: Int,
-    hasActiveFilters: Boolean,
-    isLoading: Boolean = false,
-    onClick: () -> Unit
-) {
-    val dims = Dimens.current
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(dims.cardCornerRadius),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = dims.cardInnerPadding, vertical = dims.itemSpacingLarge),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-                modifier = Modifier.weight(1f)
-            ) {
-                // Icon Box
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
-                        contentDescription = "Transactions",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
 
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = if (hasActiveFilters) "View Filtered Transactions" else "View All Transactions",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isLoading) "Loading transactions..."
-                               else if (transactionCount == 1) "1 transaction matches current filters"
-                               else "$transactionCount transactions match current filters",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Arrow button / pill
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(34.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "View Transactions",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-    }
-}

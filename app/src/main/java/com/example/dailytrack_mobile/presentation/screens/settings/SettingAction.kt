@@ -24,4 +24,5 @@ sealed interface SettingsAction {
     data class OnReminderTimeChanged(val time: LocalTime) : SettingsAction
     data class OnReminderDayToggled(val day: DayOfWeek) : SettingsAction
     object OnSendTestNotification : SettingsAction
+    object OnLogoutClicked : SettingsAction
 }

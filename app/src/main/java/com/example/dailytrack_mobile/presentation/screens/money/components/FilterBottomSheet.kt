@@ -291,10 +291,14 @@ fun FilterBottomSheet(
     // ─────────────────────────────────────────────────────────────────────────
     if (showMonthYearPicker) {
         MonthYearPickerDialog(
-            selectedMonth = draftFilters.selectedMonth ?: LocalDate.now().month,
+            selectedMonth = draftFilters.selectedMonth,
             selectedYear = draftFilters.selectedYear ?: LocalDate.now().year,
             onSelected = { month, year ->
-                val (start, end) = getMonthRangeMillis(month, year)
+                val (start, end) = if (month != null) {
+                    getMonthRangeMillis(month, year)
+                } else {
+                    getYearRangeMillis(year)
+                }
                 draftFilters = draftFilters.copy(
                     selectedMonth = month,
                     selectedYear = year,
@@ -350,7 +354,7 @@ private fun DateTimeFilterSection(
     onDropdownExpandedChange: (Boolean) -> Unit
 ) {
     val dims = Dimens.current
-    val hasMonthYear = selectedMonth != null && selectedDateYear != null
+    val hasMonthYear = selectedDateYear != null
     val hasCustomRange = formattedDateRange != null && !hasMonthYear
 
     Column(
@@ -418,8 +422,14 @@ private fun DateTimeFilterSection(
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = if (hasMonthYear) "${selectedMonth.getDisplayName(TextStyle.FULL, Locale.getDefault())} $selectedDateYear"
-                            else "Tap to select month (e.g. June 2026)",
+                            text = when {
+                                selectedMonth != null && selectedDateYear != null ->
+                                    "${selectedMonth.getDisplayName(TextStyle.FULL, Locale.getDefault())} $selectedDateYear"
+                                selectedDateYear != null ->
+                                    "Year $selectedDateYear (Full Year)"
+                                else ->
+                                    "Tap to select month or entire year"
+                            },
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = if (hasMonthYear) FontWeight.Bold else FontWeight.Normal
                             ),

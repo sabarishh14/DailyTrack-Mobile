@@ -298,32 +298,173 @@ This document provides a comprehensive, chronological record of all changes, arc
 
 ---
 
-## 15. Files Modified & Added Summary
+## 15. Spending Analyser Category Drill-Down & Percentage Display
+
+### User Requirement:
+- When tapping a category pill (e.g., **Food**) below the Spending Analyser Donut Chart, instead of abruptly navigating away, display an in-card **drill-down Donut Chart** showing the top 4–5 descriptions/merchants for that category.
+- Show percentages cleanly for both categories and descriptions without cluttering the UI.
+- Explicitly exclude transaction counts ("no need to show no of transactions and all. alr i feel like its gonna be very cluttered").
+- Preserve the clean, breathable, and minimalist visual aesthetic.
+
+### UI/UX Design & Implementation:
+1. **Interactive In-Card Drill-Down**:
+   - Tapping any category pill smoothly switches `CashFlowBreakdownCard` into **Category Drill-Down Mode** for that category.
+   - **Header Bar**:
+     - Left: Clickable `‹ Back` pill button returning to the all-categories view.
+     - Center: `${emoji} ${CATEGORY}` title.
+     - Right: Subtle share badge (e.g. `32.4%`).
+   - **Donut Chart**:
+     - Slices recalculate based on the category's top descriptions.
+     - Slices center text: Category emoji + name (e.g. `🍔 FOOD`) and amount (`14.2k`).
+   - **Top Descriptions Legend**:
+     - Slices & legend show the **Top 4 descriptions** with distinctive harmonic colors, plus an `"Others"` bucket for the remaining items.
+     - Long texts / bank prefixes (e.g. `UPI/`, `POS `, `PAYTM*`, `Paid to `) are automatically stripped via `cleanDescriptionTitle(...)` and truncated with single-line ellipsis.
+   - **Card Action Footer**:
+     - `View All $Category Transactions →` button allowing users to navigate to the filtered list in Tab 1 at will.
+   - **Back Navigation**:
+     - Supported via the `‹ Back` header button and integrated with Android's `BackHandler` (pressing device back exits drilldown back to all categories).
+
+2. **Clean Percentage Stack in Pills**:
+   - In both All Categories and Drilldown modes, every pill displays:
+     - Left: Category / Description indicator dot + Name.
+     - Right: **Right-aligned 2-tier Stack**:
+       - Top: Amount in bold primary color (`₹14.2k`).
+       - Bottom: Percentage in subtle secondary font (`32.4%`, 9.5sp, 70% opacity).
+     - Fits seamlessly inside the existing compact pill dimensions without line wraps or horizontal crowding.
+     - No transaction counts or extra badges, keeping it light and uncluttered.
+
+---
+
+## 16. Eliminating UI Redundancies in Analysis & Transactions Tabs
+
+### User Requirements:
+1. **AnalysisTab Category Drilldown Redundancy**:
+   - In category drilldown (e.g. tapping "Snacks"), the user has a contextual "View All Snacks Transactions →" button inside the card.
+   - At the bottom of the screen, there was also a large `ViewTransactionsActionCard` ("View Transactions").
+   - Resolve this redundancy by keeping the superior, context-driven design.
+2. **TransactionsTab Filter Clear Redundancy**:
+   - When filters are selected in Transactions, there was both a `Clear All` chip in `ActiveFiltersChipRow` AND a `Clear Filters` text link in the count summary row right below it.
+   - Clean up this redundancy to avoid duplicate controls.
+
+### Architectural & Design Decisions:
+1. **AnalysisTab: Unified In-Card View Transactions Action**:
+   - **Why having the button in the exact same place is superior design**:
+     - **Spatial Continuity**: The primary navigation action is anchored at the bottom of `CashFlowBreakdownCard` in both states. Muscle memory is preserved and the eye never has to hunt for it.
+     - **Seamless State Morphing**:
+       - In **Normal Mode**: Displays `[ View Filtered Transactions → ]` (or `[ View All Transactions → ]`). Tapping it navigates to the Transactions tab with current period/account filters.
+       - In **Drilldown Mode** (e.g. tapping "Food"): Directly morphs in-place into `[ View All Food Transactions → ]`. Tapping it filters by Food and navigates to the Transactions tab.
+     - **Eliminated Layout Jumps**: Removed the separate `ViewTransactionsActionCard` from below `IncomeExpenseRow` entirely. The screen ends cleanly with `IncomeExpenseRow`, saving vertical scroll space and completely eliminating any card popping or redundant controls.
+
+2. **TransactionsTab: Unifying Clear Actions**:
+   - **Why the chip row is the right home for Clear All**:
+     - The `[ ✕ Clear All ]` chip sits directly alongside the active filter chips it resets (`+ Category`, `This Month`, `Account`).
+     - It provides an explicit touch target with an error-container accent and close icon.
+     - The summary row below (`14 transactions found`) is now dedicated strictly to status feedback.
+   - **Resolution**:
+     - Removed the redundant `Clear Filters` clickable text link from the results summary row in `TransactionsTab.kt`.
+     - Strengthened `Clear All` in `ActiveFiltersChipRow` to cleanly reset all filter dimensions (`ResetAnalysisFilters`, `SelectCategory("All")`, and `UpdateSearchQuery("")`).
+
+
+## 18. Full Calendar Year Filter Selection
+
+### User Requirement:
+- "month year choosing is good. but what if i wanna see only a particular years stuff. that isnt possible without selecting range right?"
+- Enable users to pick an entire calendar year (e.g. all of 2026) directly from the Month & Year picker dialog without having to drag through a custom date range.
+
+### UI/UX & Architectural Implementation:
+1. **`MonthYearPickerDialog.kt`**:
+   - Added a dedicated full-width `"View Entire Year $displayYear"` button with checkmark icon at the top of the month grid.
+   - Visual states: Styled with primary container background, primary border, and checked icon when active; subtle outline variant when unselected.
+   - Emits `(null, displayYear)` when tapped, indicating the entire year is selected.
+2. **`MoneyState.kt`**:
+   - Added `getYearRangeMillis(year: Int): Pair<Long, Long>` covering Jan 1, 00:00:00.000 to Dec 31, 23:59:59.999 in the system default timezone.
+   - Updated `formattedDateRange()`: cleanly returns `"Year $selectedYear"` when `selectedMonth == null && selectedYear != null`.
+3. **`MoneyAction.kt` & `MoneyVM.kt`**:
+   - Updated `SelectMonthYearFilter(val month: Month?, val year: Int)` to accept a nullable `Month?`.
+   - In `MoneyVM.kt`, when `action.month == null`, computes start and end timestamps via `getYearRangeMillis(action.year)`.
+4. **`FilterBottomSheet.kt` & `HomeScreen.kt`**:
+   - Integrated full year support into `FilterBottomSheet` (displays `"Year $selectedDateYear (Full Year)"`).
+   - Added fallback handling in `HomeScreen.kt`.
+
+---
+
+## 19. Paginated Category Drilldown, Sleek Slate "Others" Slice & Reordered Filter Bar
+
+### User Requirements:
+1. **Paginated Drilldown Descriptions**:
+   - "even the drilldown, when i click on category, it gives description top ones, has others. but i can be paginated and swipe like how normal filtered pills are. ofc there will be lots of pages. we can limit it to like 3-5, or whatever is good design. pls think about ui and ux at every stage."
+2. **Donut Slices & Hairline Chunk Fix**:
+   - "when i clcik a drill down categorya dn transactions donut appear, instead of max 10 portions appearing. after 6, theres a large chunk. fix this."
+   - "still not solved man. after first 7 it became like this. for others its better, can u change color of it tho?"
+3. **Filter Bar Reordering & Duplicate Removal**:
+   - "when year/month is selected from top, it appears two times, because filter is selected. secondly selected filters should appear frist right?"
+
+### UI/UX & Architectural Implementation:
+1. **Swipeable Paginated Drilldown**:
+   - In `AnalysisTab.kt`, descriptions are paginated using Compose `HorizontalPager(state = drilldownPagerState)`.
+   - **Fixed Layout**: Exactly 6 items per page (3 rows × 2 columns) so the card height never shifts or jumps as users swipe.
+   - **Capped at 5 Pages**: Max 30 items total. If more items exist, the 6th slot on page 5 aggregates into an `"Others"` pill.
+   - **Animated Dot Indicators**: Smooth animated pill (18.dp active) and circles (6.dp inactive) with tap-to-navigate interaction. Subtitle dynamically displays `"Page X of Y ›"`.
+2. **Optimal Donut Slices & Slate "Others" Color**:
+   - Donut chart slices are capped at **top 7 individual descriptions + 1 "Others" slice** (total 8 slices). This guarantees that every slice is visually distinct and legible without micro-thin hairline slivers.
+   - Slices now only display items that have spending > 0.
+   - Replaced dark `outlineVariant` (which looked like a dark void in dark mode) with a sleek, modern **slate grey** (`Color(0xFF7A889B)`), creating high contrast and aesthetic polish.
+3. **Reordered Filter Row with Active Filters First**:
+   - Removed the broken 88dp horizontal scroll offset hack (`clearButtonWidthPx = 88.dp`) that was permanently clipping the left edge of chips (`5 ✕`) and pushing `Filters` off screen.
+   - Pinned `[Filters (N)]` button and an explicit `[✕ Clear]` chip at the very start of the row.
+   - **Active Filters FIRST**: Selected categories, accounts, date ranges, and types appear first at index 0.
+   - Followed by a vertical divider and unselected preset filter chips (`This Month`, `Last 30 Days`, `Expenses Only`, etc.).
+   - Removed duplicate month/year chips when custom month or full year is active.
+
+---
+
+
+## 21. Spending Analyser: Hierarchical "Others" Drilldown & 1-to-1 Main Card
+
+### User Requirement:
+- "in page 1, u put it as others. page 2 onwards, its the other categories. how do we depict that? now its wrong design right?"
+
+### Architectural Problem & Decision:
+1. **The Flaw in Flat Pagination**:
+   - Having an `"Others"` summary pill on Page 1 while Page 2 lists the individual categories that make up "Others" creates a severe semantic conflict. Page 2 is a *child* of "Others", not an equal sibling page. Users feel confused: "Did 'Others' count these? Why are they appearing on Page 2?"
+2. **The Solution — Hierarchical Drilldown for "Others"**:
+   - Align "Others" with the app's established drilldown paradigm: Tapping any category (e.g. Food) drills down into its breakdown. Therefore, tapping **"Others"** should drill down into **"Other Categories"**!
+
+### Implementation Details:
+1. **Main Card (Zero Pager, 100% 1-to-1 with Donut Chart)**:
+   - When categories ≤ 10: Renders all individual categories.
+   - When categories > 10:
+     - Donut Chart: **Top 9 individual categories + 1 "Others" slice** (10 slices total, slate grey `Color(0xFF7A889B)`).
+     - Legend Grid: **Top 9 individual categories + 1 "Others (N)" pill** (10 pills total, 5 rows × 2 columns).
+     - **No horizontal pager dots at all on the main card!** Everything is stable, compact, and fits on a single screen without layout jumping.
+2. **Dedicated "Other Categories" Drilldown**:
+   - Tapping the `"Others (N)"` pill smoothly switches `CashFlowBreakdownCard` into **Other Categories Mode**:
+     - **Header Bar**: `‹ Back` button | `📦 OTHER CATEGORIES` | Percentage share badge (`%.1f%%`).
+     - **Donut Chart**: Shows the breakdown of only the remaining categories with center title `OTHER CATS` and total spend in others.
+     - **Legend Grid**: Displays all remaining categories (Cinema, Petrol, Haircut, etc.) in clean, swipeable pages of 6 items (3 rows × 2 columns, matching description drilldowns), with page indicator dots and subtitle `"Page X of Y ›"`.
+3. **Multi-Level Drilldown & Back Stack**:
+   - From "Other Categories", tapping any category (e.g. Cinema) drills down into Cinema's descriptions.
+   - Managed via `drilldownBackStack`:
+     - Tapping `‹ Back` (or Android system back via `BackHandler`) returns from Cinema to Other Categories, and from Other Categories back to the Main Screen!
+4. **Cleaned `MoneyState.spendingAnalyzerData`**:
+   - Removed legacy `isDrillDown` hack; transactions are always grouped cleanly by category across all filter dimensions.
+
+---
+
+## 22. Files Modified & Added Summary
 
 | File Path | Status | Key Focus Area |
 |---|---|---|
-| `settings.gradle.kts` | Modified | Root project mapping and IDE sync |
-| `.idea/misc.xml` | Modified | Android Studio run configuration |
-| `app/src/main/res/values/strings.xml` | Modified | Updated app name to "DT" |
-| `data/local/datastore/ThemeManager.kt` | Modified | Eliminated theme splash flicker |
-| `presentation/screens/home/HomeScreen.kt` | Modified | Minimized start, hidden balance (`₹XXXX`), verified badge removal |
-| `presentation/screens/forms/AddMoneyScreen.kt` | Modified | Account order, green income toggle, FlowRow AccountPickerDialog |
-| `presentation/screens/money/components/AnalysisTab.kt` | Modified | First active filter chip, top 10 donut, compact category list, canonical account chips |
-| `presentation/screens/money/components/FilterBottomSheet.kt` | Modified | Type selector, recent category pills, canonical Accounts & Banks order, 0.79f height |
-| `presentation/components/MonthYearPickerDialog.kt` | **New** | Direct Month & Year picker dialog |
-| `data/remote/api/DailyTrackApi.kt` | Modified | Added bulk update & bulk delete endpoints |
-| `data/remote/dto/TransactionDto.kt` | Modified | Added bulk update/delete request & response DTOs |
-| `data/repository/MoneyRepository.kt` | Modified | Implemented bulk update & bulk delete API calls |
-| `presentation/screens/money/MoneyState.kt` | Modified | Added selection mode & bulk dialog states; Centralized canonical accounts & sorting |
-| `presentation/screens/money/MoneyAction.kt` | Modified | Added multi-selection and bulk actions |
-| `presentation/screens/money/MoneyVM.kt` | Modified | Added selection logic and bulk network execution |
-| `presentation/screens/money/components/TransactionItem.kt` | Modified | Butter-smooth emoji glide, checkmark scale animation, zero layout snaps |
-| `presentation/screens/money/components/TransactionsTab.kt` | Modified | Multi-select state, docked `BulkSelectionActionBar`, canonical active account chips |
+| `presentation/screens/money/components/AnalysisTab.kt` | Modified | Spending Analyser 10-portion cap (Top 9 + slate "Others"), 1-to-1 legend matching, flip to Page 2 on "Others" tap, paginated drilldown (5 pages x 6 items), reordered filter row |
+| `presentation/screens/money/MoneyState.kt` | Modified | Cleaned `spendingAnalyzerData` to always group by category; full year range calculation; canonical accounts |
+| `presentation/screens/money/components/FilterBottomSheet.kt` | Modified | Type selector, recent category pills, canonical Accounts & Banks order, full year filter support, 0.79f height |
+| `presentation/components/MonthYearPickerDialog.kt` | **New** | Direct Month & Year picker dialog with full calendar year selection button |
+| `presentation/screens/money/components/TransactionsTab.kt` | Modified | Multi-select state, docked `BulkSelectionActionBar`, removed redundant `Clear Filters` link, unified `Clear All` chip |
 | `presentation/screens/money/components/BulkEditTransactionsSheet.kt` | **New** | 2-tab bulk edit sheet; Category & Account dialog pickers; Docked keyboard suggestions; Canonical account order; Height reduced to 0.79f & anti-glitch swipe stabilization |
-| `presentation/screens/money/components/DeleteConfirmationDialog.kt` | Modified | Single & bulk transaction deletion confirmation dialog |
 | `presentation/screens/money/components/EditTransactionDialog.kt` | Modified | Single edit sheet with FlowRow dialog pickers for Account and Category, note suggestions, canonical account order; Height reduced to 0.79f |
-| `presentation/screens/money/MoneyScreen.kt` | Modified | BackHandler for selection, recent descriptions extraction, coordinated sheets |
-| `presentation/screens/main/MainScreen.kt` | Modified | Cleaned up navigation and FAB coordination |
+| `presentation/screens/home/HomeScreen.kt` | Modified | Minimized start, hidden balance (`₹XXXX`), verified badge removal |
 
 ---
 *Generated for Sabarish — DT-Mobile Android Workspace*
+
+
