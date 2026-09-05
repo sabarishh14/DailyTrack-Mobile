@@ -99,6 +99,8 @@ if (-not (Test-Path $ReleasesDir)) {
 
 $ApkDestName = "DailyTrack-$Tag.apk"
 $ApkDest = Join-Path $ReleasesDir $ApkDestName
+# Clean up any older release APKs
+Get-ChildItem -Path $ReleasesDir -Filter "*.apk" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $ApkDest } | Remove-Item -Force
 Copy-Item -Path $ApkSource -Destination $ApkDest -Force
 $ApkSizeMb = [math]::Round(((Get-Item $ApkDest).Length / 1MB), 2)
 Write-Host "  -> APK created at: $ApkDest ($ApkSizeMb MB)" -ForegroundColor Green
