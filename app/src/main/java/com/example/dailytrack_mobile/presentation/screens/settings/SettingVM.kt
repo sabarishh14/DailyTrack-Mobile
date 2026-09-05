@@ -29,6 +29,10 @@ import kotlinx.coroutines.withContext
 import com.example.dailytrack_mobile.data.local.reminder.ReminderManager
 import com.example.dailytrack_mobile.domain.reminder.ReminderScheduler
 import com.example.dailytrack_mobile.notification.NotificationsHelper
+import com.example.dailytrack_mobile.data.update.AppUpdateInfo
+import com.example.dailytrack_mobile.data.update.AppUpdateManager
+import com.example.dailytrack_mobile.data.update.UpdateDownloadProgress
+import java.io.File
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -49,7 +53,8 @@ class SettingsVM @Inject constructor(
     private val activitiesRepository: ActivitiesRepository? = null,
     private val investmentsRepository: InvestmentsRepository? = null,
     private val sabdekhoRepository: SabdekhoRepository? = null,
-    private val authRepository: com.example.dailytrack_mobile.data.repository.AuthRepository? = null
+    private val authRepository: com.example.dailytrack_mobile.data.repository.AuthRepository? = null,
+    private val appUpdateManager: AppUpdateManager? = null
 ) : ViewModel() {
 
     constructor(
@@ -69,7 +74,9 @@ class SettingsVM @Inject constructor(
         moneyRepository = null,
         activitiesRepository = null,
         investmentsRepository = null,
-        sabdekhoRepository = null
+        sabdekhoRepository = null,
+        authRepository = null,
+        appUpdateManager = null
     )
 
     private val _isInitialConfigLoaded = MutableStateFlow(themeManager.hasSyncCache())
@@ -290,6 +297,140 @@ class SettingsVM @Inject constructor(
                 viewModelScope.launch {
                     authRepository?.logout()
                 }
+            }
+            is SettingsAction.OnCheckForUpdatesClicked -> {
+                checkForUpdates()
+            }
+            is SettingsAction.OnStartUpdateDownload -> {
+                startUpdateDownload()
+            }
+            is SettingsAction.OnInstallDownloadedApk -> {
+                installDownloadedApk()
+            }
+            is SettingsAction.OnDismissInstallPermissionDialog -> {
+                _state.update { it.copy(showInstallPermissionDialog = false) }
+            }
+            is SettingsAction.OnOpenInstallPermissionSettings -> {
+                _state.update { it.copy(showInstallPermissionDialog = false) }
+                val updateMgr = appUpdateManager ?: AppUpdateManager(context)
+                updateMgr.openInstallPermissionSettings()
+            }
+        }
+    }
+
+    private fun checkForUpdates() {
+        if (_state.value.updateStatus == UpdateStatus.CHECKING || _state.value.updateStatus == UpdateStatus.DOWNLOADING) return
+        val updateMgr = appUpdateManager ?: AppUpdateManager(context)
+        viewModelScope.launch {
+            _state.update { it.copy(updateStatus = UpdateStatus.CHECKING, updateErrorMessage = null) }
+            val result = updateMgr.checkForUpdates()
+            result.fold(
+                onSuccess = { updateInfo ->
+                    if (updateInfo == null) {
+                        _state.update {
+                            it.copy(
+                                updateStatus = UpdateStatus.UP_TO_DATE,
+                                latestUpdateInfo = null
+                            )
+                        }
+                    } else if (updateInfo.isUpdateAvailable) {
+                        _state.update {
+                            it.copy(
+                                updateStatus = UpdateStatus.UPDATE_AVAILABLE,
+                                latestUpdateInfo = updateInfo
+                            )
+                        }
+                    } else {
+                        _state.update {
+                            it.copy(
+                                updateStatus = UpdateStatus.UP_TO_DATE,
+                                latestUpdateInfo = updateInfo
+                            )
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            updateStatus = UpdateStatus.ERROR,
+                            updateErrorMessage = error.localizedMessage ?: "Failed to check for updates"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    private fun startUpdateDownload() {
+        val updateInfo = _state.value.latestUpdateInfo ?: return
+        val updateMgr = appUpdateManager ?: AppUpdateManager(context)
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    updateStatus = UpdateStatus.DOWNLOADING,
+                    downloadProgress = 0f,
+                    downloadedBytesText = "Connecting to server...",
+                    updateErrorMessage = null
+                )
+            }
+            try {
+                updateMgr.downloadApk(updateInfo.downloadUrl, updateInfo.fileName).collect { progress ->
+                    when (progress) {
+                        is UpdateDownloadProgress.Progress -> {
+                            val mbDownloaded = progress.bytesDownloaded.toDouble() / (1024 * 1024)
+                            val totalMb = progress.totalBytes.toDouble() / (1024 * 1024)
+                            val text = if (progress.totalBytes > 0) {
+                                String.format(Locale.US, "%.1f MB / %.1f MB (%.0f%%)", mbDownloaded, totalMb, progress.progressPercent * 100)
+                            } else {
+                                String.format(Locale.US, "%.1f MB downloaded", mbDownloaded)
+                            }
+                            _state.update {
+                                it.copy(
+                                    downloadProgress = progress.progressPercent,
+                                    downloadedBytesText = text
+                                )
+                            }
+                        }
+                        is UpdateDownloadProgress.Completed -> {
+                            _state.update {
+                                it.copy(
+                                    updateStatus = UpdateStatus.READY_TO_INSTALL,
+                                    downloadedApkFile = progress.apkFile,
+                                    downloadProgress = 1f,
+                                    downloadedBytesText = "Download complete"
+                                )
+                            }
+                            // Auto-trigger installation prompt
+                            installDownloadedApk(progress.apkFile)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        updateStatus = UpdateStatus.ERROR,
+                        updateErrorMessage = e.localizedMessage ?: "Download failed"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun installDownloadedApk(file: File? = _state.value.downloadedApkFile) {
+        val apkFile = file ?: _state.value.downloadedApkFile ?: return
+        val updateMgr = appUpdateManager ?: AppUpdateManager(context)
+        if (!updateMgr.canInstallPackages()) {
+            _state.update { it.copy(showInstallPermissionDialog = true) }
+            return
+        }
+        try {
+            updateMgr.installApk(apkFile)
+        } catch (e: Exception) {
+            _state.update {
+                it.copy(
+                    updateStatus = UpdateStatus.ERROR,
+                    updateErrorMessage = "Failed to launch installer: ${e.localizedMessage}"
+                )
             }
         }
     }

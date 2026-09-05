@@ -122,7 +122,7 @@ fun SettingsScreen(
     var currentSubScreen by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val categories = remember(state.isAppLockEnabled, state.appVersion) {
+    val categories = remember(state.isAppLockEnabled, state.appVersion, state.updateStatus, state.latestUpdateInfo) {
         listOf(
             SettingsCategoryItem(
                 id = "General",
@@ -160,11 +160,23 @@ fun SettingsScreen(
                 keywords = listOf("sync", "server", "cloud", "api", "refresh", "status", "hydrate")
             ),
             SettingsCategoryItem(
+                id = "Updates",
+                icon = Icons.Default.SystemUpdate,
+                title = "App Updates",
+                subtitle = when (state.updateStatus) {
+                    UpdateStatus.UPDATE_AVAILABLE -> "Update available (${state.latestUpdateInfo?.versionName ?: "New"})"
+                    UpdateStatus.DOWNLOADING -> "Downloading update..."
+                    UpdateStatus.READY_TO_INSTALL -> "Update ready to install"
+                    else -> "Check for latest release"
+                },
+                keywords = listOf("update", "updates", "upgrade", "version", "download", "install", "apk", "latest", "new")
+            ),
+            SettingsCategoryItem(
                 id = "About",
                 icon = Icons.Default.Info,
                 title = "About",
                 subtitle = state.appVersion,
-                keywords = listOf("about", "version", "developer", "info", "app")
+                keywords = listOf("about", "version", "developer", "info", "app", "update", "updates")
             )
         )
     }
@@ -246,6 +258,47 @@ fun SettingsScreen(
         }
     }
 
+    // Material 3 Install Unknown Apps Permission Dialog
+    if (state.showInstallPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { onAction(SettingsAction.OnDismissInstallPermissionDialog) },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Install Permission Required",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "To install the updated version directly, Android requires permission for DailyTrack to install unknown apps.\n\nTap 'Open Settings' to enable the switch for DailyTrack, then return to complete installation.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onAction(SettingsAction.OnOpenInstallPermissionSettings) }
+                ) {
+                    Text("Open Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { onAction(SettingsAction.OnDismissInstallPermissionDialog) }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     // ── Sub-screen routing ───────────────────────────────────────────────────
     when (currentSubScreen) {
         "AppLockSettings" -> {
@@ -292,6 +345,14 @@ fun SettingsScreen(
         }
         "Sync" -> {
             SyncSettingsSubScreen(
+                state = state,
+                onAction = onAction,
+                onNavigateBack = { currentSubScreen = null }
+            )
+            return
+        }
+        "Updates" -> {
+            AppUpdatesSubScreen(
                 state = state,
                 onAction = onAction,
                 onNavigateBack = { currentSubScreen = null }
@@ -933,6 +994,13 @@ private fun AboutSettingsSubScreen(
             }
 
             item {
+                AppUpdateCard(
+                    state = state,
+                    onAction = onAction
+                )
+            }
+
+            item {
                 // Developer Card
                 SettingsCard {
                     Row(
@@ -1062,6 +1130,519 @@ private fun AboutSettingsSubScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App Updates Sub-Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppUpdatesSubScreen(
+    state: SettingsState,
+    onAction: (SettingsAction) -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    val dims = Dimens.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    BackHandler {
+        onNavigateBack()
+    }
+
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            MediumTopAppBar(
+                title = {
+                    Text(
+                        text = "App Updates",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(dims.iconSizeMedium)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = dims.screenHorizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = dims.screenBottomPadding)
+        ) {
+            item {
+                AppUpdateCard(
+                    state = state,
+                    onAction = onAction
+                )
+            }
+
+            item {
+                SettingsCard {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 18.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "How In-App Updates Work",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "DailyTrack is distributed directly via public GitHub Releases. Whenever you release a new version, users can check, download, and install updates with a single tap.\n\nAll existing data, settings, accounts, and preferences remain fully intact across updates.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App Update Card – Live state machine for check, download, & install
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun AppUpdateCard(
+    state: SettingsState,
+    onAction: (SettingsAction) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dims = Dimens.current
+    Card(
+        shape = RoundedCornerShape(dims.cardCornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(dims.cardCornerRadius))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+        ) {
+            // Header Row: Icon + Title + Version Tag
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(18.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "App Updates",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 17.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Installed: ${state.appVersion}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Status Badge
+                when (state.updateStatus) {
+                    UpdateStatus.UPDATE_AVAILABLE -> {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        ) {
+                            Text(
+                                text = "v${state.latestUpdateInfo?.versionName}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    UpdateStatus.UP_TO_DATE -> {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer
+                        ) {
+                            Text(
+                                text = "Up to date",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    else -> {}
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Body content based on update state
+            when (state.updateStatus) {
+                UpdateStatus.IDLE -> {
+                    Text(
+                        text = "DailyTrack checks GitHub Releases directly for new versions and downloads them without manual file transfers.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    FilledTonalButton(
+                        onClick = { onAction(SettingsAction.OnCheckForUpdatesClicked) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Check for Updates",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+                }
+
+                UpdateStatus.CHECKING -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.5.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "Checking GitHub Releases...",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                UpdateStatus.UP_TO_DATE -> {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "You're on the latest version",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Version ${state.appVersion} is up to date.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { onAction(SettingsAction.OnCheckForUpdatesClicked) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Check Again")
+                    }
+                }
+
+                UpdateStatus.UPDATE_AVAILABLE -> {
+                    val update = state.latestUpdateInfo
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.NewReleases,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = update?.releaseTitle ?: "New Release Available",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (!update?.formattedSize.isNullOrBlank()) {
+                                        Text(
+                                            text = "Download size: ${update?.formattedSize}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (!update?.releaseNotes.isNullOrBlank()) {
+                                Spacer(Modifier.height(10.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = "Release Notes",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            text = update?.releaseNotes ?: "",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = { onAction(SettingsAction.OnStartUpdateDownload) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = if (!update?.formattedSize.isNullOrBlank())
+                                "Download & Install (${update?.formattedSize})"
+                            else
+                                "Download & Install Update",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+
+                UpdateStatus.DOWNLOADING -> {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Downloading update...",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${(state.downloadProgress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { state.downloadProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+
+                        if (!state.downloadedBytesText.isNullOrBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = state.downloadedBytesText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                UpdateStatus.READY_TO_INSTALL -> {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Update downloaded successfully",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Ready to install. Tap below to launch the Android installer.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = { onAction(SettingsAction.OnInstallDownloadedApk) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Install Update Now",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+
+                UpdateStatus.ERROR -> {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Update Check Failed",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = state.updateErrorMessage ?: "Unable to connect to update server",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { onAction(SettingsAction.OnCheckForUpdatesClicked) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Retry")
                     }
                 }
             }

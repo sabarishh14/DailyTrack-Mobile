@@ -4,7 +4,19 @@ import com.example.dailytrack_mobile.data.local.security.LockType
 import com.example.dailytrack_mobile.presentation.theme.AppTheme
 import com.example.dailytrack_mobile.presentation.theme.ThemeMode
 
+import com.example.dailytrack_mobile.data.update.AppUpdateInfo
+import java.io.File
 import java.time.DayOfWeek
+
+enum class UpdateStatus {
+    IDLE,
+    CHECKING,
+    UPDATE_AVAILABLE,
+    UP_TO_DATE,
+    DOWNLOADING,
+    READY_TO_INSTALL,
+    ERROR
+}
 
 data class SettingsState(
     val selectedTheme: AppTheme = AppTheme.YELLOW,
@@ -28,5 +40,12 @@ data class SettingsState(
     val reminderDays: Set<DayOfWeek> = DayOfWeek.values().toSet(),
     val loggedInUserEmail: String? = null,
     val loggedInUserName: String? = null,
-    val isUserAdmin: Boolean = false
+    val isUserAdmin: Boolean = false,
+    val updateStatus: UpdateStatus = UpdateStatus.IDLE,
+    val latestUpdateInfo: AppUpdateInfo? = null,
+    val downloadProgress: Float = 0f,
+    val downloadedBytesText: String? = null,
+    val downloadedApkFile: File? = null,
+    val updateErrorMessage: String? = null,
+    val showInstallPermissionDialog: Boolean = false
 )

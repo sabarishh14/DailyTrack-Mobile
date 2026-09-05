@@ -25,4 +25,9 @@ sealed interface SettingsAction {
     data class OnReminderDayToggled(val day: DayOfWeek) : SettingsAction
     object OnSendTestNotification : SettingsAction
     object OnLogoutClicked : SettingsAction
+    object OnCheckForUpdatesClicked : SettingsAction
+    object OnStartUpdateDownload : SettingsAction
+    object OnInstallDownloadedApk : SettingsAction
+    object OnDismissInstallPermissionDialog : SettingsAction
+    object OnOpenInstallPermissionSettings : SettingsAction
 }
