@@ -39,6 +39,10 @@ fun MoneyScreen(
     val dims = Dimens.current
     val snackbarHostState = remember { SnackbarHostState() }
 
+    androidx.activity.compose.BackHandler(enabled = state.isSelectionMode) {
+        viewModel.onAction(MoneyAction.ClearTransactionSelection)
+    }
+
     LaunchedEffect(state.isSelectionMode) {
         onSelectionModeChange(state.isSelectionMode)
     }
@@ -193,11 +197,18 @@ fun MoneyScreen(
 
     // Bulk Edit Transactions Bottom Sheet
     if (state.showBulkEditSheet && state.selectedTransactions.isNotEmpty()) {
+        val recentDescriptions = remember(state.transactions) {
+            state.transactions
+                .mapNotNull { it.note?.takeIf { n -> n.isNotBlank() } ?: it.title.takeIf { t -> t != it.category && t.isNotBlank() } }
+                .distinct()
+                .take(30)
+        }
         BulkEditTransactionsSheet(
             transactions = state.selectedTransactions,
             availableAccounts = state.allAvailableAccounts,
             availableCategories = state.allAvailableCategories,
             mostUsedCategories = state.mostUsedCategories,
+            recentDescriptions = recentDescriptions,
             isUpdating = state.isBulkUpdating,
             onSave = { updates ->
                 viewModel.onAction(MoneyAction.ExecuteBulkEdit(updates))

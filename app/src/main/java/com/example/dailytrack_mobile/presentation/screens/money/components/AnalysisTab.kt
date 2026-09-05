@@ -346,7 +346,12 @@ private fun AnalysisFilterRow(
             }
 
             // 2. Active Account Filters (Included / Excluded)
-            filterState.accountFilters.forEach { (acc, status) ->
+            val sortedAccountFilters = remember(filterState.accountFilters) {
+                sortAccountsCanonical(filterState.accountFilters.keys.toList()).mapNotNull { acc ->
+                    filterState.accountFilters[acc]?.let { status -> acc to status }
+                }
+            }
+            sortedAccountFilters.forEach { (acc, status) ->
                 when (status) {
                     ItemFilterStatus.INCLUDED -> {
                         ActiveFilterRemovableChip(

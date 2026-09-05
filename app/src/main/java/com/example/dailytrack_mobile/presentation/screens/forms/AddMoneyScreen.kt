@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
@@ -130,7 +131,8 @@ fun AddMoneyScreen(
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var excludeAnalytics by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var showAccountSheet by remember { mutableStateOf(false) }
+    var accountSearchDialogOpen by remember { mutableStateOf(false) }
+    var accountSearchQuery by remember { mutableStateOf("") }
 
     val accountsList = remember(formState.accounts) {
         val list = if (formState.accounts.isNotEmpty()) formState.accounts else defaultAccounts
@@ -691,7 +693,7 @@ fun AddMoneyScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
                 border = cardBorder,
-                onClick = { showAccountSheet = true },
+                onClick = { accountSearchDialogOpen = true },
                 modifier = Modifier.weight(1f)
             ) {
                 Column(
@@ -1077,91 +1079,169 @@ fun AddMoneyScreen(
     }
 }
 
-    if (showAccountSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = { showAccountSheet = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            dragHandle = { BottomSheetDefaults.DragHandle() }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp)
-            ) {
+    // Account Search & Selection Dialog (FlowRow pills matching Category dialog)
+    if (accountSearchDialogOpen) {
+        val query = accountSearchQuery.trim()
+        val filteredAccounts = remember(query, accountsList) {
+            if (query.isBlank()) accountsList
+            else accountsList.filter { it.contains(query, ignoreCase = true) }
+        }
+        val isExactMatch = accountsList.any { it.equals(query, ignoreCase = true) }
+
+        AlertDialog(
+            onDismissRequest = {
+                accountSearchDialogOpen = false
+                accountSearchQuery = ""
+            },
+            title = {
                 Text(
                     text = "Select Account",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                LazyColumn(
+            },
+            text = {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .heightIn(max = 380.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(accountsList) { account ->
-                        val isSelected = selectedAccount == account
-                        val accountBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                        val accountContentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(accountBg)
-                                .clickable {
-                                    selectedAccount = account
-                                    showAccountSheet = false
-                                }
-                                .padding(horizontal = 16.dp, vertical = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) 
-                                        else MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = account.take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.width(16.dp))
-                            
-                            Text(
-                                text = account,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                ),
-                                color = accountContentColor,
-                                modifier = Modifier.weight(1f)
+                    OutlinedTextField(
+                        value = accountSearchQuery,
+                        onValueChange = { accountSearchQuery = it },
+                        placeholder = { Text("Search or type account...", style = MaterialTheme.typography.bodyMedium) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
-                            
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Selected",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                        },
+                        trailingIcon = {
+                            if (accountSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { accountSearchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Create custom account button if no exact match
+                        if (query.isNotBlank() && !isExactMatch) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedAccount = query
+                                        accountSearchDialogOpen = false
+                                        accountSearchQuery = ""
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Add \"$query\"",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        // Flow of accounts
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            filteredAccounts.forEach { account ->
+                                val isSelected = selectedAccount.equals(account, ignoreCase = true)
+                                val chipBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                                val chipTextColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                val chipBorder = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(chipBg)
+                                        .border(1.dp, chipBorder, RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            selectedAccount = account
+                                            accountSearchDialogOpen = false
+                                            accountSearchQuery = ""
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AccountBalance,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = account,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            ),
+                                            color = chipTextColor
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                modifier = Modifier.size(14.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    accountSearchDialogOpen = false
+                    accountSearchQuery = ""
+                }) {
+                    Text("Close")
+                }
             }
-        }
+        )
     }
 }

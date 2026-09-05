@@ -1,6 +1,7 @@
 package com.example.dailytrack_mobile.presentation.screens.money.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,11 +29,14 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dailytrack_mobile.presentation.screens.money.CategoryEmojis
+import com.example.dailytrack_mobile.presentation.screens.money.DEFAULT_CANONICAL_ACCOUNTS
 import com.example.dailytrack_mobile.presentation.screens.money.Transaction
 import com.example.dailytrack_mobile.presentation.screens.money.TransactionType
+import com.example.dailytrack_mobile.presentation.screens.money.sortAccountsCanonical
 import com.example.dailytrack_mobile.presentation.util.Dimens
 import java.text.SimpleDateFormat
 import java.util.*
@@ -50,9 +54,7 @@ private val defaultCategories = listOf(
     "Freelance", "Investment", "Gift", "Other"
 )
 
-private val defaultAccounts = listOf(
-    "KOTAK", "IDBI", "FEDERAL", "CUB", "INDIAN", "ICICI", "HDFC", "SBI", "Axis", "Cash", "CC-PINNACLE 6360"
-)
+private val defaultAccounts = DEFAULT_CANONICAL_ACCOUNTS
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -112,19 +114,16 @@ fun EditTransactionDialog(
     }
     var amount by remember { mutableStateOf(formattedInitialAmount) }
     var selectedAccount by remember { mutableStateOf(transaction.bank) }
-    var accountDropdownExpanded by remember { mutableStateOf(false) }
+    var showAccountPicker by remember { mutableStateOf(false) }
 
     var categoryInput by remember { mutableStateOf(transaction.category) }
-    var categoryDropdownExpanded by remember { mutableStateOf(false) }
+    var showCategoryPicker by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf(transaction.note ?: "") }
     var excludeAnalytics by remember { mutableStateOf(transaction.isExcluded) }
 
     val accountsList = remember(availableAccounts) {
         val list = if (availableAccounts.isNotEmpty()) availableAccounts else defaultAccounts
-        list.sortedBy { account ->
-            val index = defaultAccounts.indexOfFirst { it.equals(account, ignoreCase = true) }
-            if (index == -1) Int.MAX_VALUE else index
-        }
+        sortAccountsCanonical(list)
     }
 
     val allCategories = remember(availableCategories) {
@@ -169,6 +168,33 @@ fun EditTransactionDialog(
         }
     }
 
+    // Category Picker Dialog
+    if (showCategoryPicker) {
+        CategoryPickerDialog(
+            allCategories = allCategories,
+            recentCategories = recentCategories,
+            currentCategory = categoryInput,
+            onCategorySelected = {
+                categoryInput = it
+                showCategoryPicker = false
+            },
+            onDismiss = { showCategoryPicker = false }
+        )
+    }
+
+    // Account Picker Dialog
+    if (showAccountPicker) {
+        AccountPickerDialog(
+            accountsList = accountsList,
+            currentAccount = selectedAccount,
+            onAccountSelected = {
+                selectedAccount = it
+                showAccountPicker = false
+            },
+            onDismiss = { showAccountPicker = false }
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = { if (!isUpdating) onDismiss() },
         sheetState = sheetState,
@@ -179,7 +205,7 @@ fun EditTransactionDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.79f)
         ) {
             // ── Header ───────────────────────────────────────────────────────
             Row(
@@ -421,48 +447,102 @@ fun EditTransactionDialog(
                 }
 
                 // 4. Account Selector
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Account",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    ExposedDropdownMenuBox(
-                        expanded = accountDropdownExpanded,
-                        onExpandedChange = { accountDropdownExpanded = it }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
-                            value = selectedAccount,
-                            onValueChange = {},
-                            readOnly = true,
-                            placeholder = { Text("Select Account", style = MaterialTheme.typography.bodyMedium) },
-                            leadingIcon = {
+                        Text(
+                            text = "Account",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Quick select",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    // Horizontal quick-select chips for top accounts
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        accountsList.take(6).forEach { account ->
+                            val isSelected = selectedAccount.trim().equals(account.trim(), ignoreCase = true)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedAccount = account
+                                },
+                                label = { Text(account, style = MaterialTheme.typography.bodyMedium) },
+                                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+
+                        // "+ More" chip to open AccountPickerDialog
+                        FilterChip(
+                            selected = false,
+                            onClick = { showAccountPicker = true },
+                            label = { Text("+ More", style = MaterialTheme.typography.bodyMedium) },
+                            shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                labelColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+
+                    // Clickable Account Box
+                    Surface(
+                        onClick = { showAccountPicker = true },
+                        shape = RoundedCornerShape(dims.buttonCornerRadius),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.AccountBalance,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
-                            },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountDropdownExpanded) },
-                            modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(dims.buttonCornerRadius)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = accountDropdownExpanded,
-                            onDismissRequest = { accountDropdownExpanded = false }
-                        ) {
-                            accountsList.forEach { account ->
-                                DropdownMenuItem(
-                                    text = { Text(account, style = MaterialTheme.typography.bodyMedium) },
-                                    onClick = {
-                                        selectedAccount = account
-                                        accountDropdownExpanded = false
-                                    }
+                                Text(
+                                    text = if (selectedAccount.isNotBlank()) selectedAccount else "Select Account",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (selectedAccount.isNotBlank()) FontWeight.Medium else FontWeight.Normal,
+                                        color = if (selectedAccount.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Select Account",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
@@ -500,7 +580,6 @@ fun EditTransactionDialog(
                                 selected = isSelected,
                                 onClick = {
                                     categoryInput = if (isSelected) "" else category
-                                    categoryDropdownExpanded = false
                                 },
                                 label = { Text("$emoji $category", style = MaterialTheme.typography.bodyMedium) },
                                 shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
@@ -510,102 +589,61 @@ fun EditTransactionDialog(
                                 )
                             )
                         }
-                    }
 
-                    // Search / Custom Category Input with Autocomplete
-                    val query = categoryInput.trim()
-                    val matchingCategories = remember(query, allCategories) {
-                        if (query.isBlank()) emptyList()
-                        else allCategories.filter { it.contains(query, ignoreCase = true) }
-                    }
-                    val isExactMatch = allCategories.any { it.equals(query, ignoreCase = true) }
-
-                    ExposedDropdownMenuBox(
-                        expanded = categoryDropdownExpanded && (matchingCategories.isNotEmpty() || (query.isNotBlank() && !isExactMatch)),
-                        onExpandedChange = { categoryDropdownExpanded = it }
-                    ) {
-                        OutlinedTextField(
-                            value = categoryInput,
-                            onValueChange = {
-                                categoryInput = it
-                                categoryDropdownExpanded = it.isNotBlank()
-                            },
-                            placeholder = { Text("Search or type custom category", style = MaterialTheme.typography.bodyMedium) },
-                            leadingIcon = {
-                                if (categoryInput.isNotBlank()) {
-                                    Text(
-                                        text = CategoryEmojis.forCategory(categoryInput),
-                                        fontSize = 18.sp,
-                                        modifier = Modifier.padding(start = 4.dp)
-                                    )
-                                }
-                            },
-                            trailingIcon = {
-                                if (categoryInput.isNotEmpty()) {
-                                    IconButton(onClick = {
-                                        categoryInput = ""
-                                        categoryDropdownExpanded = false
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Clear,
-                                            contentDescription = "Clear Category",
-                                            modifier = Modifier.size(dims.iconSizeSmall)
-                                        )
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            shape = RoundedCornerShape(dims.buttonCornerRadius),
-                            modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth()
+                        // "+ More" chip to open CategoryPickerDialog
+                        FilterChip(
+                            selected = false,
+                            onClick = { showCategoryPicker = true },
+                            label = { Text("+ More", style = MaterialTheme.typography.bodyMedium) },
+                            shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                labelColor = MaterialTheme.colorScheme.primary
+                            )
                         )
+                    }
 
-                        ExposedDropdownMenu(
-                            expanded = categoryDropdownExpanded && (matchingCategories.isNotEmpty() || (query.isNotBlank() && !isExactMatch)),
-                            onDismissRequest = { categoryDropdownExpanded = false }
+                    // Clickable Category Box
+                    Surface(
+                        onClick = { showCategoryPicker = true },
+                        shape = RoundedCornerShape(dims.buttonCornerRadius),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            matchingCategories.forEach { category ->
-                                val emoji = CategoryEmojis.forCategory(category)
-                                DropdownMenuItem(
-                                    leadingIcon = { Text(emoji, fontSize = 16.sp) },
-                                    text = { Text(category, style = MaterialTheme.typography.bodyMedium) },
-                                    onClick = {
-                                        categoryInput = category
-                                        categoryDropdownExpanded = false
-                                    }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                val emoji = if (categoryInput.isNotBlank()) CategoryEmojis.forCategory(categoryInput) else "📁"
+                                Text(
+                                    text = emoji,
+                                    fontSize = 18.sp
+                                )
+                                Text(
+                                    text = if (categoryInput.isNotBlank()) categoryInput else "Select or Search Category",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (categoryInput.isNotBlank()) FontWeight.Medium else FontWeight.Normal,
+                                        color = if (categoryInput.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
-
-                            if (query.isNotBlank() && !isExactMatch) {
-                                if (matchingCategories.isNotEmpty()) {
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                }
-                                DropdownMenuItem(
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(dims.iconSizeSmall)
-                                        )
-                                    },
-                                    text = {
-                                        Text(
-                                            text = "Create \"$query\"",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        )
-                                    },
-                                    onClick = {
-                                        categoryInput = query
-                                        categoryDropdownExpanded = false
-                                    }
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Select Category",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
@@ -617,6 +655,23 @@ fun EditTransactionDialog(
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val noteSuggestions = remember(categoryInput) {
+                        listOf("Lunch", "Dinner", "Snacks", "Coffee", "Groceries", "Uber", "Fuel", "Shopping", "Subscription", "Bill")
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        noteSuggestions.forEach { suggestion ->
+                            SuggestionChip(
+                                onClick = { note = suggestion },
+                                label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) },
+                                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
+                            )
+                        }
+                    }
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
@@ -627,6 +682,17 @@ fun EditTransactionDialog(
                                 contentDescription = null,
                                 modifier = Modifier.size(dims.iconSizeMedium)
                             )
+                        },
+                        trailingIcon = {
+                            if (note.isNotBlank()) {
+                                IconButton(onClick = { note = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear Note",
+                                        modifier = Modifier.size(dims.iconSizeSmall)
+                                    )
+                                }
+                            }
                         },
                         minLines = 2,
                         maxLines = 3,

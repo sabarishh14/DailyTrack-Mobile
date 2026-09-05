@@ -615,7 +615,12 @@ private fun ActiveFiltersChipRow(
         }
 
         // Active Accounts
-        filterState.accountFilters.forEach { (acc, status) ->
+        val sortedAccountFilters = remember(filterState.accountFilters) {
+            sortAccountsCanonical(filterState.accountFilters.keys.toList()).mapNotNull { acc ->
+                filterState.accountFilters[acc]?.let { status -> acc to status }
+            }
+        }
+        sortedAccountFilters.forEach { (acc, status) ->
             when (status) {
                 ItemFilterStatus.INCLUDED -> {
                     ActiveFilterChipItem(

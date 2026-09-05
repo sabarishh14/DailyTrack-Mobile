@@ -36,6 +36,22 @@ enum class QuickFilterPreset {
     INCOME_ONLY
 }
 
+val DEFAULT_CANONICAL_ACCOUNTS = listOf(
+    "Cash", "KOTAK", "IDBI", "FEDERAL", "CUB", "INDIAN", "ICICI", "HDFC", "SBI", "Axis", "CC-PINNACLE 6360"
+)
+
+fun sortAccountsCanonical(accounts: List<String>): List<String> {
+    return accounts.sortedWith(
+        compareBy(
+            { account ->
+                val index = DEFAULT_CANONICAL_ACCOUNTS.indexOfFirst { it.trim().equals(account.trim(), ignoreCase = true) }
+                if (index == -1) Int.MAX_VALUE else index
+            },
+            { it.lowercase() }
+        )
+    )
+}
+
 data class SplitMember(
     val name: String,
     val amount: Double,
@@ -325,8 +341,12 @@ data class MoneyState(
         }
 
     val allAvailableAccounts: List<String>
-        get() = if (accounts.isNotEmpty()) accounts.map { it.account }
-                else transactions.map { it.bank }.distinct().sorted()
+        get() {
+            val raw = if (accounts.isNotEmpty()) accounts.map { it.account }
+                      else transactions.map { it.bank }.distinct()
+            val list = if (raw.isNotEmpty()) raw else DEFAULT_CANONICAL_ACCOUNTS
+            return sortAccountsCanonical(list)
+        }
 
     val filteredTransactions: List<Transaction>
         get() {

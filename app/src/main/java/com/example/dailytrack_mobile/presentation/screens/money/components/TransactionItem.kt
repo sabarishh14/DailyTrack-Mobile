@@ -3,11 +3,16 @@ package com.example.dailytrack_mobile.presentation.screens.money.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -315,38 +320,63 @@ fun TransactionCardSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingLarge),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Selection Checkbox Circle (animated into view during selection mode)
+            // Selection Checkbox Circle (smooth animated expansion without layout snapping)
             AnimatedVisibility(
                 visible = isSelectionMode,
-                enter = fadeIn() + expandHorizontally(),
-                exit = fadeOut() + shrinkHorizontally()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isSelected) MaterialTheme.colorScheme.primary
-                            else Color.Transparent
-                        )
-                        .border(
-                            width = 2.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-                            shape = CircleShape
+                enter = fadeIn(animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)) +
+                        expandHorizontally(
+                            animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                            expandFrom = Alignment.Start
                         ),
-                    contentAlignment = Alignment.Center
+                exit = fadeOut(animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)) +
+                       shrinkHorizontally(
+                           animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                           shrinkTowards = Alignment.Start
+                       )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(end = dims.itemSpacingLarge)
                 ) {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(15.dp)
-                        )
+                    val checkboxBg by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary
+                        else Color.Transparent,
+                        animationSpec = tween(durationMillis = 150),
+                        label = "checkbox_bg"
+                    )
+                    val checkboxBorder by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                        animationSpec = tween(durationMillis = 150),
+                        label = "checkbox_border"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(checkboxBg)
+                            .border(
+                                width = 2.dp,
+                                color = checkboxBorder,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = isSelected,
+                            enter = androidx.compose.animation.scaleIn(tween(150)) + fadeIn(tween(150)),
+                            exit = androidx.compose.animation.scaleOut(tween(120)) + fadeOut(tween(120))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -364,6 +394,8 @@ fun TransactionCardSurface(
                     fontSize = dims.fontSizeTitleLarge
                 )
             }
+
+            Spacer(modifier = Modifier.width(dims.itemSpacingLarge))
 
             // Title + Description + Date/Bank/Excluded
             Column(
@@ -427,6 +459,8 @@ fun TransactionCardSurface(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.width(dims.itemSpacingMedium))
 
             // Amount
             Text(
