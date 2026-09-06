@@ -7,6 +7,8 @@ import com.example.dailytrack_mobile.data.remote.dto.AddTransactionRequestDto
 import com.example.dailytrack_mobile.data.remote.dto.BulkEditTransactionItemDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionDto
 import com.example.dailytrack_mobile.data.remote.dto.TransactionsResponseDto
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,21 +16,66 @@ import javax.inject.Singleton
 @Singleton
 class MoneyRepository @Inject constructor(
     private val api: DailyTrackApi,
-    private val demoDataManager: DemoDataManager
+    private val demoDataManager: DemoDataManager,
+    @ApplicationContext private val context: Context
 ) {
     val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
 
+    private val prefs by lazy {
+        context.getSharedPreferences("money_repo_cache", Context.MODE_PRIVATE)
+    }
+
     private var cachedAccounts: List<AccountDto>? = null
+    private var cachedAccountNames = mutableListOf<String>()
     private val cachedTransactions = mutableMapOf<String, TransactionsResponseDto>()
     private var cachedCategories: List<String>? = null
+    private var inMemoryMostUsedExpense = mutableListOf<String>()
+    private var inMemoryMostUsedIncome = mutableListOf<String>()
     private val cachedAllDescriptions = mutableListOf<String>()
     private val cachedDescriptionsByCategory = mutableMapOf<String, MutableList<String>>()
     private var allHistoricalTransactionsFetched = false
 
+    init {
+        try {
+            val expStr = prefs.getString("cached_most_used_expense", null)
+            if (!expStr.isNullOrBlank()) {
+                inMemoryMostUsedExpense = expStr.split("|||").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            }
+            val incStr = prefs.getString("cached_most_used_income", null)
+            if (!incStr.isNullOrBlank()) {
+                inMemoryMostUsedIncome = incStr.split("|||").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            }
+            val accStr = prefs.getString("cached_accounts", null)
+            if (!accStr.isNullOrBlank()) {
+                cachedAccountNames = accStr.split("|||").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            }
+            val catStr = prefs.getString("cached_categories", null)
+            if (!catStr.isNullOrBlank()) {
+                cachedCategories = catStr.split("|||").map { it.trim() }.filter { it.isNotEmpty() }
+            }
+        } catch (_: Exception) { }
+    }
+
+    fun getCachedMostUsedExpenseCategories(): List<String> = synchronized(this) { inMemoryMostUsedExpense.toList() }
+    fun getCachedMostUsedIncomeCategories(): List<String> = synchronized(this) { inMemoryMostUsedIncome.toList() }
+    fun getCachedAccounts(): List<String> = synchronized(this) { (cachedAccounts?.map { it.account } ?: cachedAccountNames).toList() }
+    fun getCachedCategories(): List<String> = synchronized(this) { cachedCategories ?: emptyList() }
+
+    fun saveMostUsedCategories(expenses: List<String>, income: List<String>) {
+        synchronized(this) {
+            if (expenses.isNotEmpty()) {
+                inMemoryMostUsedExpense = expenses.toMutableList()
+                prefs.edit().putString("cached_most_used_expense", expenses.joinToString("|||")).apply()
+            }
+            if (income.isNotEmpty()) {
+                inMemoryMostUsedIncome = income.toMutableList()
+                prefs.edit().putString("cached_most_used_income", income.joinToString("|||")).apply()
+            }
+        }
+    }
+
     fun clearCache() {
-        cachedAccounts = null
         cachedTransactions.clear()
-        cachedCategories = null
     }
 
     fun recordSingleDescription(category: String, note: String) {
@@ -111,7 +158,10 @@ class MoneyRepository @Inject constructor(
             if (!forceRefresh && cachedAccounts != null) {
                 cachedAccounts!!
             } else {
-                api.getAccounts().also { cachedAccounts = it }
+                api.getAccounts().also {
+                    cachedAccounts = it
+                    try { prefs.edit().putString("cached_accounts", it.map { a -> a.account }.joinToString("|||")).apply() } catch (_: Exception) {}
+                }
             }
         }
     }
@@ -148,7 +198,10 @@ class MoneyRepository @Inject constructor(
             if (!forceRefresh && cachedCategories != null) {
                 cachedCategories!!
             } else {
-                api.getCategories().categories.also { cachedCategories = it }
+                api.getCategories().categories.also {
+                    cachedCategories = it
+                    try { prefs.edit().putString("cached_categories", it.joinToString("|||")).apply() } catch (_: Exception) {}
+                }
             }
         }
     }

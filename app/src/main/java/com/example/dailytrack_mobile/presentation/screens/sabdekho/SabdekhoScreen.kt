@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -710,45 +711,64 @@ fun MediaCard(item: MediaShowDto, gridSpan: Int, onClick: () -> Unit = {}) {
                 )
         )
 
-        // Top Left: Type (Movie/Series)
-        if (gridSpan <= 3 && item.type != null) {
-            Box(
-                modifier = Modifier
-                    .padding(dims.itemSpacingMedium)
-                    .align(Alignment.TopStart)
-                    .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = typeLabel,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-
-        // Top Right: Status
-        val isWatching = item.status?.equals("WATCHING", ignoreCase = true) == true
-        val statusBg = if (isWatching) MaterialTheme.colorScheme.primaryContainer else Color.Black.copy(alpha = 0.65f)
-        val statusText = if (isWatching) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
-
-        Box(
+        // Top Header Row: Type Icon + Status Pill (Cleanly separated with SpaceBetween, zero overlap)
+        Row(
             modifier = Modifier
-                .padding(dims.itemSpacingMedium)
-                .align(Alignment.TopEnd)
-                .background(statusBg, RoundedCornerShape(6.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp)
+                .align(Alignment.TopStart),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = item.status ?: "UNKNOWN",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = if (gridSpan == 4) 8.sp else 9.sp
-                ),
-                color = statusText,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
-            )
+            // Type Icon Badge
+            if (item.type != null) {
+                Box(
+                    modifier = Modifier
+                        .size(if (gridSpan == 4) 20.dp else 22.dp)
+                        .background(Color.Black.copy(alpha = 0.65f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isMovie) Icons.Default.Movie else Icons.Default.Tv,
+                        contentDescription = typeLabel,
+                        tint = Color.White,
+                        modifier = Modifier.size(if (gridSpan == 4) 11.dp else 13.dp)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
+
+            // Status Badge
+            val isWatching = item.status?.equals("WATCHING", ignoreCase = true) == true
+            val statusBg = if (isWatching) MaterialTheme.colorScheme.primaryContainer else Color.Black.copy(alpha = 0.65f)
+            val statusText = if (isWatching) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
+            val statusLabel = when (item.status?.uppercase()) {
+                "TO WATCH" -> "To Watch"
+                "WATCHED" -> "Watched"
+                "WATCHING" -> "Watching"
+                null -> ""
+                else -> item.status
+            }
+
+            if (statusLabel.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .background(statusBg, RoundedCornerShape(5.dp))
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = statusLabel,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = if (gridSpan == 4) 7.5.sp else 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.3.sp
+                        ),
+                        color = statusText,
+                        maxLines = 1
+                    )
+                }
+            }
         }
 
         // Bottom Left: Title

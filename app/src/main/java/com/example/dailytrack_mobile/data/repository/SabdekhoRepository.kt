@@ -21,9 +21,11 @@ class SabdekhoRepository @Inject constructor(
     val dataUpdateFlow: SharedFlow<Unit> get() = demoDataManager.dataUpdateFlow
 
     private val cachedMediaLibrary = mutableMapOf<String, MediaLibraryResponseDto>()
+    private val cachedMediaDetails = mutableMapOf<String, com.example.dailytrack_mobile.data.remote.dto.MediaDetailsDataDto>()
 
     fun clearCache() {
         cachedMediaLibrary.clear()
+        cachedMediaDetails.clear()
     }
 
     suspend fun getMediaLibrary(
@@ -222,11 +224,19 @@ class SabdekhoRepository @Inject constructor(
         tmdbId: Int,
         isMovie: Boolean
     ): Result<com.example.dailytrack_mobile.data.remote.dto.MediaDetailsDataDto> = runCatching {
+        val cacheKey = "$tmdbId-$isMovie"
+        if (cachedMediaDetails.containsKey(cacheKey)) {
+            return@runCatching cachedMediaDetails[cacheKey]!!
+        }
         if (demoDataManager.isDemoModeEnabled()) {
-            demoDataManager.getMediaDetails(tmdbId = tmdbId, isMovie = isMovie)
+            demoDataManager.getMediaDetails(tmdbId = tmdbId, isMovie = isMovie).also {
+                cachedMediaDetails[cacheKey] = it
+            }
         } else {
             val resp = if (isMovie) api.getMovieDetails(tmdbId) else api.getTvDetails(tmdbId)
-            resp.data ?: throw Exception(resp.message ?: "Failed to load details")
+            val data = resp.data ?: throw Exception(resp.message ?: "Failed to load details")
+            cachedMediaDetails[cacheKey] = data
+            data
         }
     }
 

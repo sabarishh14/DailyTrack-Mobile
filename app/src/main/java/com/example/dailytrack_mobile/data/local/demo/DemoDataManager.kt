@@ -600,8 +600,8 @@ class DemoDataManager @Inject constructor(
 
         return MediaStatsResponseDto(
             success = true,
-            year = year ?: "all",
-            available_years = listOf(2024, 2023, 2022),
+            year = year ?: "2026",
+            available_years = listOf(2026, 2025, 2024, 2023, 2022),
             films_logged = filmsLogged,
             total_likes = totalLikes,
             total_hours = totalHours,

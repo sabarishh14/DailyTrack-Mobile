@@ -1,5 +1,9 @@
 package com.example.dailytrack_mobile.presentation.screens.sabdekho.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -13,12 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -62,7 +68,7 @@ fun SabdekhoStatsTab(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(onClick = { onAction(SabdekhoAction.LoadStats("all")) }) {
+                Button(onClick = { onAction(SabdekhoAction.LoadStats("2026")) }) {
                     Text("Load Stats")
                 }
             }
@@ -78,7 +84,9 @@ fun SabdekhoStatsTab(
         // ── Year Selector Row ──────────────────────────────────────────
         item {
             val availableYears = remember(stats.available_years) {
-                listOf("all") + stats.available_years.map { it.toString() }
+                val base = stats.available_years.map { it.toString() }
+                val allYrs = (base + listOf("2026")).distinct().sortedDescending()
+                listOf("all") + allYrs
             }
 
             Row(
@@ -147,16 +155,37 @@ fun SabdekhoStatsTab(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(dims.cardCornerRadius),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
             ) {
                 Column(modifier = Modifier.padding(dims.cardInnerPadding)) {
-                    Text(
-                        text = "RATING DISTRIBUTION",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "RATING DISTRIBUTION",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Star,
+                                contentDescription = null,
+                                tint = GoldenStarColor,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Scale 0.5 - 5.0",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(dims.itemSpacingLarge))
 
@@ -168,45 +197,72 @@ fun SabdekhoStatsTab(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(130.dp),
+                            .height(145.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Bottom
                     ) {
                         ratingKeys.forEach { key ->
                             val count = stats.rating_distribution[key] ?: 0
-                            val fraction = (count.toFloat() / maxVal).coerceIn(0.06f, 1f)
 
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Bottom,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
                             ) {
-                                if (count > 0) {
-                                    Text(
-                                        text = "$count",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = GoldenStarColor
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                }
-
+                                // Dedicated bar area strictly taking remaining height
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(0.65f)
-                                        .fillMaxHeight(fraction)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(
-                                            if (count > 0) GoldenStarColor else MaterialTheme.colorScheme.surfaceVariant
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    val animatedFraction by animateFloatAsState(
+                                        targetValue = if (count > 0) (count.toFloat() / maxVal).coerceIn(0.12f, 1f) else 0.04f,
+                                        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+                                        label = "ratingBar_$key"
+                                    )
+
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Bottom,
+                                        modifier = Modifier.fillMaxHeight(animatedFraction)
+                                    ) {
+                                        if (count > 0) {
+                                            Text(
+                                                text = "$count",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = GoldenStarColor
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.58f)
+                                                .weight(1f, fill = true)
+                                                .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                                                .background(
+                                                    if (count > 0) {
+                                                        Brush.verticalGradient(
+                                                            colors = listOf(Color(0xFFFFD54F), GoldenStarColor)
+                                                        )
+                                                    } else {
+                                                        SolidColor(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                                    }
+                                                )
                                         )
-                                )
+                                    }
+                                }
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
                                 Text(
                                     text = key,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.5.sp),
+                                    fontWeight = if (count > 0) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -222,7 +278,8 @@ fun SabdekhoStatsTab(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(dims.cardCornerRadius),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                 ) {
                     Column(modifier = Modifier.padding(dims.cardInnerPadding)) {
                         Text(
@@ -243,54 +300,82 @@ fun SabdekhoStatsTab(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(110.dp),
+                                .height(125.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Bottom
                         ) {
                             stats.by_month.take(12).forEachIndexed { index, count ->
                                 val label = monthLabels.getOrElse(index) { "" }
-                                val fraction = (count.toFloat() / maxMonth).coerceIn(0.06f, 1f)
 
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Bottom,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 ) {
-                                    if (count > 0) {
-                                        Text(
-                                            text = "$count",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                    }
-
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth(0.6f)
-                                            .fillMaxHeight(fraction)
-                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                            .background(
-                                                if (count > 0) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                    )
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        val animatedFraction by animateFloatAsState(
+                                            targetValue = if (count > 0) (count.toFloat() / maxMonth).coerceIn(0.12f, 1f) else 0.04f,
+                                            animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+                                            label = "monthBar_$index"
+                                        )
 
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Bottom,
+                                            modifier = Modifier.fillMaxHeight(animatedFraction)
+                                        ) {
+                                            if (count > 0) {
+                                                Text(
+                                                    text = "$count",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.5.sp),
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                            }
 
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        textAlign = TextAlign.Center
-                                    )
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(0.55f)
+                                                    .weight(1f, fill = true)
+                                                    .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                                                .background(
+                                                    if (count > 0) {
+                                                        Brush.verticalGradient(
+                                                            colors = listOf(
+                                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                                                MaterialTheme.colorScheme.primary
+                                                            )
+                                                        )
+                                                    } else {
+                                                        SolidColor(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                                    }
+                                                )
+                                        )
+                                    }
                                 }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    fontWeight = if (count > 0) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (count > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    textAlign = TextAlign.Center
+                                )
                             }
                         }
                     }
                 }
             }
+        }
         }
 
         // ── Highest Rated Carousel ────────────────────────────────────
@@ -549,7 +634,8 @@ private fun KpiStatCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(dims.cardCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
     ) {
         Row(
             modifier = Modifier
@@ -605,7 +691,8 @@ private fun ExtremeCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(dims.buttonCornerRadius),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
     ) {
         Row(
             modifier = Modifier

@@ -54,7 +54,17 @@ class FormsVM @Inject constructor(
     private val sabdekhoRepository: SabdekhoRepository
 ) : ViewModel() {
 
-    private val _addMoneyState = MutableStateFlow(AddMoneyFormState())
+    private val _addMoneyState = MutableStateFlow(
+        AddMoneyFormState(
+            isLoadingData = true,
+            accounts = moneyRepository.getCachedAccounts(),
+            categories = moneyRepository.getCachedCategories(),
+            mostUsedExpenseCategories = moneyRepository.getCachedMostUsedExpenseCategories(),
+            mostUsedIncomeCategories = moneyRepository.getCachedMostUsedIncomeCategories(),
+            recentDescriptions = moneyRepository.getAllCachedDescriptions().first,
+            descriptionsByCategory = moneyRepository.getAllCachedDescriptions().second
+        )
+    )
     val addMoneyState: StateFlow<AddMoneyFormState> = _addMoneyState.asStateFlow()
 
     private val _addActivityState = MutableStateFlow(AddActivityFormState())
@@ -94,15 +104,19 @@ class FormsVM @Inject constructor(
                 .sortedByDescending { it.value.size }
                 .map { it.key }
 
+            if (usedExpenses.isNotEmpty() || usedIncome.isNotEmpty()) {
+                moneyRepository.saveMostUsedCategories(usedExpenses, usedIncome)
+            }
+
             val (cachedRecent, cachedByCat) = moneyRepository.getAllCachedDescriptions()
 
             _addMoneyState.update { state ->
                 state.copy(
                     isLoadingData = false,
-                    accounts = accountsRes.getOrNull()?.map { it.account } ?: state.accounts,
-                    categories = categoriesRes.getOrNull() ?: state.categories,
-                    mostUsedExpenseCategories = usedExpenses,
-                    mostUsedIncomeCategories = usedIncome,
+                    accounts = accountsRes.getOrNull()?.map { it.account }?.takeIf { it.isNotEmpty() } ?: state.accounts,
+                    categories = categoriesRes.getOrNull()?.takeIf { it.isNotEmpty() } ?: state.categories,
+                    mostUsedExpenseCategories = if (usedExpenses.isNotEmpty()) usedExpenses else state.mostUsedExpenseCategories,
+                    mostUsedIncomeCategories = if (usedIncome.isNotEmpty()) usedIncome else state.mostUsedIncomeCategories,
                     recentDescriptions = cachedRecent,
                     descriptionsByCategory = cachedByCat
                 )

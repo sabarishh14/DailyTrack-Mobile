@@ -737,6 +737,9 @@ fun AddMoneyScreen(
         }
 
         // ── Category Flow Chips (4 Pills + Compact "+" Pill) ───────────
+        val isCategoriesLoading = formState.isLoadingData &&
+            (if (selectedType == TransactionType.EXPENSE) formState.mostUsedExpenseCategories.isEmpty() else formState.mostUsedIncomeCategories.isEmpty())
+
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -750,45 +753,62 @@ fun AddMoneyScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
             )
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                visibleCategoryPills.forEach { cat ->
-                    val isSelected = categoryInput.equals(cat, ignoreCase = true)
-                    val chipBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else cardBg
-                    val chipTextColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                    val chipBorderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(chipBg)
-                            .border(1.dp, chipBorderColor, RoundedCornerShape(20.dp))
-                            .clickable {
-                                categoryInput = if (isSelected) "" else cat
-                            }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = cat,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 13.5.sp
-                            ),
-                            color = chipTextColor
+            if (isCategoriesLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(72.dp, 84.dp, 68.dp, 80.dp).forEach { w ->
+                        Box(
+                            modifier = Modifier
+                                .width(w)
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f))
                         )
                     }
                 }
+            } else {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    visibleCategoryPills.forEach { cat ->
+                        val isSelected = categoryInput.equals(cat, ignoreCase = true)
+                        val chipBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else cardBg
+                        val chipTextColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        val chipBorderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
 
-                // Compact "+" icon-only pill to search and add categories
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(cardBg)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(chipBg)
+                                .border(1.dp, chipBorderColor, RoundedCornerShape(20.dp))
+                                .clickable {
+                                    categoryInput = if (isSelected) "" else cat
+                                }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = cat,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.5.sp
+                                ),
+                                color = chipTextColor
+                            )
+                        }
+                    }
+
+                    // Compact "+" icon-only pill to search and add categories
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(cardBg)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
                         .clickable {
                             categorySearchDialogOpen = true
                         }
@@ -803,6 +823,7 @@ fun AddMoneyScreen(
                     )
                 }
             }
+        }
         }
 
         // ── Description Box ──────────────────────────────────────────

@@ -37,12 +37,63 @@ Write-Host "================================================" -ForegroundColor C
 Write-Host "       DailyTrack App Update Publisher          " -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 
+function Get-NextVersion ([string]$CurrentVer) {
+    if ([string]::IsNullOrWhiteSpace($CurrentVer)) {
+        return "1.0.0"
+    }
+    $Clean = $CurrentVer.Trim().TrimStart('v').TrimStart('V')
+    if ($Clean -match '^(.*?)(\d+)$') {
+        return "$($matches[1])$([int]$matches[2] + 1)"
+    }
+    return "$Clean.1"
+}
+
+# Detect last version from build.gradle.kts and git tags
+$LastVersion = $null
+$GradleFile = Join-Path $RootPath "app\build.gradle.kts"
+if (Test-Path $GradleFile) {
+    $GradleContent = Get-Content -Path $GradleFile -Raw
+    if ($GradleContent -match 'versionName\s*=\s*"([^"]+)"') {
+        $LastVersion = $matches[1].Trim().TrimStart('v').TrimStart('V')
+    }
+}
+
+try {
+    $LatestTag = git tag -l "v*" --sort=-v:refname 2>$null | Select-Object -First 1
+    if ($LatestTag) {
+        $TagVer = $LatestTag.Trim().TrimStart('v').TrimStart('V')
+        if (-not $LastVersion) {
+            $LastVersion = $TagVer
+        } else {
+            try {
+                $vTag = [System.Version]($TagVer -replace '^(\d+)$', '$1.0')
+                $vGradle = [System.Version]($LastVersion -replace '^(\d+)$', '$1.0')
+                if ($vTag -gt $vGradle) {
+                    $LastVersion = $TagVer
+                }
+            } catch {}
+        }
+    }
+} catch {}
+
+if (-not $LastVersion) {
+    $LastVersion = "1.0.0"
+}
+
+$NextVersion = Get-NextVersion $LastVersion
+
 # 1. Prompt for version if not provided
 if (-not $Version) {
-    $Version = Read-Host "Enter new version name (e.g. 1.0.1)"
+    $PromptInput = Read-Host "Enter new version name (last: $LastVersion, default: $NextVersion)"
+    if ([string]::IsNullOrWhiteSpace($PromptInput)) {
+        $Version = $NextVersion
+    } else {
+        $Version = $PromptInput
+    }
 }
 $CleanVersion = $Version.Trim().TrimStart('v').TrimStart('V')
 $Tag = "v$CleanVersion"
+Write-Host "  -> Version selected: $CleanVersion ($Tag)" -ForegroundColor Green
 
 if (-not $Title) {
     $Title = "DailyTrack $Tag"

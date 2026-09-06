@@ -332,9 +332,9 @@ class SabdekhoVM @Inject constructor(
         }
     }
 
-    private fun loadStats(year: String = "all") {
+    private fun loadStats(year: String = "2026") {
         viewModelScope.launch {
-            _state.update { it.copy(isStatsLoading = true) }
+            _state.update { it.copy(isStatsLoading = true, selectedStatsYear = year) }
             repository.getMovieStats(year = year)
                 .onSuccess { statsResp ->
                     _state.update {

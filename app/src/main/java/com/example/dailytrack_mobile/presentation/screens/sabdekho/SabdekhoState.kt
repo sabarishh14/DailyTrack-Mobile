@@ -24,7 +24,7 @@ data class SabdekhoState(
     val totalCount: Int = 0,
     val isSearchingOnline: Boolean = false,
     val onlineResults: List<MediaSearchResultDto> = emptyList(),
-    val gridColumns: Int = 3,
+    val gridColumns: Int = 4,
 
     // Diary Tab
     val isDiaryLoading: Boolean = false,
@@ -34,7 +34,7 @@ data class SabdekhoState(
     // Stats Tab
     val isStatsLoading: Boolean = false,
     val stats: MediaStatsResponseDto? = null,
-    val selectedStatsYear: String = "all",
+    val selectedStatsYear: String = "2026",
 
     // Media Details & Log Sheet
     val isDetailsSheetOpen: Boolean = false,

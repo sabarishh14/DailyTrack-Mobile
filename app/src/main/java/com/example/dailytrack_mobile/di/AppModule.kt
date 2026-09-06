@@ -47,8 +47,9 @@ object AppModule {
     @Singleton
     fun provideMoneyRepository(
         api: DailyTrackApi,
-        demoDataManager: DemoDataManager
-    ): MoneyRepository = MoneyRepository(api, demoDataManager)
+        demoDataManager: DemoDataManager,
+        @ApplicationContext context: Context
+    ): MoneyRepository = MoneyRepository(api, demoDataManager, context)
 
     @Provides
     @Singleton

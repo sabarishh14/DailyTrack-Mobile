@@ -71,12 +71,8 @@ fun MediaDetailsSheet(
                 .navigationBarsPadding()
         ) {
             // ── Top Backdrop Header Banner ──────────────────────────────────
-            val backdropUrl = remember(details, show) {
-                when {
-                    details?.backdropPath != null -> "https://image.tmdb.org/t/p/w780${details.backdropPath}"
-                    show.posterPath != null -> "https://image.tmdb.org/t/p/w500${show.posterPath}"
-                    else -> ""
-                }
+            val backdropUrl = remember(details) {
+                details?.backdropPath?.takeIf { it.isNotBlank() }?.let { "https://image.tmdb.org/t/p/w780$it" } ?: ""
             }
             val posterUrl = if (show.posterPath != null) "https://image.tmdb.org/t/p/w342${show.posterPath}" else ""
 
@@ -84,13 +80,20 @@ fun MediaDetailsSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceContainerHighest,
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
+                        )
+                    )
             ) {
                 if (backdropUrl.isNotEmpty()) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(backdropUrl)
-                            .crossfade(true)
+                            .crossfade(400)
                             .build(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
