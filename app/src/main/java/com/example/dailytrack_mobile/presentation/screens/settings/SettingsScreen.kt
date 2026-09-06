@@ -1242,6 +1242,7 @@ fun AppUpdatesSubScreen(
 // App Update Card – Live state machine for check, download, & install
 // ─────────────────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppUpdateCard(
     state: SettingsState,
@@ -1619,15 +1620,14 @@ fun AppUpdateCard(
 
                             Spacer(Modifier.height(dims.itemSpacingMedium))
 
-                            // Material 3 Expressive LinearProgressIndicator with StrokeCap.Round
-                            LinearProgressIndicator(
+                            // Material 3 Expressive LinearWavyProgressIndicator (flat track, wavy active indicator)
+                            LinearWavyProgressIndicator(
                                 progress = { animatedProgress },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(10.dp),
+                                    .padding(vertical = 4.dp),
                                 color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                strokeCap = StrokeCap.Round
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                             )
 
                             Spacer(Modifier.height(dims.itemSpacingSmall))
