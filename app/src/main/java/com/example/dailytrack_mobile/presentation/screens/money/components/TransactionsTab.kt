@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
@@ -28,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -125,7 +128,8 @@ fun TransactionsTab(
                         ) {
                             CircularProgressIndicator(
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(40.dp),
+                                strokeCap = StrokeCap.Round
                             )
                             Text(
                                 text = "Loading transactions...",
@@ -161,7 +165,10 @@ fun TransactionsTab(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            OutlinedButton(onClick = { onAction(MoneyAction.Refresh) }) {
+                            OutlinedButton(
+                                onClick = { onAction(MoneyAction.Refresh) },
+                                shape = RoundedCornerShape(dims.buttonCornerRadius)
+                            ) {
                                 Text("Retry", style = MaterialTheme.typography.labelLarge)
                             }
                         }
@@ -296,7 +303,8 @@ fun TransactionsTab(
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(24.dp),
                                         strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary,
+                                        strokeCap = StrokeCap.Round
                                     )
                                 }
                             }
@@ -345,6 +353,7 @@ private fun BulkSelectionActionBar(
     onBulkEdit: () -> Unit,
     onBulkDelete: () -> Unit
 ) {
+    val dims = Dimens.current
     Surface(
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -404,7 +413,7 @@ private fun BulkSelectionActionBar(
             ) {
                 FilledTonalButton(
                     onClick = onBulkEdit,
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(dims.buttonCornerRadius),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -425,7 +434,7 @@ private fun BulkSelectionActionBar(
 
                 Button(
                     onClick = onBulkDelete,
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(dims.buttonCornerRadius),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
@@ -507,7 +516,7 @@ private fun ActiveFiltersChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Clear all button
+        // Clear button (matching Cash Flow style)
         Surface(
             onClick = {
                 onAction(MoneyAction.ResetAnalysisFilters)
@@ -515,22 +524,23 @@ private fun ActiveFiltersChipRow(
                 onAction(MoneyAction.UpdateSearchQuery(""))
             },
             shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
-            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
-            modifier = Modifier.height(30.dp)
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+            modifier = Modifier.height(32.dp)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 8.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Clear all",
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(14.dp)
                 )
                 Text(
-                    text = "Clear All",
+                    text = "Clear",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -650,26 +660,26 @@ private fun ActiveFilterChipItem(
     Surface(
         shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
         color = containerColor,
-        modifier = Modifier.height(30.dp)
+        modifier = Modifier.height(32.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 8.dp, end = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier.padding(start = 10.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                 color = contentColor
             )
             IconButton(
                 onClick = onRemove,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Remove filter",
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(14.dp),
                     tint = contentColor
                 )
             }
@@ -736,6 +746,7 @@ private fun SearchBar(
 // ─────────────────────────────────────────────────────────────────────────────
 // Category Filter Chips
 // ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategoryFilterRow(
     categories: List<String>,
@@ -747,36 +758,45 @@ private fun CategoryFilterRow(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         categories.forEach { category ->
             val isSelected = category == selected
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(dims.cardCornerRadius))
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primary
-                        else Color.Transparent
+            FilterChip(
+                selected = isSelected,
+                onClick = { onSelect(category) },
+                label = {
+                    Text(
+                        text = category,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
                     )
-                    .border(
-                        width = 1.dp,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outlineVariant,
-                        shape = RoundedCornerShape(dims.cardCornerRadius)
-                    )
-                    .clickable { onSelect(category) }
-                    .padding(horizontal = dims.itemSpacingLarge, vertical = dims.itemSpacingMedium),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = category,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    ),
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                },
+                leadingIcon = if (isSelected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
+            )
         }
     }
 }

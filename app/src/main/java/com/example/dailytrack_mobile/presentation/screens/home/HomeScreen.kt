@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -256,7 +257,8 @@ private fun NetWorthSection(
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
+                            strokeWidth = 2.5.dp,
+                            strokeCap = StrokeCap.Round,
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else {
@@ -310,7 +312,8 @@ private fun NetWorthSection(
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
+                            strokeWidth = 2.5.dp,
+                            strokeCap = StrokeCap.Round,
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else {
@@ -464,7 +467,8 @@ private fun BankAccountsSection(
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp,
+                                strokeWidth = 2.5.dp,
+                                strokeCap = StrokeCap.Round,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -689,7 +693,8 @@ private fun InvestmentPortfolioSection(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
+                            strokeWidth = 2.5.dp,
+                            strokeCap = StrokeCap.Round,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }

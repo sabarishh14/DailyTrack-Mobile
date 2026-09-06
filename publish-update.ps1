@@ -11,7 +11,7 @@
        or opens the GitHub Releases page with the APK pre-staged for instant drag-and-drop.
 
 .EXAMPLE
-    .\publish-update.ps1 -Version "1.0.1" -Notes "Fixed dark mode balance colors and added auto-updater"
+    .\publish-update.ps1 -Version "1.0.6" -Notes "Sabdekho improvements, Investments enhacements"
 #>
 
 param(

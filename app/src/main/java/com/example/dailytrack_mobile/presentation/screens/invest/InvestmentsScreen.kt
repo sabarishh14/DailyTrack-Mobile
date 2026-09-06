@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PieChart
@@ -27,6 +28,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,9 +69,43 @@ private fun formatFull(amount: Double): String {
     return "$prefix₹%,.2f".format(Math.abs(amount))
 }
 
+private fun formatExactCurrency(amount: Double): String {
+    val isNegative = amount < 0
+    val absAmount = Math.abs(amount)
+    val integerPart = absAmount.toLong()
+    val remainder = ((absAmount - integerPart) * 100).roundToInt()
+    val decimalStr = if (remainder > 0) String.format(java.util.Locale.US, ".%02d", remainder) else ""
+
+    val str = integerPart.toString()
+    val formattedInt = if (str.length <= 3) {
+        str
+    } else {
+        val last3 = str.substring(str.length - 3)
+        val rest = str.substring(0, str.length - 3)
+        val sb = StringBuilder()
+        var count = 0
+        for (i in rest.length - 1 downTo 0) {
+            sb.append(rest[i])
+            count++
+            if (count == 2 && i > 0) {
+                sb.append(',')
+                count = 0
+            }
+        }
+        sb.reverse().toString() + "," + last3
+    }
+    val prefix = if (isNegative) "-₹" else "₹"
+    return "$prefix$formattedInt$decimalStr"
+}
+
 private fun formatPnl(amount: Double): String {
     val prefix = if (amount >= 0) "+" else "-"
     return "$prefix${formatCompact(amount)}"
+}
+
+private fun formatPnlExact(amount: Double): String {
+    val prefix = if (amount >= 0) "+" else ""
+    return "$prefix${formatExactCurrency(amount)}"
 }
 
 private fun formatPointDate(dateStr: String): String {
@@ -116,7 +152,8 @@ fun InvestmentsScreen(
                     CircularProgressIndicator(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(36.dp),
-                        strokeWidth = 3.dp
+                        strokeWidth = 3.dp,
+                        strokeCap = StrokeCap.Round
                     )
                     Text(
                         text = "Loading portfolio...",
@@ -823,34 +860,55 @@ private fun SummaryRow(
     val displayPnlPercent = selectedPoint?.pnlPercent?.toDouble() ?: state.periodPnlPercent
     val isGain = displayPnl >= 0.0
 
+    var showAbsoluteAmounts by rememberSaveable { mutableStateOf(false) }
+
     val pnlLabel = when {
         isSelected -> "POINT P&L"
         state.selectedTimeRange == ChartTimeRange.ALL -> "TOTAL P&L"
         else -> "${state.selectedTimeRange.label} RETURN"
     }
 
+    val investedValue = if (showAbsoluteAmounts) formatExactCurrency(displayInvested) else formatCompact(displayInvested)
+    val currentValue = if (showAbsoluteAmounts) formatExactCurrency(displayCurrent) else formatCompact(displayCurrent)
+    val pnlValue = if (showAbsoluteAmounts) formatPnlExact(displayPnl) else formatPnl(displayPnl)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingMedium),
         horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
     ) {
         SummaryMiniCard(
             label = "INVESTED",
-            value = formatCompact(displayInvested),
-            modifier = Modifier.weight(1f)
+            value = investedValue,
+            subValue = "Cost basis",
+            isExact = showAbsoluteAmounts,
+            onClick = { showAbsoluteAmounts = !showAbsoluteAmounts },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
         )
         SummaryMiniCard(
             label = "CURRENT",
-            value = formatCompact(displayCurrent),
-            modifier = Modifier.weight(1f)
+            value = currentValue,
+            subValue = "Market value",
+            isExact = showAbsoluteAmounts,
+            onClick = { showAbsoluteAmounts = !showAbsoluteAmounts },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
         )
         SummaryMiniCard(
             label = pnlLabel,
-            value = formatPnl(displayPnl),
+            value = pnlValue,
             subValue = "${if (isGain) "+" else ""}${String.format(java.util.Locale.US, "%.1f", displayPnlPercent)}%",
             valueColor = if (isGain) InvestColors.GainGreen else InvestColors.LossRed,
-            modifier = Modifier.weight(1f)
+            isExact = showAbsoluteAmounts,
+            onClick = { showAbsoluteAmounts = !showAbsoluteAmounts },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
         )
     }
 }
@@ -861,11 +919,28 @@ private fun SummaryMiniCard(
     value: String,
     subValue: String? = null,
     valueColor: Color? = null,
+    isExact: Boolean = false,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val dims = Dimens.current
+    val valueFontSize = remember(value.length, isExact) {
+        if (isExact) {
+            when {
+                value.length <= 8 -> 14.sp
+                value.length <= 11 -> 12.sp
+                value.length <= 14 -> 10.5.sp
+                else -> 9.5.sp
+            }
+        } else {
+            15.sp
+        }
+    }
+
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .clip(RoundedCornerShape(dims.buttonCornerRadius))
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(dims.buttonCornerRadius),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -874,36 +949,39 @@ private fun SummaryMiniCard(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(
                     horizontal = dims.miniCardPaddingHorizontal,
                     vertical = dims.miniCardPaddingVertical
-                )
+                ),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.8.sp,
-                    fontSize = 10.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                ),
-                color = valueColor ?: MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.8.sp,
+                        fontSize = 10.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = valueFontSize
+                    ),
+                    color = valueColor ?: MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
             if (subValue != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = subValue,
                     style = MaterialTheme.typography.labelSmall.copy(
@@ -922,6 +1000,7 @@ private fun SummaryMiniCard(
 // ─────────────────────────────────────────────────────────────────────────────
 // Filter Pills (horizontally scrollable)
 // ─────────────────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilterPills(
     selectedTab: InvestTab,
@@ -935,32 +1014,45 @@ private fun FilterPills(
             .fillMaxWidth()
             .horizontalScroll(scrollState)
             .padding(horizontal = dims.screenHorizontalPadding, vertical = dims.itemSpacingMedium),
-        horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         InvestTab.entries.forEach { tab ->
             val isSelected = tab == selectedTab
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(dims.cardCornerRadius))
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHigh
+            FilterChip(
+                selected = isSelected,
+                onClick = { onTabSelected(tab) },
+                label = {
+                    Text(
+                        text = tab.label,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
                     )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onTabSelected(tab) }
-                    .padding(horizontal = dims.itemSpacingLarge, vertical = dims.itemSpacingMedium)
-            ) {
-                Text(
-                    text = tab.label,
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    ),
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                },
+                leadingIcon = if (isSelected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp)
+            )
         }
     }
 }
@@ -1232,9 +1324,10 @@ private fun TimeRangeToggle(
     onRangeSelected: (ChartTimeRange) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dims = Dimens.current
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(dims.buttonCornerRadius),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
@@ -1261,7 +1354,7 @@ private fun TimeRangeToggle(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
                         .background(bgColor)
                         .clickable { onRangeSelected(range) }
                         .padding(vertical = 8.dp),
@@ -1291,9 +1384,10 @@ private fun ValueReturnToggle(
     onModeChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dims = Dimens.current
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(dims.buttonCornerRadius),
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     ) {
@@ -1325,7 +1419,7 @@ private fun ValueReturnToggle(
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
                     .background(valueBg)
                     .clickable { onModeChanged(true) }
                     .padding(horizontal = 9.dp, vertical = 4.dp),
@@ -1343,7 +1437,7 @@ private fun ValueReturnToggle(
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
                     .background(returnBg)
                     .clickable { onModeChanged(false) }
                     .padding(horizontal = 9.dp, vertical = 4.dp),

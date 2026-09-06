@@ -1337,6 +1337,41 @@ private fun DonutChart(
     val cornerRadiusPx = with(density) { 8.dp.toPx() }
     val sliceTotal = remember(categories) { categories.sumOf { it.amount } }
 
+    // Calculate display sweep angles with guaranteed minimum visual width for small slices (< 2% or 1.3%)
+    val displaySweeps = remember(categories, sliceTotal, isDtOgStyle) {
+        if (sliceTotal <= 0.0 || categories.isEmpty()) {
+            List(categories.size) { 0f }
+        } else if (categories.size == 1) {
+            listOf(360f)
+        } else {
+            val minRaw = if (isDtOgStyle) 7.5f else 6.0f
+            val raw = categories.map { ((it.amount / sliceTotal) * 360.0).toFloat() }
+            val positiveCount = raw.count { it > 0f }
+            val effectiveMin = if (positiveCount * minRaw < 360f) minRaw else (360f / positiveCount) * 0.5f
+
+            val boosted = BooleanArray(raw.size)
+            var fixedAngleSum = 0f
+            var nonBoostedRawSum = 0f
+
+            raw.forEachIndexed { i, r ->
+                if (r > 0f && r < effectiveMin) {
+                    boosted[i] = true
+                    fixedAngleSum += effectiveMin
+                } else if (r > 0f) {
+                    nonBoostedRawSum += r
+                }
+            }
+
+            val remainingAngle = (360f - fixedAngleSum).coerceAtLeast(0f)
+            raw.mapIndexed { i, r ->
+                if (r <= 0f) 0f
+                else if (boosted[i]) effectiveMin
+                else if (nonBoostedRawSum > 0f) (r / nonBoostedRawSum) * remainingAngle
+                else r
+            }
+        }
+    }
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
@@ -1347,15 +1382,17 @@ private fun DonutChart(
                 val diameter = size.minDimension * 0.96f
                 val rOuter = diameter / 2f
                 val rInner = rOuter * 0.58f // ~42% thickness for chunky look matching reference
-                val gapDegrees = if (categories.size > 1) 5f else 0f // 5 degree visible gap between segments
+                val baseGap = if (categories.size > 1) 5f else 0f // 5 degree visible gap between segments
                 val center = Offset(size.width / 2f, size.height / 2f)
 
                 var startAngle = -90f
-                categories.forEach { category ->
-                    val rawSweep = if (sliceTotal > 0) (((category.amount / sliceTotal) * 360f).toFloat()) else 0f
-                    val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
+                categories.forEachIndexed { index, category ->
+                    val rawSweep = displaySweeps.getOrElse(index) { 0f }
+                    // Adaptive gap: never consume more than 40% of the slice
+                    val effectiveGap = baseGap.coerceAtMost(rawSweep * 0.4f)
+                    val sweep = (rawSweep - effectiveGap).coerceAtLeast(0f)
                     if (sweep > 0.5f) {
-                        val sliceStartAngle = startAngle + (gapDegrees / 2f)
+                        val sliceStartAngle = startAngle + (effectiveGap / 2f)
                         val slicePath = buildAnnularSectorPath(
                             center = center,
                             rInner = rInner,
@@ -1373,16 +1410,18 @@ private fun DonutChart(
                 val diameter = size.minDimension * 0.92f
                 val rOuter = diameter / 2f
                 val rInner = rOuter * 0.64f  // Slightly thinner ring than DT_OG for elegance
-                val gapDegrees = if (categories.size > 1) 3.5f else 0f // Slightly tighter gaps
+                val baseGap = if (categories.size > 1) 3.5f else 0f // Slightly tighter gaps
                 val softCornerPx = cornerRadiusPx * 0.75f  // Softer corners
                 val center = Offset(size.width / 2f, size.height / 2f)
 
                 var startAngle = -90f
-                categories.forEach { category ->
-                    val rawSweep = if (sliceTotal > 0) (((category.amount / sliceTotal) * 360f).toFloat()) else 0f
-                    val sweep = (rawSweep - gapDegrees).coerceAtLeast(0f)
+                categories.forEachIndexed { index, category ->
+                    val rawSweep = displaySweeps.getOrElse(index) { 0f }
+                    // Adaptive gap: never consume more than 40% of the slice
+                    val effectiveGap = baseGap.coerceAtMost(rawSweep * 0.4f)
+                    val sweep = (rawSweep - effectiveGap).coerceAtLeast(0f)
                     if (sweep > 0.5f) {
-                        val sliceStartAngle = startAngle + (gapDegrees / 2f)
+                        val sliceStartAngle = startAngle + (effectiveGap / 2f)
                         val slicePath = buildAnnularSectorPath(
                             center = center,
                             rInner = rInner,
@@ -1440,11 +1479,15 @@ private fun buildAnnularSectorPath(
     val degToRad = (Math.PI / 180.0).toFloat()
     val endAngleDeg = startAngleDeg + sweepAngleDeg
 
-    val daOuter = (cornerRadiusPx / rOuter) * (180f / Math.PI.toFloat())
-    val daInner = (cornerRadiusPx / rInner) * (180f / Math.PI.toFloat())
+    // Adapt corner radius for narrow slices to preserve a clean capsule without collapsing
+    val maxCornerRadBySweep = (sweepAngleDeg * 0.35f) * degToRad * rInner
+    val adaptedCornerRadiusPx = cornerRadiusPx.coerceAtMost(maxCornerRadBySweep.coerceAtLeast(2f))
+
+    val daOuter = (adaptedCornerRadiusPx / rOuter) * (180f / Math.PI.toFloat())
+    val daInner = (adaptedCornerRadiusPx / rInner) * (180f / Math.PI.toFloat())
     val daOut = daOuter.coerceAtMost(sweepAngleDeg * 0.45f)
     val daIn = daInner.coerceAtMost(sweepAngleDeg * 0.45f)
-    val rCorner = cornerRadiusPx.coerceAtMost((rOuter - rInner) * 0.45f)
+    val rCorner = adaptedCornerRadiusPx.coerceAtMost((rOuter - rInner) * 0.45f)
 
     val cosStart = cos(startAngleDeg * degToRad)
     val sinStart = sin(startAngleDeg * degToRad)

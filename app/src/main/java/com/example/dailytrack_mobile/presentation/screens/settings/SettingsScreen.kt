@@ -3,6 +3,7 @@ package com.example.dailytrack_mobile.presentation.screens.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -29,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -118,6 +120,7 @@ fun SettingsScreen(
     onAction: (SettingsAction) -> Unit
 ) {
     val context = LocalContext.current
+    val dims = Dimens.current
     val effectiveLockManager = appLockManager ?: remember { AppLockManager(context) }
     var currentSubScreen by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -204,19 +207,19 @@ fun SettingsScreen(
             )
         ) {
             Card(
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(dims.cardCornerRadius),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = dims.cardInnerPadding)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                        .padding(horizontal = dims.cardInnerPadding + 8.dp, vertical = dims.cardInnerPadding + 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Material 3 Expressive LoadingIndicator
@@ -224,7 +227,7 @@ fun SettingsScreen(
                         modifier = Modifier.size(56.dp)
                     )
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(dims.itemSpacingLarge))
 
                     Text(
                         text = "Syncing All Pages",
@@ -233,7 +236,7 @@ fun SettingsScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(dims.itemSpacingSmall))
 
                     Text(
                         text = state.syncStepDescription ?: "Re-hydrating accounts, transactions, investments, activities, and media...",
@@ -242,16 +245,16 @@ fun SettingsScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(dims.itemSpacingLarge))
 
-                    // Material 3 Linear progress indicator for continuous visual rhythm
+                    // Material 3 Linear progress indicator with StrokeCap.Round for expressive visual rhythm
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
+                            .height(6.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        strokeCap = StrokeCap.Round
                     )
                 }
             }
@@ -284,14 +287,16 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { onAction(SettingsAction.OnOpenInstallPermissionSettings) }
+                    onClick = { onAction(SettingsAction.OnOpenInstallPermissionSettings) },
+                    shape = RoundedCornerShape(dims.buttonCornerRadius)
                 ) {
                     Text("Open Settings")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = { onAction(SettingsAction.OnDismissInstallPermissionDialog) }
+                    onClick = { onAction(SettingsAction.OnDismissInstallPermissionDialog) },
+                    shape = RoundedCornerShape(dims.buttonCornerRadius)
                 ) {
                     Text("Cancel")
                 }
@@ -374,7 +379,6 @@ fun SettingsScreen(
         onAction(SettingsAction.OnBackClicked)
     }
 
-    val dims = Dimens.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -1083,7 +1087,7 @@ private fun AboutSettingsSubScreen(
                                     if (state.isUserAdmin) {
                                         Spacer(Modifier.width(8.dp))
                                         Surface(
-                                            shape = RoundedCornerShape(6.dp),
+                                            shape = RoundedCornerShape(dims.buttonCornerRadius - 4.dp),
                                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                         ) {
                                             Text(
@@ -1109,7 +1113,7 @@ private fun AboutSettingsSubScreen(
                             OutlinedButton(
                                 onClick = { onAction(SettingsAction.OnLogoutClicked) },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(dims.buttonCornerRadius),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error
                                 ),
@@ -1258,7 +1262,7 @@ fun AppUpdateCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(horizontal = dims.cardInnerPadding, vertical = dims.cardInnerPadding)
         ) {
             // Header Row: Icon + Title + Version Tag
             Row(
@@ -1266,7 +1270,7 @@ fun AppUpdateCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(dims.buttonCornerRadius),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                     modifier = Modifier.size(48.dp)
                 ) {
@@ -1279,20 +1283,19 @@ fun AppUpdateCard(
                         )
                     }
                 }
-                Spacer(Modifier.width(18.dp))
+                Spacer(Modifier.width(dims.itemSpacingMedium))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "App Updates",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 17.sp
+                            fontWeight = FontWeight.SemiBold
                         ),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "Installed: ${state.appVersion}",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -1301,20 +1304,20 @@ fun AppUpdateCard(
                 when (state.updateStatus) {
                     UpdateStatus.UPDATE_AVAILABLE -> {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                            shape = RoundedCornerShape(dims.buttonCornerRadius - 4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
                                 text = "v${state.latestUpdateInfo?.versionName}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }
                     UpdateStatus.UP_TO_DATE -> {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(dims.buttonCornerRadius - 4.dp),
                             color = MaterialTheme.colorScheme.tertiaryContainer
                         ) {
                             Text(
@@ -1325,11 +1328,24 @@ fun AppUpdateCard(
                             )
                         }
                     }
+                    UpdateStatus.DOWNLOADING -> {
+                        Surface(
+                            shape = RoundedCornerShape(dims.buttonCornerRadius - 4.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                text = "Downloading",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                     else -> {}
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(dims.itemSpacingMedium))
 
             // Body content based on update state
             when (state.updateStatus) {
@@ -1339,11 +1355,11 @@ fun AppUpdateCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(dims.itemSpacingMedium))
                     FilledTonalButton(
                         onClick = { onAction(SettingsAction.OnCheckForUpdatesClicked) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(dims.buttonCornerRadius)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -1359,43 +1375,58 @@ fun AppUpdateCard(
                 }
 
                 UpdateStatus.CHECKING -> {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    Surface(
+                        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.5.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = "Checking GitHub Releases...",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(dims.cardInnerPadding),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 3.dp,
+                                strokeCap = StrokeCap.Round,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(dims.itemSpacingMedium))
+                            Text(
+                                text = "Checking GitHub Releases...",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
 
                 UpdateStatus.UP_TO_DATE -> {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(dims.cardInnerPadding),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
@@ -1411,11 +1442,11 @@ fun AppUpdateCard(
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(dims.itemSpacingMedium))
                     OutlinedButton(
                         onClick = { onAction(SettingsAction.OnCheckForUpdatesClicked) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(dims.buttonCornerRadius)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -1423,26 +1454,37 @@ fun AppUpdateCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Check Again")
+                        Text(
+                            text = "Check Again",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
                     }
                 }
 
                 UpdateStatus.UPDATE_AVAILABLE -> {
                     val update = state.latestUpdateInfo
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(dims.cardInnerPadding)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.NewReleases,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(Modifier.width(10.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.NewReleases,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = update?.releaseTitle ?: "New Release Available",
@@ -1460,9 +1502,9 @@ fun AppUpdateCard(
                             }
 
                             if (!update?.releaseNotes.isNullOrBlank()) {
-                                Spacer(Modifier.height(10.dp))
+                                Spacer(Modifier.height(dims.itemSpacingSmall))
                                 Surface(
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(dims.buttonCornerRadius - 2.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -1474,7 +1516,7 @@ fun AppUpdateCard(
                                         )
                                         Spacer(Modifier.height(4.dp))
                                         Text(
-                                            text = update?.releaseNotes ?: "",
+                                            text = update.releaseNotes,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1484,11 +1526,11 @@ fun AppUpdateCard(
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(dims.itemSpacingMedium))
                     Button(
                         onClick = { onAction(SettingsAction.OnStartUpdateDownload) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(dims.buttonCornerRadius)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Download,
@@ -1507,62 +1549,146 @@ fun AppUpdateCard(
                 }
 
                 UpdateStatus.DOWNLOADING -> {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Downloading update...",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "${(state.downloadProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(
-                            progress = { state.downloadProgress },
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = state.downloadProgress.coerceIn(0f, 1f),
+                        animationSpec = tween(durationMillis = 250),
+                        label = "apkDownloadProgress"
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                        )
+                                .padding(dims.cardInnerPadding)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.CloudDownload,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Downloading APK update...",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (state.latestUpdateInfo != null) {
+                                            Text(
+                                                text = "v${state.latestUpdateInfo.versionName} • GitHub Release",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
 
-                        if (!state.downloadedBytesText.isNullOrBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = state.downloadedBytesText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Surface(
+                                    shape = RoundedCornerShape(dims.buttonCornerRadius),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = "${(animatedProgress * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(dims.itemSpacingMedium))
+
+                            // Material 3 Expressive LinearProgressIndicator with StrokeCap.Round
+                            LinearProgressIndicator(
+                                progress = { animatedProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                strokeCap = StrokeCap.Round
                             )
+
+                            Spacer(Modifier.height(dims.itemSpacingSmall))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (!state.downloadedBytesText.isNullOrBlank()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.DataUsage,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = state.downloadedBytesText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                } else {
+                                    Spacer(Modifier.weight(1f))
+                                }
+                                Text(
+                                    text = "Please keep app open",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                     }
                 }
 
                 UpdateStatus.READY_TO_INSTALL -> {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(dims.cardInnerPadding),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
@@ -1579,11 +1705,11 @@ fun AppUpdateCard(
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(dims.itemSpacingMedium))
                     Button(
                         onClick = { onAction(SettingsAction.OnInstallDownloadedApk) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(dims.buttonCornerRadius)
                     ) {
                         Icon(
                             imageVector = Icons.Default.SystemUpdate,
@@ -1600,20 +1726,28 @@ fun AppUpdateCard(
 
                 UpdateStatus.ERROR -> {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(dims.cardCornerRadius - 2.dp),
                         color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(dims.cardInnerPadding),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.ErrorOutline,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
@@ -1630,11 +1764,11 @@ fun AppUpdateCard(
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(dims.itemSpacingMedium))
                     OutlinedButton(
                         onClick = { onAction(SettingsAction.OnCheckForUpdatesClicked) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(dims.buttonCornerRadius)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -1642,7 +1776,10 @@ fun AppUpdateCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Retry")
+                        Text(
+                            text = "Retry",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
                     }
                 }
             }
@@ -1677,7 +1814,7 @@ private fun AboutHeader(
         ) {
             // App icon
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(dims.buttonCornerRadius),
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shadowElevation = 0.dp,
                 modifier = Modifier.size(56.dp)
@@ -1692,22 +1829,21 @@ private fun AboutHeader(
                 }
             }
 
-            Spacer(Modifier.width(18.dp))
+            Spacer(Modifier.width(dims.itemSpacingMedium))
 
             // App name + version
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "DailyTrack",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
+                        fontWeight = FontWeight.Bold
                     ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = appVersion,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1775,7 +1911,7 @@ fun SettingsNavItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(dims.buttonCornerRadius),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
             modifier = Modifier.size(48.dp)
         ) {
@@ -1788,13 +1924,12 @@ fun SettingsNavItem(
                 )
             }
         }
-        Spacer(Modifier.width(18.dp))
+        Spacer(Modifier.width(dims.itemSpacingMedium))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp
+                    fontWeight = FontWeight.SemiBold
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -1802,7 +1937,7 @@ fun SettingsNavItem(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1840,7 +1975,7 @@ private fun SettingsClickItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(dims.buttonCornerRadius),
             color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 0.12f else 0.05f),
             modifier = Modifier.size(48.dp)
         ) {
@@ -1853,13 +1988,12 @@ private fun SettingsClickItem(
                 )
             }
         }
-        Spacer(Modifier.width(18.dp))
+        Spacer(Modifier.width(dims.itemSpacingMedium))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp
+                    fontWeight = FontWeight.SemiBold
                 ),
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
@@ -1867,7 +2001,7 @@ private fun SettingsClickItem(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = subtitleColor ?: MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1904,7 +2038,7 @@ private fun SettingsToggleItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(dims.buttonCornerRadius),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
             modifier = Modifier.size(48.dp)
         ) {
@@ -1917,13 +2051,12 @@ private fun SettingsToggleItem(
                 )
             }
         }
-        Spacer(Modifier.width(18.dp))
+        Spacer(Modifier.width(dims.itemSpacingMedium))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp
+                    fontWeight = FontWeight.SemiBold
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -1931,7 +2064,7 @@ private fun SettingsToggleItem(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1970,7 +2103,7 @@ private fun ThemeModeSelector(
             modifier = Modifier.padding(bottom = 16.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(dims.buttonCornerRadius),
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                 modifier = Modifier.size(48.dp)
             ) {

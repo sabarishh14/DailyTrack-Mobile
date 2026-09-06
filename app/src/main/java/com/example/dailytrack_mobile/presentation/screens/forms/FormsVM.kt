@@ -346,6 +346,10 @@ class FormsVM @Inject constructor(
         rating: Float?,
         review: String?,
         date: String,
+        liked: Boolean = false,
+        rewatch: Boolean = false,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
@@ -360,7 +364,11 @@ class FormsVM @Inject constructor(
                 platform = platform,
                 rating = rating,
                 review = review,
-                date = date
+                date = date,
+                liked = liked,
+                rewatch = rewatch,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber
             )
 
             result.onSuccess {

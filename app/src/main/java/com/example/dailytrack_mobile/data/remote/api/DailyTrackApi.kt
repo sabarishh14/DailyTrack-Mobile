@@ -129,6 +129,83 @@ interface DailyTrackApi {
         @Body request: AddTvDiaryRequestDto
     ): ApiResponseDto
 
+    @GET("/api/media/diary")
+    suspend fun getMediaDiary(
+        @Query("limit") limit: Int = 100,
+        @Query("offset") offset: Int = 0,
+        @Query("type") type: String = "all",
+        @Query("show_id") showId: Int? = null
+    ): com.example.dailytrack_mobile.data.remote.dto.MediaDiaryResponseDto
+
+    @GET("/api/movies/stats")
+    suspend fun getMovieStats(
+        @Query("year") year: String? = null
+    ): com.example.dailytrack_mobile.data.remote.dto.MediaStatsResponseDto
+
+    @GET("/api/movies/details/{tmdb_id}")
+    suspend fun getMovieDetails(
+        @Path("tmdb_id") tmdbId: Int
+    ): com.example.dailytrack_mobile.data.remote.dto.MediaDetailsResponseDto
+
+    @GET("/api/tv/details/{tmdb_id}")
+    suspend fun getTvDetails(
+        @Path("tmdb_id") tmdbId: Int
+    ): com.example.dailytrack_mobile.data.remote.dto.MediaDetailsResponseDto
+
+    @PUT("/api/movies/{id}")
+    suspend fun updateMovieStatus(
+        @Path("id") id: Int,
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.UpdateMediaStatusRequestDto
+    ): ApiResponseDto
+
+    @PUT("/api/tv/shows/{id}")
+    suspend fun updateTvShowStatus(
+        @Path("id") id: Int,
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.UpdateMediaStatusRequestDto
+    ): ApiResponseDto
+
+    @DELETE("/api/movies/{id}")
+    suspend fun deleteMovie(
+        @Path("id") id: Int
+    ): ApiResponseDto
+
+    @DELETE("/api/tv/shows/{id}")
+    suspend fun deleteTvShow(
+        @Path("id") id: Int
+    ): ApiResponseDto
+
+    @PUT("/api/movies/diary")
+    suspend fun updateMovieDiary(
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.UpdateDiaryLogRequestDto
+    ): ApiResponseDto
+
+    @PUT("/api/tv/diary")
+    suspend fun updateTvDiary(
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.UpdateDiaryLogRequestDto
+    ): ApiResponseDto
+
+    @retrofit2.http.HTTP(method = "DELETE", path = "/api/movies/diary", hasBody = true)
+    suspend fun deleteMovieDiary(
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.DeleteDiaryLogRequestDto
+    ): ApiResponseDto
+
+    @retrofit2.http.HTTP(method = "DELETE", path = "/api/tv/diary", hasBody = true)
+    suspend fun deleteTvDiary(
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.DeleteDiaryLogRequestDto
+    ): ApiResponseDto
+
+    @POST("/api/movies/{id}/rematch")
+    suspend fun rematchMovie(
+        @Path("id") id: Int,
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.RematchMediaRequestDto
+    ): ApiResponseDto
+
+    @POST("/api/tv/shows/{id}/rematch")
+    suspend fun rematchTvShow(
+        @Path("id") id: Int,
+        @Body request: com.example.dailytrack_mobile.data.remote.dto.RematchMediaRequestDto
+    ): ApiResponseDto
+
     @GET("/")
     suspend fun checkHealth(): Response<ResponseBody>
 
@@ -140,3 +217,4 @@ interface DailyTrackApi {
         @Body request: com.example.dailytrack_mobile.data.remote.dto.FirebaseLoginRequestDto
     ): Response<com.example.dailytrack_mobile.data.remote.dto.FirebaseLoginResponseDto>
 }
+

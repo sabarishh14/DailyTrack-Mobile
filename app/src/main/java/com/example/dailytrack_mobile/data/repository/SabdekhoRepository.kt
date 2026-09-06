@@ -69,7 +69,11 @@ class SabdekhoRepository @Inject constructor(
         platform: String?,
         rating: Float?,
         review: String?,
-        date: String
+        date: String,
+        liked: Boolean = false,
+        rewatch: Boolean = false,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null
     ): Result<MediaShowDto> = runCatching {
         if (demoDataManager.isDemoModeEnabled()) {
             val created = demoDataManager.addMediaShow(
@@ -81,7 +85,11 @@ class SabdekhoRepository @Inject constructor(
                 platform = platform,
                 rating = rating,
                 review = review,
-                date = date
+                date = date,
+                liked = liked,
+                rewatch = rewatch,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber
             )
             demoDataManager.notifyDataUpdated()
             created
@@ -101,8 +109,12 @@ class SabdekhoRepository @Inject constructor(
                 )
                 val showId = addResponse.id ?: addResponse.show?.id ?: 0
 
-                // If user provided rating or review and showId is available, log diary
-                if (showId > 0 && ((rating != null && rating > 0f) || !review.isNullOrBlank())) {
+                val shouldLog = status.equals("WATCHED", ignoreCase = true) ||
+                        (rating != null && rating > 0f) ||
+                        !review.isNullOrBlank() ||
+                        liked ||
+                        rewatch
+                if (showId > 0 && shouldLog) {
                     try {
                         api.addMovieDiary(
                             AddMovieDiaryRequestDto(
@@ -110,11 +122,12 @@ class SabdekhoRepository @Inject constructor(
                                 date = date,
                                 rating = rating?.takeIf { it > 0f },
                                 review = review?.takeIf { it.isNotBlank() },
+                                liked = liked,
+                                rewatch = rewatch,
                                 tags = platform?.takeIf { it.isNotBlank() }
                             )
                         )
                     } catch (e: Exception) {
-                        // Log failure is non-blocking for show creation
                         e.printStackTrace()
                     }
                 }
@@ -140,7 +153,13 @@ class SabdekhoRepository @Inject constructor(
                 )
                 val showId = addResponse.id ?: addResponse.show?.id ?: 0
 
-                if (showId > 0 && ((rating != null && rating > 0f) || !review.isNullOrBlank())) {
+                val shouldLog = status.equals("WATCHED", ignoreCase = true) ||
+                        (rating != null && rating > 0f) ||
+                        !review.isNullOrBlank() ||
+                        liked ||
+                        rewatch ||
+                        seasonNumber != null
+                if (showId > 0 && shouldLog) {
                     try {
                         api.addTvDiary(
                             AddTvDiaryRequestDto(
@@ -148,7 +167,11 @@ class SabdekhoRepository @Inject constructor(
                                 date = date,
                                 rating = rating?.takeIf { it > 0f },
                                 review = review?.takeIf { it.isNotBlank() },
-                                tags = platform?.takeIf { it.isNotBlank() }
+                                liked = liked,
+                                rewatch = rewatch,
+                                tags = platform?.takeIf { it.isNotBlank() },
+                                season_number = seasonNumber,
+                                episode_number = episodeNumber
                             )
                         )
                     } catch (e: Exception) {
@@ -169,4 +192,228 @@ class SabdekhoRepository @Inject constructor(
             }
         }
     }
+
+    suspend fun getMediaDiary(
+        limit: Int = 100,
+        offset: Int = 0,
+        type: String = "all",
+        showId: Int? = null,
+        forceRefresh: Boolean = false
+    ): Result<com.example.dailytrack_mobile.data.remote.dto.MediaDiaryResponseDto> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.getMediaDiary(limit = limit, offset = offset, type = type, showId = showId)
+        } else {
+            api.getMediaDiary(limit = limit, offset = offset, type = type, showId = showId)
+        }
+    }
+
+    suspend fun getMovieStats(
+        year: String? = null,
+        forceRefresh: Boolean = false
+    ): Result<com.example.dailytrack_mobile.data.remote.dto.MediaStatsResponseDto> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.getMovieStats(year = year)
+        } else {
+            api.getMovieStats(year = year)
+        }
+    }
+
+    suspend fun getMediaDetails(
+        tmdbId: Int,
+        isMovie: Boolean
+    ): Result<com.example.dailytrack_mobile.data.remote.dto.MediaDetailsDataDto> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            demoDataManager.getMediaDetails(tmdbId = tmdbId, isMovie = isMovie)
+        } else {
+            val resp = if (isMovie) api.getMovieDetails(tmdbId) else api.getTvDetails(tmdbId)
+            resp.data ?: throw Exception(resp.message ?: "Failed to load details")
+        }
+    }
+
+    suspend fun updateMediaStatus(
+        showId: Int,
+        isMovie: Boolean,
+        status: String
+    ): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            val res = demoDataManager.updateMediaStatus(showId, isMovie, status)
+            demoDataManager.notifyDataUpdated()
+            clearCache()
+            res
+        } else {
+            val req = com.example.dailytrack_mobile.data.remote.dto.UpdateMediaStatusRequestDto(status = status)
+            if (isMovie) api.updateMovieStatus(showId, req) else api.updateTvShowStatus(showId, req)
+            clearCache()
+            demoDataManager.notifyDataUpdated()
+            true
+        }
+    }
+
+    suspend fun deleteMediaShow(
+        showId: Int,
+        isMovie: Boolean
+    ): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            val res = demoDataManager.deleteMediaShow(showId, isMovie)
+            demoDataManager.notifyDataUpdated()
+            clearCache()
+            res
+        } else {
+            if (isMovie) api.deleteMovie(showId) else api.deleteTvShow(showId)
+            clearCache()
+            demoDataManager.notifyDataUpdated()
+            true
+        }
+    }
+
+    suspend fun logDiaryEntry(
+        showId: Int,
+        isMovie: Boolean,
+        date: String,
+        rating: Float?,
+        review: String?,
+        liked: Boolean,
+        rewatch: Boolean,
+        tags: String?,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null
+    ): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            val res = demoDataManager.addDiaryLog(
+                showId = showId,
+                isMovie = isMovie,
+                date = date,
+                rating = rating,
+                review = review,
+                liked = liked,
+                rewatch = rewatch,
+                tags = tags,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber
+            )
+            demoDataManager.notifyDataUpdated()
+            clearCache()
+            res
+        } else {
+            if (isMovie) {
+                api.addMovieDiary(
+                    AddMovieDiaryRequestDto(
+                        movie_id = showId,
+                        date = date,
+                        rating = rating?.takeIf { it > 0f },
+                        review = review?.takeIf { it.isNotBlank() },
+                        liked = liked,
+                        rewatch = rewatch,
+                        tags = tags?.takeIf { it.isNotBlank() }
+                    )
+                )
+            } else {
+                api.addTvDiary(
+                    AddTvDiaryRequestDto(
+                        tv_show_id = showId,
+                        date = date,
+                        rating = rating?.takeIf { it > 0f },
+                        review = review?.takeIf { it.isNotBlank() },
+                        liked = liked,
+                        rewatch = rewatch,
+                        tags = tags?.takeIf { it.isNotBlank() },
+                        season_number = seasonNumber,
+                        episode_number = episodeNumber
+                    )
+                )
+            }
+            demoDataManager.notifyDataUpdated()
+            clearCache()
+            true
+        }
+    }
+
+    suspend fun updateDiaryLog(
+        logId: Int,
+        isMovie: Boolean,
+        rating: Float?,
+        review: String?,
+        liked: Boolean?,
+        rewatch: Boolean?,
+        tags: String?,
+        date: String? = null,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null
+    ): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            val res = demoDataManager.updateDiaryLog(
+                logId = logId,
+                isMovie = isMovie,
+                rating = rating,
+                review = review,
+                liked = liked,
+                rewatch = rewatch,
+                tags = tags,
+                date = date,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber
+            )
+            demoDataManager.notifyDataUpdated()
+            res
+        } else {
+            val req = com.example.dailytrack_mobile.data.remote.dto.UpdateDiaryLogRequestDto(
+                log_ids = listOf(logId),
+                rating = rating,
+                review = review,
+                liked = liked,
+                rewatch = rewatch,
+                tags = tags,
+                date = date,
+                season_number = seasonNumber,
+                episode_number = episodeNumber
+            )
+            if (isMovie) api.updateMovieDiary(req) else api.updateTvDiary(req)
+            demoDataManager.notifyDataUpdated()
+            true
+        }
+    }
+
+    suspend fun deleteDiaryLog(
+        logId: Int,
+        isMovie: Boolean
+    ): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            val res = demoDataManager.deleteDiaryLog(logId = logId, isMovie = isMovie)
+            demoDataManager.notifyDataUpdated()
+            res
+        } else {
+            val req = com.example.dailytrack_mobile.data.remote.dto.DeleteDiaryLogRequestDto(log_ids = listOf(logId))
+            if (isMovie) api.deleteMovieDiary(req) else api.deleteTvDiary(req)
+            demoDataManager.notifyDataUpdated()
+            true
+        }
+    }
+
+    suspend fun rematchMedia(
+        showId: Int,
+        isMovie: Boolean,
+        tmdbId: Int,
+        name: String,
+        posterPath: String?,
+        year: String?
+    ): Result<Boolean> = runCatching {
+        if (demoDataManager.isDemoModeEnabled()) {
+            val res = demoDataManager.rematchMedia(showId, isMovie, tmdbId, name, posterPath, year)
+            demoDataManager.notifyDataUpdated()
+            clearCache()
+            res
+        } else {
+            val req = com.example.dailytrack_mobile.data.remote.dto.RematchMediaRequestDto(
+                tmdb_id = tmdbId,
+                name = name,
+                poster_path = posterPath,
+                year = year
+            )
+            if (isMovie) api.rematchMovie(showId, req) else api.rematchTvShow(showId, req)
+            demoDataManager.notifyDataUpdated()
+            clearCache()
+            true
+        }
+    }
 }
+

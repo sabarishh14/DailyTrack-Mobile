@@ -28,7 +28,8 @@ data class DemoStorageContainer(
     val mutualFundHoldings: List<MutualFundHoldingDto>,
     val manualAssets: List<ManualAssetDto>,
     val physicalActivities: List<PhysicalActivityDto>,
-    val mediaShows: List<MediaShowDto>
+    val mediaShows: List<MediaShowDto>,
+    val mediaDiaryLogs: List<MediaDiaryLogDto> = emptyList()
 )
 
 @Singleton
@@ -458,22 +459,324 @@ class DemoDataManager @Inject constructor(
         platform: String? = null,
         rating: Float? = null,
         review: String? = null,
-        date: String? = null
+        date: String? = null,
+        liked: Boolean = false,
+        rewatch: Boolean = false,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null
     ): MediaShowDto = withContext(Dispatchers.IO) {
         val current = getOrLoadContainer()
+        val showId = idGenerator.incrementAndGet().toInt()
+        val isMovie = !type.equals("series", ignoreCase = true) && !type.equals("tv", ignoreCase = true) && !type.equals("anime", ignoreCase = true)
         val newShow = MediaShowDto(
-            id = idGenerator.incrementAndGet().toInt(),
+            id = showId,
             tmdbId = tmdbId,
             name = title,
             posterPath = posterPath,
-            type = if (type.equals("series", ignoreCase = true) || type.equals("tv", ignoreCase = true) || type.equals("anime", ignoreCase = true)) "tv" else "movie",
+            type = if (isMovie) "movie" else "tv",
             status = status,
             addedOn = date ?: LocalDate.now().toString()
         )
 
-        val updated = listOf(newShow) + current.mediaShows
-        saveContainer(current.copy(mediaShows = updated))
+        val updatedShows = listOf(newShow) + current.mediaShows
+        val shouldLog = status.equals("WATCHED", ignoreCase = true) ||
+                (rating != null && rating > 0f) ||
+                !review.isNullOrBlank() ||
+                liked ||
+                rewatch ||
+                seasonNumber != null
+        val updatedLogs = if (shouldLog) {
+            val newLog = MediaDiaryLogDto(
+                id = idGenerator.incrementAndGet().toInt(),
+                showId = showId,
+                tmdbId = tmdbId,
+                showName = title,
+                posterPath = posterPath,
+                date = date ?: LocalDate.now().toString(),
+                rating = rating?.takeIf { it > 0f },
+                review = review?.takeIf { it.isNotBlank() },
+                liked = liked || (rating ?: 0f) >= 4.0f,
+                rewatch = rewatch,
+                tags = platform?.takeIf { it.isNotBlank() },
+                type = if (isMovie) "movie" else "tv",
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber
+            )
+            listOf(newLog) + current.mediaDiaryLogs
+        } else {
+            current.mediaDiaryLogs
+        }
+
+        saveContainer(current.copy(mediaShows = updatedShows, mediaDiaryLogs = updatedLogs))
         newShow
+    }
+
+    suspend fun getMediaDiary(
+        limit: Int = 100,
+        offset: Int = 0,
+        type: String = "all",
+        showId: Int? = null
+    ): MediaDiaryResponseDto {
+        val all = getOrLoadContainer().mediaDiaryLogs
+        val filtered = all.filter { log ->
+            val typeMatches = type.equals("all", ignoreCase = true) || log.type.equals(type, ignoreCase = true)
+            val showMatches = showId == null || log.showId == showId
+            typeMatches && showMatches
+        }.sortedByDescending { it.date ?: "" }
+        val paged = filtered.drop(offset).take(limit)
+        return MediaDiaryResponseDto(
+            success = true,
+            logs = paged,
+            totalCount = filtered.size
+        )
+    }
+
+    suspend fun getMovieStats(year: String? = null): MediaStatsResponseDto {
+        val container = getOrLoadContainer()
+        val allLogs = container.mediaDiaryLogs.filter { it.type.equals("movie", ignoreCase = true) }
+        val effectiveYear = year?.takeIf { it != "all" }
+        val filteredLogs = if (effectiveYear != null) {
+            allLogs.filter { it.date?.startsWith(effectiveYear) == true }
+        } else {
+            allLogs
+        }
+
+        val filmsLogged = filteredLogs.size
+        val totalLikes = filteredLogs.count { it.liked }
+        val totalHours = (filteredLogs.size * 2.2 * 10).toInt() / 10.0
+        val totalReviews = filteredLogs.count { !it.review.isNullOrBlank() }
+
+        val byMonth = (1..12).map { m ->
+            val mStr = "%02d".format(m)
+            filteredLogs.count { (it.date?.length ?: 0) >= 7 && it.date!!.substring(5, 7) == mStr }
+        }
+
+        val ratingDist = mutableMapOf<String, Int>()
+        val ratingKeys = listOf("0.5", "1.0", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0")
+        for (k in ratingKeys) {
+            val v = k.toFloatOrNull() ?: 0f
+            ratingDist[k] = filteredLogs.count { (it.rating ?: 0f) == v }
+        }
+
+        val highestRated = filteredLogs.filter { (it.rating ?: 0f) >= 4.0f }
+            .sortedByDescending { it.rating ?: 0f }
+            .map {
+                MediaStatsMovieDto(
+                    movie_id = it.showId,
+                    tmdb_id = it.tmdbId,
+                    name = it.showName,
+                    poster_path = it.posterPath,
+                    rating = it.rating ?: 0f,
+                    release_year = "2024",
+                    tags = it.tags?.split(",")?.map { t -> t.trim() }?.filter { t -> t.isNotEmpty() } ?: emptyList()
+                )
+            }
+
+        val theatreLogs = filteredLogs.filter {
+            it.tags?.contains("theatre", ignoreCase = true) == true || it.tags?.contains("imax", ignoreCase = true) == true
+        }
+        val theatreStats = MediaTheatreStatsDto(
+            total_visits = theatreLogs.size.coerceAtLeast(1),
+            movies = theatreLogs.map {
+                MediaStatsMovieDto(
+                    movie_id = it.showId,
+                    tmdb_id = it.tmdbId,
+                    name = it.showName,
+                    poster_path = it.posterPath,
+                    rating = it.rating ?: 0f,
+                    release_year = "2024",
+                    tags = listOf("IMAX", "Theatre")
+                )
+            },
+            supplementary_tags = mapOf("IMAX" to theatreLogs.size.coerceAtLeast(1), "Standard" to 0)
+        )
+
+        val extremes = MediaExtremesDto(
+            longest = MediaExtremeItemDto(id = 5, tmdb_id = 872585, name = "Oppenheimer", poster_path = "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", runtime = 180, release_year = "2023"),
+            shortest = MediaExtremeItemDto(id = 11, tmdb_id = 155, name = "The Dark Knight", poster_path = "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg", runtime = 152, release_year = "2008"),
+            oldest = MediaExtremeItemDto(id = 11, tmdb_id = 155, name = "The Dark Knight", poster_path = "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg", runtime = 152, release_year = "2008"),
+            newest = MediaExtremeItemDto(id = 6, tmdb_id = 693134, name = "Dune: Part Two", poster_path = "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg", runtime = 166, release_year = "2024")
+        )
+
+        return MediaStatsResponseDto(
+            success = true,
+            year = year ?: "all",
+            available_years = listOf(2024, 2023, 2022),
+            films_logged = filmsLogged,
+            total_likes = totalLikes,
+            total_hours = totalHours,
+            total_reviews = totalReviews,
+            avg_per_month = if (filmsLogged > 0) filmsLogged / 12.0 else 0.0,
+            by_month = byMonth,
+            rating_distribution = ratingDist,
+            highest_rated = highestRated,
+            theatre_stats = theatreStats,
+            extremes = extremes
+        )
+    }
+
+    suspend fun getMediaDetails(tmdbId: Int, isMovie: Boolean): MediaDetailsDataDto {
+        val container = getOrLoadContainer()
+        val show = container.mediaShows.find { it.tmdbId == tmdbId }
+        val title = show?.name ?: if (isMovie) "Oppenheimer" else "Severance"
+        return MediaDetailsDataDto(
+            id = tmdbId,
+            title = if (isMovie) title else null,
+            name = if (!isMovie) title else null,
+            overview = if (isMovie) {
+                "The story of J. Robert Oppenheimer's role in the development of the atomic bomb during World War II, exploring both the scientific triumph and its devastating moral aftermath."
+            } else {
+                "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives. When a mysterious colleague appears outside of work, it begins a journey to discover the truth about their jobs."
+            },
+            posterPath = show?.posterPath ?: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
+            backdropPath = "https://image.tmdb.org/t/p/original/rLb2cw0iw3159xHevVXteACiYMs.jpg",
+            releaseDate = if (isMovie) "2023-07-21" else "2022-02-18",
+            firstAirDate = if (!isMovie) "2022-02-18" else null,
+            runtime = if (isMovie) 180 else 55,
+            numberOfSeasons = if (!isMovie) 2 else null,
+            numberOfEpisodes = if (!isMovie) 19 else null,
+            voteAverage = 8.4,
+            genres = listOf(
+                MediaGenreDto(id = 1, name = if (isMovie) "Drama" else "Sci-Fi & Fantasy"),
+                MediaGenreDto(id = 2, name = if (isMovie) "History" else "Mystery")
+            ),
+            seasons = if (!isMovie) listOf(
+                MediaSeasonDto(id = 1, season_number = 1, name = "Season 1", episode_count = 9),
+                MediaSeasonDto(id = 2, season_number = 2, name = "Season 2", episode_count = 10)
+            ) else null,
+            credits = MediaCreditsDto(
+                cast = if (isMovie) listOf(
+                    MediaCastMemberDto(id = 1, name = "Cillian Murphy", character = "J. Robert Oppenheimer"),
+                    MediaCastMemberDto(id = 2, name = "Emily Blunt", character = "Katherine 'Kitty' Oppenheimer"),
+                    MediaCastMemberDto(id = 3, name = "Matt Damon", character = "Leslie Groves"),
+                    MediaCastMemberDto(id = 4, name = "Robert Downey Jr.", character = "Lewis Strauss"),
+                    MediaCastMemberDto(id = 5, name = "Florence Pugh", character = "Jean Tatlock")
+                ) else listOf(
+                    MediaCastMemberDto(id = 10, name = "Adam Scott", character = "Mark Scout"),
+                    MediaCastMemberDto(id = 11, name = "Zach Cherry", character = "Dylan George"),
+                    MediaCastMemberDto(id = 12, name = "Britt Lower", character = "Helly Riggs"),
+                    MediaCastMemberDto(id = 13, name = "Patricia Arquette", character = "Harmony Cobel"),
+                    MediaCastMemberDto(id = 14, name = "John Turturro", character = "Irving Bailiff"),
+                    MediaCastMemberDto(id = 15, name = "Christopher Walken", character = "Burt Goodman")
+                ),
+                crew = listOf(
+                    MediaCrewMemberDto(id = 20, name = if (isMovie) "Christopher Nolan" else "Ben Stiller", job = "Director", department = "Directing")
+                )
+            )
+        )
+    }
+
+    suspend fun updateMediaStatus(showId: Int, isMovie: Boolean, status: String): Boolean = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val updated = current.mediaShows.map {
+            if (it.id == showId) it.copy(status = status) else it
+        }
+        saveContainer(current.copy(mediaShows = updated))
+        true
+    }
+
+    suspend fun deleteMediaShow(showId: Int, isMovie: Boolean): Boolean = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val updatedShows = current.mediaShows.filterNot { it.id == showId }
+        val updatedLogs = current.mediaDiaryLogs.filterNot { it.showId == showId }
+        saveContainer(current.copy(mediaShows = updatedShows, mediaDiaryLogs = updatedLogs))
+        true
+    }
+
+    suspend fun addDiaryLog(
+        showId: Int,
+        isMovie: Boolean,
+        date: String,
+        rating: Float?,
+        review: String?,
+        liked: Boolean,
+        rewatch: Boolean,
+        tags: String?,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val show = current.mediaShows.find { it.id == showId }
+        val newLog = MediaDiaryLogDto(
+            id = idGenerator.incrementAndGet().toInt(),
+            showId = showId,
+            tmdbId = show?.tmdbId,
+            showName = show?.name ?: "Unknown Title",
+            posterPath = show?.posterPath,
+            date = date,
+            rating = rating,
+            review = review,
+            liked = liked,
+            rewatch = rewatch,
+            tags = tags,
+            type = if (isMovie) "movie" else "tv",
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber
+        )
+        val updatedLogs = listOf(newLog) + current.mediaDiaryLogs
+        saveContainer(current.copy(mediaDiaryLogs = updatedLogs))
+        true
+    }
+
+    suspend fun updateDiaryLog(
+        logId: Int,
+        isMovie: Boolean,
+        rating: Float?,
+        review: String?,
+        liked: Boolean?,
+        rewatch: Boolean?,
+        tags: String?,
+        date: String? = null,
+        seasonNumber: Int? = null,
+        episodeNumber: Int? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val updatedLogs = current.mediaDiaryLogs.map { log ->
+            if (log.id == logId) {
+                log.copy(
+                    rating = rating ?: log.rating,
+                    review = review ?: log.review,
+                    liked = liked ?: log.liked,
+                    rewatch = rewatch ?: log.rewatch,
+                    tags = tags ?: log.tags,
+                    date = date ?: log.date,
+                    seasonNumber = if (!isMovie) seasonNumber else null,
+                    episodeNumber = if (!isMovie) episodeNumber else null
+                )
+            } else log
+        }
+        saveContainer(current.copy(mediaDiaryLogs = updatedLogs))
+        true
+    }
+
+    suspend fun deleteDiaryLog(logId: Int, isMovie: Boolean): Boolean = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val updatedLogs = current.mediaDiaryLogs.filterNot { it.id == logId }
+        saveContainer(current.copy(mediaDiaryLogs = updatedLogs))
+        true
+    }
+
+    suspend fun rematchMedia(
+        showId: Int,
+        isMovie: Boolean,
+        tmdbId: Int,
+        name: String,
+        posterPath: String?,
+        year: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val current = getOrLoadContainer()
+        val updatedShows = current.mediaShows.map {
+            if (it.id == showId) {
+                it.copy(tmdbId = tmdbId, name = name, posterPath = posterPath)
+            } else it
+        }
+        val updatedLogs = current.mediaDiaryLogs.map {
+            if (it.showId == showId) {
+                it.copy(tmdbId = tmdbId, showName = name, posterPath = posterPath)
+            } else it
+        }
+        saveContainer(current.copy(mediaShows = updatedShows, mediaDiaryLogs = updatedLogs))
+        true
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -711,6 +1014,130 @@ class DemoDataManager @Inject constructor(
             MediaShowDto(id = 15, tmdbId = 136283, name = "Velma", posterPath = null, type = "series", status = "DROPPED")
         )
 
+        // 10. Sabdekho Diary Logs
+        val mediaDiaryLogs = listOf(
+            MediaDiaryLogDto(
+                id = 101,
+                showId = 5,
+                tmdbId = 872585,
+                showName = "Oppenheimer",
+                posterPath = "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
+                date = "2024-03-15",
+                rating = 5.0f,
+                review = "A masterclass in tension, sound design, and historical storytelling. Nolan at the absolute height of his craft.",
+                liked = true,
+                rewatch = false,
+                tags = "IMAX, Theatre",
+                type = "movie"
+            ),
+            MediaDiaryLogDto(
+                id = 102,
+                showId = 6,
+                tmdbId = 693134,
+                showName = "Dune: Part Two",
+                posterPath = "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+                date = "2024-03-02",
+                rating = 4.5f,
+                review = "Visually astounding. Denis Villeneuve delivered on every promise. The worm riding sequence was breathtaking.",
+                liked = true,
+                rewatch = false,
+                tags = "Theatre",
+                type = "movie"
+            ),
+            MediaDiaryLogDto(
+                id = 103,
+                showId = 1,
+                tmdbId = 110492,
+                showName = "Severance",
+                posterPath = "https://image.tmdb.org/t/p/w500/1XddXPX8x241VbzgUwfg437Fcq8.jpg",
+                date = "2024-04-10",
+                rating = 5.0f,
+                review = "The best season finale in recent memory. Non-stop adrenaline from start to finish.",
+                liked = true,
+                rewatch = false,
+                tags = "Apple TV+",
+                type = "tv",
+                seasonNumber = 1,
+                episodeNumber = 9
+            ),
+            MediaDiaryLogDto(
+                id = 104,
+                showId = 11,
+                tmdbId = 155,
+                showName = "The Dark Knight",
+                posterPath = "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+                date = "2024-02-18",
+                rating = 5.0f,
+                review = "Heath Ledger's Joker remains the unmatched benchmark for villain performances.",
+                liked = true,
+                rewatch = true,
+                tags = "Rewatch, Netflix",
+                type = "movie"
+            ),
+            MediaDiaryLogDto(
+                id = 105,
+                showId = 2,
+                tmdbId = 126308,
+                showName = "Shōgun",
+                posterPath = "https://image.tmdb.org/t/p/w500/7O4iVfOMQmdCSxhOg1WnzG1AgYT.jpg",
+                date = "2024-03-05",
+                rating = 4.5f,
+                review = "Incredible cinematography and costume design. Epic historical drama executed with supreme precision.",
+                liked = true,
+                rewatch = false,
+                tags = "Disney+",
+                type = "tv",
+                seasonNumber = 1,
+                episodeNumber = 1
+            ),
+            MediaDiaryLogDto(
+                id = 106,
+                showId = 12,
+                tmdbId = 27205,
+                showName = "Inception",
+                posterPath = "https://image.tmdb.org/t/p/w500/edv5CZvWj09upOsy2Y6IwDhK8bt.jpg",
+                date = "2024-01-20",
+                rating = 4.5f,
+                review = "The spinning totem still haunts me. Pure cinematic spectacle.",
+                liked = true,
+                rewatch = true,
+                tags = "Prime Video",
+                type = "movie"
+            ),
+            MediaDiaryLogDto(
+                id = 107,
+                showId = 9,
+                tmdbId = 1396,
+                showName = "Breaking Bad",
+                posterPath = "https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg",
+                date = "2024-01-12",
+                rating = 5.0f,
+                review = "Ozymandias. Television perfection. Bryan Cranston delivers a tour-de-force.",
+                liked = true,
+                rewatch = true,
+                tags = "Netflix",
+                type = "tv",
+                seasonNumber = 5,
+                episodeNumber = 14
+            ),
+            MediaDiaryLogDto(
+                id = 108,
+                showId = 4,
+                tmdbId = 87108,
+                showName = "Chernobyl",
+                posterPath = "https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg",
+                date = "2024-01-08",
+                rating = 5.0f,
+                review = "What is the cost of lies? Haunting, essential viewing.",
+                liked = true,
+                rewatch = false,
+                tags = "JioCinema",
+                type = "tv",
+                seasonNumber = 1,
+                episodeNumber = 5
+            )
+        )
+
         return DemoStorageContainer(
             accounts = accounts,
             transactions = transactions,
@@ -720,7 +1147,8 @@ class DemoDataManager @Inject constructor(
             mutualFundHoldings = mutualFundHoldings,
             manualAssets = manualAssets,
             physicalActivities = physicalActivities,
-            mediaShows = mediaShows
+            mediaShows = mediaShows,
+            mediaDiaryLogs = mediaDiaryLogs
         )
     }
 }

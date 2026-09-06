@@ -1,5 +1,6 @@
 package com.example.dailytrack_mobile.presentation.screens.sabdekho
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,18 +13,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.ViewComfy
-import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,14 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.dailytrack_mobile.data.remote.dto.MediaSearchResultDto
 import com.example.dailytrack_mobile.data.remote.dto.MediaShowDto
+import com.example.dailytrack_mobile.presentation.components.DailyTrackPullToRefreshBox
+import com.example.dailytrack_mobile.presentation.screens.sabdekho.components.*
 import com.example.dailytrack_mobile.presentation.util.Dimens
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +46,6 @@ fun SabdekhoScreen(
     onNavigateToAddMovie: (MediaSearchResultDto?) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
-    var gridSpan by remember { mutableIntStateOf(2) }
     val dims = Dimens.current
 
     val filteredItems = remember(state.searchQuery, state.shows) {
@@ -62,26 +53,124 @@ fun SabdekhoScreen(
         else state.shows.filter { it.name?.contains(state.searchQuery, ignoreCase = true) == true }
     }
 
-    DailyTrackPullToRefreshBox(
-        isRefreshing = state.isRefreshing,
-        onRefresh = { viewModel.onAction(SabdekhoAction.Refresh) },
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = dims.screenHorizontalPadding)
+    Box(modifier = Modifier.fillMaxSize()) {
+        DailyTrackPullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { viewModel.onAction(SabdekhoAction.Refresh) },
+            modifier = Modifier.fillMaxSize()
         ) {
-            Spacer(modifier = Modifier.height(dims.screenTopPadding))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = dims.screenHorizontalPadding)
+            ) {
+                Spacer(modifier = Modifier.height(dims.screenTopPadding))
 
-        // ── Search and Grid Toggle Row ──────────────────────────────
+                // ── Top Navigation Tabs (Library • Diary • Stats) ───────────
+                SabdekhoTopTabs(
+                    selectedTab = state.currentTab,
+                    onTabSelected = { viewModel.onAction(SabdekhoAction.SelectTab(it)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
+
+                // ── Top Media Portion Switcher (🍿 All • 🎬 Films • 📺 TV Shows) ──
+                MediaPortionToggle(
+                    selectedType = state.mediaTypeFilter,
+                    onTypeSelected = { viewModel.onAction(SabdekhoAction.ChangeMediaType(it)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
+
+                // ── Tab Content Crossfade ───────────────────────────────────
+                when (state.currentTab) {
+                    SabdekhoTab.LIBRARY -> {
+                        LibraryTabContent(
+                            state = state,
+                            filteredItems = filteredItems,
+                            onAction = viewModel::onAction,
+                            onNavigateToAddMovie = onNavigateToAddMovie
+                        )
+                    }
+                    SabdekhoTab.DIARY -> {
+                        SabdekhoDiaryTab(
+                            state = state,
+                            onAction = viewModel::onAction
+                        )
+                    }
+                    SabdekhoTab.STATS -> {
+                        SabdekhoStatsTab(
+                            state = state,
+                            onAction = viewModel::onAction
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Media Details & Logging Bottom Sheet ────────────────────────
+        if (state.isDetailsSheetOpen && state.selectedShow != null) {
+            MediaDetailsSheet(
+                state = state,
+                onAction = viewModel::onAction
+            )
+        }
+
+        // ── Edit Diary Log Modal Bottom Sheet ───────────────────────────
+        if (state.isEditDialogOpen && state.editingLog != null) {
+            val logToEdit = state.editingLog!!
+            val isMovie = logToEdit.type.equals("movie", ignoreCase = true)
+            EditDiaryLogSheet(
+                log = logToEdit,
+                onDismiss = { viewModel.onAction(SabdekhoAction.CloseEditLog) },
+                onSave = { rating, review, liked, rewatch, tag, date, season, episode ->
+                    viewModel.onAction(
+                        SabdekhoAction.SubmitEditLog(
+                            logId = logToEdit.id,
+                            isMovie = isMovie,
+                            rating = rating,
+                            review = review,
+                            liked = liked,
+                            rewatch = rewatch,
+                            tag = tag,
+                            date = date,
+                            season = season,
+                            episode = episode
+                        )
+                    )
+                },
+                onDelete = {
+                    viewModel.onAction(SabdekhoAction.DeleteLog(logToEdit.id, isMovie))
+                }
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Library Tab Content
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun LibraryTabContent(
+    state: SabdekhoState,
+    filteredItems: List<MediaShowDto>,
+    onAction: (SabdekhoAction) -> Unit,
+    onNavigateToAddMovie: (MediaSearchResultDto?) -> Unit
+) {
+    val dims = Dimens.current
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Search and Grid Toggle Row
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
                 value = state.searchQuery,
-                onValueChange = { viewModel.onAction(SabdekhoAction.SearchQueryChanged(it)) },
+                onValueChange = { onAction(SabdekhoAction.SearchQueryChanged(it)) },
                 modifier = Modifier
                     .weight(1f)
                     .height(dims.searchBarHeight),
@@ -108,7 +197,7 @@ fun SabdekhoScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                     } else if (state.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onAction(SabdekhoAction.SearchQueryChanged("")) }) {
+                        IconButton(onClick = { onAction(SabdekhoAction.SearchQueryChanged("")) }) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "Clear",
@@ -133,35 +222,41 @@ fun SabdekhoScreen(
             // Grid Option Toggle Button
             IconButton(
                 onClick = {
-                    gridSpan = when (gridSpan) {
+                    val nextCols = when (state.gridColumns) {
                         2 -> 3
                         3 -> 4
                         else -> 2
                     }
+                    onAction(SabdekhoAction.SetGridColumns(nextCols))
                 },
                 modifier = Modifier
                     .size(dims.searchBarHeight)
                     .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(dims.buttonCornerRadius))
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    val gridIcon = when (gridSpan) {
-                        2 -> Icons.Default.GridView
-                        3 -> Icons.Default.ViewModule
-                        else -> Icons.Default.ViewComfy
-                    }
-                    Icon(
-                        imageVector = gridIcon,
-                        contentDescription = "Toggle Grid",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(dims.iconSizeMedium)
-                    )
+                val gridIcon = when (state.gridColumns) {
+                    2 -> Icons.Default.GridView
+                    3 -> Icons.Default.ViewModule
+                    else -> Icons.Default.ViewComfy
                 }
+                Icon(
+                    imageVector = gridIcon,
+                    contentDescription = "Toggle Grid",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(dims.iconSizeMedium)
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
 
-        // ── Media Type & Status Filter Chips ────────────────────────
+        // Status Filter Chips (dynamically tailored to Films vs Series)
+        val isMovieOnly = state.mediaTypeFilter.equals("movie", ignoreCase = true)
+        val statusOptions = if (isMovieOnly) {
+            listOf("WATCHED" to "✅ Watched", "TO WATCH" to "📋 To Watch", "all" to "All Status")
+        } else {
+            listOf("WATCHING" to "▶️ Watching", "TO WATCH" to "📋 To Watch", "WATCHED" to "✅ Watched", "DROPPED" to "❌ Dropped", "all" to "All Status")
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -169,40 +264,16 @@ fun SabdekhoScreen(
             horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Type filters
-            FilterChipView("All", isSelected = state.mediaTypeFilter == "all") {
-                viewModel.onAction(SabdekhoAction.ChangeMediaType("all"))
-            }
-            FilterChipView("🎬 Movies", isSelected = state.mediaTypeFilter == "movie") {
-                viewModel.onAction(SabdekhoAction.ChangeMediaType("movie"))
-            }
-            FilterChipView("📺 Series", isSelected = state.mediaTypeFilter == "tv") {
-                viewModel.onAction(SabdekhoAction.ChangeMediaType("tv"))
-            }
-
-            VerticalDivider(modifier = Modifier.height(20.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            // Status filters
-            FilterChipView("▶️ Watching", isSelected = state.activeFilter == "WATCHING") {
-                viewModel.onAction(SabdekhoAction.ChangeFilter("WATCHING"))
-            }
-            FilterChipView("📋 To Watch", isSelected = state.activeFilter == "TO WATCH") {
-                viewModel.onAction(SabdekhoAction.ChangeFilter("TO WATCH"))
-            }
-            FilterChipView("✅ Watched", isSelected = state.activeFilter == "WATCHED") {
-                viewModel.onAction(SabdekhoAction.ChangeFilter("WATCHED"))
-            }
-            FilterChipView("❌ Dropped", isSelected = state.activeFilter == "DROPPED") {
-                viewModel.onAction(SabdekhoAction.ChangeFilter("DROPPED"))
-            }
-            FilterChipView("All Status", isSelected = state.activeFilter == "all") {
-                viewModel.onAction(SabdekhoAction.ChangeFilter("all"))
+            statusOptions.forEach { (code, label) ->
+                FilterChipView(label, isSelected = state.activeFilter == code) {
+                    onAction(SabdekhoAction.ChangeFilter(code))
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(dims.itemSpacingMedium))
 
-        // ── Section Header / Counter ────────────────────────────────
+        // Section Header / Counter
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -221,7 +292,7 @@ fun SabdekhoScreen(
             )
 
             IconButton(
-                onClick = { viewModel.onAction(SabdekhoAction.Refresh) },
+                onClick = { onAction(SabdekhoAction.Refresh) },
                 modifier = Modifier.size(24.dp)
             ) {
                 Icon(
@@ -235,7 +306,7 @@ fun SabdekhoScreen(
 
         Spacer(modifier = Modifier.height(dims.itemSpacingSmall))
 
-        // ── Content Area ────────────────────────────────────────────
+        // Content Area: Grid / Online Search Results / Empty
         if (state.isLoading && state.shows.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -254,7 +325,7 @@ fun SabdekhoScreen(
                         textAlign = TextAlign.Center
                     )
                     Button(
-                        onClick = { viewModel.onAction(SabdekhoAction.Refresh) },
+                        onClick = { onAction(SabdekhoAction.Refresh) },
                         shape = RoundedCornerShape(dims.buttonCornerRadius)
                     ) {
                         Text("Retry")
@@ -262,7 +333,6 @@ fun SabdekhoScreen(
                 }
             }
         } else if (filteredItems.isEmpty()) {
-            // Local search has no matches
             if (state.searchQuery.isNotBlank()) {
                 if (state.isSearchingOnline && state.onlineResults.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -280,10 +350,9 @@ fun SabdekhoScreen(
                         }
                     }
                 } else if (state.onlineResults.isNotEmpty()) {
-                    // Display online TMDB/IMDb search results
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(dims.itemSpacingMedium),
-                        contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 48.dp),
+                        contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 56.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         item {
@@ -328,7 +397,6 @@ fun SabdekhoScreen(
                         }
                     }
                 } else {
-                    // No results found locally or online
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -366,7 +434,22 @@ fun SabdekhoScreen(
                     }
                 }
             } else {
-                // Search query is empty and library has 0 items for current filter
+                val mediaLabel = when (state.mediaTypeFilter.lowercase()) {
+                    "movie" -> "movies"
+                    "tv" -> "TV shows"
+                    else -> "titles"
+                }
+                val emptyTitle = if (state.activeFilter == "all") {
+                    "Your library has no $mediaLabel"
+                } else {
+                    "No \"${state.activeFilter}\" $mediaLabel"
+                }
+                val emptyIcon = when (state.mediaTypeFilter.lowercase()) {
+                    "movie" -> Icons.Default.Movie
+                    "tv" -> Icons.Default.Tv
+                    else -> Icons.Default.VideoLibrary
+                }
+
                 Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -374,19 +457,19 @@ fun SabdekhoScreen(
                         modifier = Modifier.padding(24.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Movie,
+                            imageVector = emptyIcon,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
-                            text = "No titles in this section",
+                            text = emptyTitle,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Use the '+' button to add movies or shows to your library.",
+                            text = "Use the '+' button to add $mediaLabel to your library.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center
@@ -398,27 +481,33 @@ fun SabdekhoScreen(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add Title")
+                            Text("Add $mediaLabel")
                         }
                     }
                 }
             }
         } else {
-            // Grid of media posters from local library
             LazyVerticalGrid(
-                columns = GridCells.Fixed(gridSpan),
+                columns = GridCells.Fixed(state.gridColumns),
                 verticalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
                 horizontalArrangement = Arrangement.spacedBy(dims.itemSpacingLarge),
-                contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 48.dp)
+                contentPadding = PaddingValues(bottom = dims.screenBottomPadding + 56.dp)
             ) {
                 items(filteredItems, key = { it.id }) { item ->
-                    MediaCard(item = item, gridSpan = gridSpan)
+                    MediaCard(
+                        item = item,
+                        gridSpan = state.gridColumns,
+                        onClick = { onAction(SabdekhoAction.OpenMediaDetails(item)) }
+                    )
                 }
             }
         }
-        }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Online Media Card & Reusable Media Card
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun OnlineMediaResultCard(
@@ -436,9 +525,7 @@ fun OnlineMediaResultCard(
             .fillMaxWidth()
             .clickable { onAddClick() },
         shape = RoundedCornerShape(dims.buttonCornerRadius),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
         Row(
@@ -447,7 +534,6 @@ fun OnlineMediaResultCard(
                 .padding(dims.cardInnerPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Poster thumbnail
             Box(
                 modifier = Modifier
                     .size(width = 65.dp, height = 95.dp)
@@ -477,13 +563,11 @@ fun OnlineMediaResultCard(
 
             Spacer(modifier = Modifier.width(dims.itemSpacingLarge))
 
-            // Details Column
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(vertical = 2.dp)
             ) {
-                // Title
                 Text(
                     text = item.displayTitle,
                     style = MaterialTheme.typography.titleSmall,
@@ -495,12 +579,10 @@ fun OnlineMediaResultCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Badges Row: Type + Year + Rating
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Type Badge
                     Surface(
                         color = if (isMovie) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                         shape = RoundedCornerShape(4.dp)
@@ -546,7 +628,6 @@ fun OnlineMediaResultCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Add Button
                 FilledTonalButton(
                     onClick = onAddClick,
                     shape = RoundedCornerShape(dims.buttonCornerRadius),
@@ -570,30 +651,9 @@ fun OnlineMediaResultCard(
     }
 }
 
-@Composable
-fun FilterChipView(label: String, isSelected: Boolean, onClick: () -> Unit) {
-    val dims = Dimens.current
-    val containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .background(containerColor, RoundedCornerShape(50))
-            .clickable { onClick() }
-            .padding(horizontal = dims.itemSpacingLarge, vertical = dims.itemSpacingSmall + 2.dp)
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = contentColor
-        )
-    }
-}
 
 @Composable
-fun MediaCard(item: MediaShowDto, gridSpan: Int) {
+fun MediaCard(item: MediaShowDto, gridSpan: Int, onClick: () -> Unit = {}) {
     val dims = Dimens.current
     val height = when (gridSpan) {
         2 -> dims.mediaCardHeight2Col
@@ -611,6 +671,7 @@ fun MediaCard(item: MediaShowDto, gridSpan: Int) {
             .height(height)
             .clip(RoundedCornerShape(dims.buttonCornerRadius - 2.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() }
     ) {
         if (imageUrl.isNotEmpty()) {
             AsyncImage(
@@ -633,7 +694,7 @@ fun MediaCard(item: MediaShowDto, gridSpan: Int) {
             }
         }
 
-        // Gradient overlay for bottom text readability
+        // Gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxSize()
